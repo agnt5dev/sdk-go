@@ -1,0 +1,349 @@
+package agnt5
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+)
+
+func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchComponentRequest) []*pb.ServiceMessage {
+	invocation := invocationFromDispatch(req)
+	startedAt := time.Now()
+	startedAtNS := startedAt.UnixNano()
+	runCorrelationID := newCorrelationID("run")
+	componentCorrelationID := newCorrelationID(string(invocation.ComponentType))
+	metadata := w.invocationMetadata(invocation)
+
+	if err := w.writeRunStarted(ctx, invocation, metadata, runCorrelationID, startedAtNS); err != nil {
+		return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+	}
+	if err := w.writeComponentStarted(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, startedAtNS); err != nil {
+		return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+	}
+
+	result, invokeErr := w.invoke(ctx, invocation)
+	durationMS := time.Since(startedAt).Milliseconds()
+	messages, eventsErr := w.flushInvocationEvents(ctx, invocation, result.Events, metadata, componentCorrelationID)
+	if invokeErr == nil && eventsErr != nil {
+		invokeErr = eventsErr
+	}
+	if invokeErr != nil {
+		_ = w.writeComponentFailed(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, durationMS, invokeErr)
+		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, invokeErr)))
+		return messages
+	}
+	if err := w.writeComponentCompleted(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, durationMS, result); err != nil {
+		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, err)))
+		return messages
+	}
+	messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, nil)))
+	return messages
+}
+
+func (w *Worker) dispatchServiceMessageFromResponse(response *pb.DispatchComponentResponse) *pb.ServiceMessage {
+	return &pb.ServiceMessage{
+		WorkerId: w.workerID,
+		Metadata: map[string]string{},
+		MessageType: &pb.ServiceMessage_FunctionResponse{
+			FunctionResponse: response,
+		},
+	}
+}
+
+func invocationFromDispatch(req *pb.DispatchComponentRequest) Invocation {
+	invocationID := req.GetInvocationId()
+	return Invocation{
+		ID:             invocationID,
+		RunID:          runIDFromInvocationID(invocationID),
+		ComponentName:  req.GetComponentName(),
+		ComponentType:  componentTypeFromProto(req.GetComponentType()),
+		Input:          cloneBytes(req.GetInputData()),
+		Attempt:        int(req.GetAttempt()),
+		Metadata:       cloneStringMap(req.GetMetadata()),
+		LeaseID:        req.GetLeaseId(),
+		IsStreaming:    req.GetIsStreaming(),
+		StreamFallback: true,
+	}
+}
+
+func dispatchResponseFromResult(req *pb.DispatchComponentRequest, result InvocationResult, invokeErr error) *pb.DispatchComponentResponse {
+	metadata := cloneStringMap(req.GetMetadata())
+	for key, value := range result.Metadata {
+		metadata[key] = value
+	}
+	leaseID := result.LeaseID
+	if leaseID == "" {
+		leaseID = req.GetLeaseId()
+	}
+	response := &pb.DispatchComponentResponse{
+		InvocationId: req.GetInvocationId(),
+		Metadata:     metadata,
+		Attempt:      req.GetAttempt(),
+		LeaseId:      leaseID,
+	}
+	if invokeErr != nil {
+		response.Success = false
+		response.ErrorMessage = invokeErr.Error()
+		response.EventType = "run.failed"
+		return response
+	}
+	response.Success = true
+	response.Result = &pb.DispatchComponentResponse_OutputData{
+		OutputData: cloneBytes(result.Output),
+	}
+	response.EventType = "run.completed"
+	return response
+}
+
+func (w *Worker) invocationMetadata(inv Invocation) map[string]string {
+	metadata := cloneStringMap(w.metadata)
+	for key, value := range inv.Metadata {
+		metadata[key] = value
+	}
+	if w.projectID != "" {
+		metadata["project_id"] = w.projectID
+		metadata[envProjectID] = w.projectID
+	}
+	if projectID := canonicalProjectID(metadata); projectID != "" {
+		metadata = withCanonicalProjectMetadata(metadata, projectID)
+	}
+	if w.deploymentID != "" {
+		metadata["deployment_id"] = w.deploymentID
+		metadata[envDeploymentID] = w.deploymentID
+	}
+	metadata["worker_id"] = w.workerID
+	metadata["service_name"] = w.serviceName
+	metadata["component_name"] = inv.ComponentName
+	if inv.ComponentType != "" {
+		metadata["component_type"] = string(inv.ComponentType)
+	}
+	metadata["attempt"] = fmt.Sprintf("%d", inv.Attempt)
+	if inv.LeaseID != "" {
+		metadata["lease_id"] = inv.LeaseID
+	}
+	return metadata
+}
+
+func (w *Worker) writeRunStarted(ctx context.Context, inv Invocation, metadata map[string]string, correlationID string, timestampNS int64) error {
+	eventType := "run.started"
+	return w.writeEvent(ctx, journalEvent{
+		RunID:               inv.RunID,
+		EventType:           eventType,
+		CorrelationID:       correlationID,
+		ParentCorrelationID: "",
+		SourceTimestampNS:   timestampNS,
+		Metadata:            metadata,
+		Data: lifecycleEventData(eventType, inv.ComponentName, ComponentTypeRun, timestampNS, map[string]any{
+			"correlation_id":        correlationID,
+			"parent_correlation_id": "",
+			"input_data":            jsonValueFromBytes(inv.Input),
+			"input_type":            "json",
+			"attempt":               inv.Attempt,
+		}),
+	})
+}
+
+func (w *Worker) writeComponentStarted(ctx context.Context, inv Invocation, metadata map[string]string, correlationID, parentCorrelationID string, timestampNS int64) error {
+	componentType := lifecycleComponentType(inv.ComponentType)
+	eventType := lifecycleEventType(componentType, "started")
+	return w.writeEvent(ctx, journalEvent{
+		RunID:               inv.RunID,
+		EventType:           eventType,
+		CorrelationID:       correlationID,
+		ParentCorrelationID: parentCorrelationID,
+		SourceTimestampNS:   timestampNS,
+		Metadata:            metadata,
+		Data: lifecycleEventData(eventType, inv.ComponentName, componentType, timestampNS, map[string]any{
+			"correlation_id":        correlationID,
+			"parent_correlation_id": parentCorrelationID,
+			"input_data":            jsonValueFromBytes(inv.Input),
+			"input_type":            "json",
+			"attempt":               inv.Attempt,
+		}),
+	})
+}
+
+func (w *Worker) writeComponentCompleted(ctx context.Context, inv Invocation, metadata map[string]string, correlationID, parentCorrelationID string, durationMS int64, result InvocationResult) error {
+	componentType := lifecycleComponentType(inv.ComponentType)
+	eventType := lifecycleEventType(componentType, "completed")
+	timestampNS := nowUnixNS()
+	eventMetadata := cloneStringMap(metadata)
+	for key, value := range result.Metadata {
+		eventMetadata[key] = value
+	}
+	return w.writeEvent(ctx, journalEvent{
+		RunID:               inv.RunID,
+		EventType:           eventType,
+		CorrelationID:       correlationID,
+		ParentCorrelationID: parentCorrelationID,
+		SourceTimestampNS:   timestampNS,
+		Metadata:            eventMetadata,
+		Data: lifecycleEventData(eventType, inv.ComponentName, componentType, timestampNS, map[string]any{
+			"correlation_id":        correlationID,
+			"parent_correlation_id": parentCorrelationID,
+			"output_data":           jsonValueFromBytes(result.Output),
+			"output_type":           "json",
+			"duration_ms":           durationMS,
+		}),
+	})
+}
+
+func (w *Worker) writeComponentFailed(ctx context.Context, inv Invocation, metadata map[string]string, correlationID, parentCorrelationID string, durationMS int64, invokeErr error) error {
+	componentType := lifecycleComponentType(inv.ComponentType)
+	eventType := lifecycleEventType(componentType, "failed")
+	timestampNS := nowUnixNS()
+	return w.writeEvent(ctx, journalEvent{
+		RunID:               inv.RunID,
+		EventType:           eventType,
+		CorrelationID:       correlationID,
+		ParentCorrelationID: parentCorrelationID,
+		SourceTimestampNS:   timestampNS,
+		Metadata:            metadata,
+		Data: lifecycleEventData(eventType, inv.ComponentName, componentType, timestampNS, map[string]any{
+			"correlation_id":        correlationID,
+			"parent_correlation_id": parentCorrelationID,
+			"error_code":            "WORKER_EXECUTION_FAILED",
+			"error_message":         invokeErr.Error(),
+			"duration_ms":           durationMS,
+		}),
+	})
+}
+
+func (w *Worker) flushInvocationEvents(ctx context.Context, inv Invocation, events []Event, baseMetadata map[string]string, parentCorrelationID string) ([]*pb.ServiceMessage, error) {
+	messages := make([]*pb.ServiceMessage, 0, len(events))
+	durableEvents := make([]journalEvent, 0, len(events))
+	streamEvents := make([]streamEvent, 0, len(events))
+	for _, event := range events {
+		if event.RunID == "" {
+			event.RunID = inv.RunID
+		}
+		if event.SourceTimestampNS == 0 {
+			event.SourceTimestampNS = nowUnixNS()
+		}
+		metadata := cloneStringMap(baseMetadata)
+		for key, value := range event.Metadata {
+			metadata[key] = value
+		}
+		correlationID := event.CorrelationID
+		if correlationID == "" {
+			correlationID = newCorrelationID("event")
+		}
+		eventParentCorrelationID := event.ParentCorrelationID
+		if eventParentCorrelationID == "" {
+			eventParentCorrelationID = parentCorrelationID
+		}
+		if IsSSEOnlyEventType(event.Type) {
+			if inv.IsStreaming {
+				streamEvents = append(streamEvents, streamEvent{
+					RunID:             event.RunID,
+					EventType:         event.Type,
+					Data:              eventDataBytes(event.Data),
+					Metadata:          metadata,
+					TraceID:           correlationID,
+					SpanID:            eventParentCorrelationID,
+					ContentIndex:      event.ContentIndex,
+					Sequence:          event.Sequence,
+					Attempt:           int32(inv.Attempt),
+					SourceTimestampNS: event.SourceTimestampNS,
+					LeaseID:           inv.LeaseID,
+				})
+			}
+			continue
+		}
+		durableEvents = append(durableEvents, journalEvent{
+			RunID:               event.RunID,
+			EventType:           event.Type,
+			Data:                eventDataBytes(event.Data),
+			Metadata:            metadata,
+			CorrelationID:       correlationID,
+			ParentCorrelationID: eventParentCorrelationID,
+			SourceTimestampNS:   event.SourceTimestampNS,
+		})
+	}
+	if err := w.streamInvocationEvents(ctx, streamEvents); err != nil {
+		if !inv.StreamFallback {
+			return messages, err
+		}
+		messages = append(messages, w.dispatchMessagesFromStreamEvents(inv, streamEvents)...)
+	}
+	if err := w.writeEvents(ctx, durableEvents); err != nil {
+		return messages, err
+	}
+	return messages, nil
+}
+
+func (w *Worker) streamInvocationEvents(ctx context.Context, events []streamEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	streamer, ok := w.eventWriter.(eventStreamer)
+	if !ok || streamer == nil {
+		return ErrTransportNotImplemented
+	}
+	return streamer.StreamEvents(ctx, events)
+}
+
+func (w *Worker) dispatchMessagesFromStreamEvents(inv Invocation, events []streamEvent) []*pb.ServiceMessage {
+	messages := make([]*pb.ServiceMessage, 0, len(events))
+	for _, event := range events {
+		messages = append(messages, w.dispatchServiceMessageFromResponse(&pb.DispatchComponentResponse{
+			InvocationId:      inv.ID,
+			Success:           true,
+			Result:            &pb.DispatchComponentResponse_OutputData{OutputData: cloneBytes(event.Data)},
+			Metadata:          cloneStringMap(event.Metadata),
+			EventType:         event.EventType,
+			ContentIndex:      int32(event.ContentIndex),
+			Sequence:          event.Sequence,
+			Attempt:           event.Attempt,
+			SourceTimestampNs: event.SourceTimestampNS,
+			LeaseId:           event.LeaseID,
+		}))
+	}
+	return messages
+}
+
+func lifecycleComponentType(componentType ComponentType) ComponentType {
+	switch componentType {
+	case ComponentTypeWorkflow:
+		return ComponentTypeWorkflow
+	default:
+		return ComponentTypeFunction
+	}
+}
+
+func lifecycleEventType(componentType ComponentType, stage string) string {
+	if componentType == "" {
+		componentType = ComponentTypeFunction
+	}
+	return string(componentType) + "." + stage
+}
+
+func componentTypeFromProto(componentType pb.ComponentType) ComponentType {
+	switch componentType {
+	case pb.ComponentType_COMPONENT_TYPE_FUNCTION:
+		return ComponentTypeFunction
+	case pb.ComponentType_COMPONENT_TYPE_WORKFLOW:
+		return ComponentTypeWorkflow
+	default:
+		return ""
+	}
+}
+
+func runIDFromInvocationID(invocationID string) string {
+	if idx := strings.IndexByte(invocationID, ':'); idx > 0 {
+		return invocationID[:idx]
+	}
+	return invocationID
+}
+
+func cloneBytes(in []byte) []byte {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]byte, len(in))
+	copy(out, in)
+	return out
+}
