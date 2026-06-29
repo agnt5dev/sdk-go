@@ -88,6 +88,7 @@ func (r *Registry) Get(name string) (Component, bool) {
 	}
 	component.Config = cloneStringMap(component.Config)
 	component.Metadata = cloneStringMap(component.Metadata)
+	component.Triggers = cloneTriggers(component.Triggers)
 	return component, true
 }
 
@@ -99,6 +100,7 @@ func (r *Registry) List() []Component {
 	for _, component := range r.components {
 		component.Config = cloneStringMap(component.Config)
 		component.Metadata = cloneStringMap(component.Metadata)
+		component.Triggers = cloneTriggers(component.Triggers)
 		components = append(components, component)
 	}
 	sort.Slice(components, func(i, j int) bool {

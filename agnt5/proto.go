@@ -45,6 +45,7 @@ func protoComponentInfo(info ComponentInfo) *pb.ComponentInfo {
 		ComponentType: protoComponentType(info.Type),
 		Config:        cloneStringMap(info.Config),
 		Metadata:      cloneStringMap(info.Metadata),
+		Triggers:      protoTriggerSpecs(info.Triggers),
 	}
 	if value, ok := int32Config(info.Config, "max_attempts"); ok {
 		out.MaxAttempts = &value
@@ -60,6 +61,25 @@ func protoComponentInfo(info ComponentInfo) *pb.ComponentInfo {
 	}
 	if value, ok := float64Config(info.Config, "backoff_multiplier"); ok {
 		out.BackoffMultiplier = &value
+	}
+	return out
+}
+
+func protoTriggerSpecs(in []TriggerSpec) []*pb.TriggerSpec {
+	out := make([]*pb.TriggerSpec, 0, len(in))
+	for _, trigger := range in {
+		if trigger.TriggerType == "" {
+			continue
+		}
+		out = append(out, &pb.TriggerSpec{
+			TriggerId:        trigger.TriggerID,
+			TriggerType:      trigger.TriggerType,
+			EventName:        trigger.EventName,
+			FilterExpression: trigger.FilterExpression,
+			InputMapping:     trigger.InputMapping,
+			BatchWindowMs:    trigger.BatchWindowMS,
+			DelayExpression:  trigger.DelayExpression,
+		})
 	}
 	return out
 }
@@ -81,6 +101,16 @@ func protoComponentType(componentType ComponentType) pb.ComponentType {
 		return pb.ComponentType_COMPONENT_TYPE_FUNCTION
 	case ComponentTypeWorkflow:
 		return pb.ComponentType_COMPONENT_TYPE_WORKFLOW
+	case ComponentTypeAgent:
+		return pb.ComponentType_COMPONENT_TYPE_AGENT
+	case ComponentTypeTool:
+		return pb.ComponentType_COMPONENT_TYPE_TOOL
+	case ComponentTypeMCP:
+		return pb.ComponentType_COMPONENT_TYPE_MCP
+	case ComponentTypeEntity:
+		return pb.ComponentType_COMPONENT_TYPE_ENTITY
+	case ComponentTypeScorer:
+		return pb.ComponentType_COMPONENT_TYPE_SCORER
 	default:
 		return pb.ComponentType_COMPONENT_TYPE_UNSPECIFIED
 	}

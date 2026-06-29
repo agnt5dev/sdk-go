@@ -99,7 +99,10 @@ func TestRegisterOnceSendsServiceRegistration(t *testing.T) {
 	)
 	if err := RegisterWorkflow(worker, "alpha", func(*Context, map[string]string) (map[string]string, error) {
 		return map[string]string{"ok": "true"}, nil
-	}); err != nil {
+	},
+		WithCron("*/5 * * * *"),
+		WithTriggers(EventTrigger("user.created")),
+	); err != nil {
 		t.Fatal(err)
 	}
 	if err := RegisterFunction(worker, "zeta", func(*Context, map[string]string) (map[string]string, error) {
@@ -154,6 +157,15 @@ func TestRegisterOnceSendsServiceRegistration(t *testing.T) {
 	if components[0].GetName() != "alpha" ||
 		components[0].GetComponentType() != pb.ComponentType_COMPONENT_TYPE_WORKFLOW {
 		t.Fatalf("first component: %#v", components[0])
+	}
+	if components[0].GetMetadata()["cron"] != "*/5 * * * *" {
+		t.Fatalf("workflow cron metadata: %#v", components[0].GetMetadata())
+	}
+	triggers := components[0].GetTriggers()
+	if len(triggers) != 1 ||
+		triggers[0].GetTriggerType() != "event" ||
+		triggers[0].GetEventName() != "user.created" {
+		t.Fatalf("workflow triggers: %#v", triggers)
 	}
 	if components[1].GetName() != "zeta" ||
 		components[1].GetComponentType() != pb.ComponentType_COMPONENT_TYPE_FUNCTION {

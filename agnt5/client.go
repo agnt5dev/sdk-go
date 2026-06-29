@@ -623,6 +623,9 @@ func (c *Client) Stream(ctx context.Context, component string, input any, handle
 	}
 	return c.StreamEvents(ctx, component, input, func(event ReceivedEvent) error {
 		if event.EventType == "output.delta" {
+			if value, ok := event.Data["delta"].(string); ok {
+				return handle(value)
+			}
 			if value, ok := event.Data["content"].(string); ok {
 				return handle(value)
 			}
@@ -827,6 +830,14 @@ func componentCollection(componentType ComponentType) string {
 		return "agents"
 	case ComponentTypeTool:
 		return "tools"
+	case ComponentTypeScorer:
+		return "scorers"
+	case ComponentTypeMCP:
+		return "mcp"
+	case ComponentTypeEntity:
+		return "entity"
+	case ComponentTypeChat:
+		return "chat"
 	default:
 		value := strings.TrimSpace(string(componentType))
 		if strings.HasSuffix(value, "s") {

@@ -2,6 +2,8 @@ package agnt5
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -29,6 +31,10 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 	messages, eventsErr := w.flushInvocationEvents(ctx, invocation, result.Events, metadata, componentCorrelationID)
 	if invokeErr == nil && eventsErr != nil {
 		invokeErr = eventsErr
+	}
+	if IsWaitingForUserInput(invokeErr) {
+		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchPausedResponse(req, result, invokeErr)))
+		return messages
 	}
 	if invokeErr != nil {
 		_ = w.writeComponentFailed(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, durationMS, invokeErr)
@@ -96,6 +102,47 @@ func dispatchResponseFromResult(req *pb.DispatchComponentRequest, result Invocat
 	}
 	response.EventType = "run.completed"
 	return response
+}
+
+func dispatchPausedResponse(req *pb.DispatchComponentRequest, result InvocationResult, pauseErr error) *pb.DispatchComponentResponse {
+	metadata := cloneStringMap(req.GetMetadata())
+	for key, value := range result.Metadata {
+		metadata[key] = value
+	}
+	for _, event := range result.Events {
+		if event.Type != "workflow.paused" {
+			continue
+		}
+		for key, value := range event.Metadata {
+			metadata[key] = value
+		}
+		break
+	}
+	leaseID := result.LeaseID
+	if leaseID == "" {
+		leaseID = req.GetLeaseId()
+	}
+	output := map[string]any{"_paused": true}
+	var target *WaitingForUserInputError
+	if errors.As(pauseErr, &target) {
+		output["question"] = target.Request.Prompt
+		if value := metadata["pause_index"]; value != "" {
+			output["pause_index"] = value
+		}
+	}
+	payload, _ := json.Marshal(output)
+	return &pb.DispatchComponentResponse{
+		InvocationId: req.GetInvocationId(),
+		Success:      true,
+		Result: &pb.DispatchComponentResponse_OutputData{
+			OutputData: payload,
+		},
+		ErrorMessage: "",
+		Metadata:     metadata,
+		EventType:    "workflow.paused",
+		Attempt:      req.GetAttempt(),
+		LeaseId:      leaseID,
+	}
 }
 
 func (w *Worker) invocationMetadata(inv Invocation) map[string]string {
@@ -307,6 +354,8 @@ func (w *Worker) dispatchMessagesFromStreamEvents(inv Invocation, events []strea
 
 func lifecycleComponentType(componentType ComponentType) ComponentType {
 	switch componentType {
+	case ComponentTypeAgent, ComponentTypeMCP, ComponentTypeScorer, ComponentTypeTool:
+		return componentType
 	case ComponentTypeWorkflow:
 		return ComponentTypeWorkflow
 	default:
@@ -327,6 +376,16 @@ func componentTypeFromProto(componentType pb.ComponentType) ComponentType {
 		return ComponentTypeFunction
 	case pb.ComponentType_COMPONENT_TYPE_WORKFLOW:
 		return ComponentTypeWorkflow
+	case pb.ComponentType_COMPONENT_TYPE_AGENT:
+		return ComponentTypeAgent
+	case pb.ComponentType_COMPONENT_TYPE_TOOL:
+		return ComponentTypeTool
+	case pb.ComponentType_COMPONENT_TYPE_MCP:
+		return ComponentTypeMCP
+	case pb.ComponentType_COMPONENT_TYPE_ENTITY:
+		return ComponentTypeEntity
+	case pb.ComponentType_COMPONENT_TYPE_SCORER:
+		return ComponentTypeScorer
 	default:
 		return ""
 	}

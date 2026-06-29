@@ -34,6 +34,18 @@ func Step[T any](ctx *Context, name string, fn func(context.Context) (T, error))
 		Data: map[string]any{"name": name, "step_key": stepKey},
 	})
 
+	if payload, ok := ctx.completedStepPayload(stepKey); ok {
+		var cached T
+		if err := json.Unmarshal(payload, &cached); err != nil {
+			return zero, fmt.Errorf("agnt5: decode replayed step %q: %w", name, err)
+		}
+		_ = ctx.Emit(Event{
+			Type: "workflow.step.completed",
+			Data: map[string]any{"name": name, "step_key": stepKey, "cache_hit": true},
+		})
+		return cached, nil
+	}
+
 	if ctx.checkpointWriter != nil && ctx.projectID != "" {
 		started, err := ctx.checkpointWriter.Checkpoint(ctx, &pb.CheckpointRequest{
 			ProjectId: ctx.projectID,
@@ -57,6 +69,7 @@ func Step[T any](ctx *Context, name string, fn func(context.Context) (T, error))
 				Type: "workflow.step.completed",
 				Data: map[string]any{"name": name, "step_key": stepKey, "cache_hit": true},
 			})
+			ctx.recordCompletedStep(stepKey, started.GetCachedOutput())
 			return cached, nil
 		}
 	}
@@ -90,6 +103,7 @@ func Step[T any](ctx *Context, name string, fn func(context.Context) (T, error))
 	if marshalErr != nil {
 		return zero, fmt.Errorf("agnt5: encode step %q output: %w", name, marshalErr)
 	}
+	ctx.recordCompletedStep(stepKey, payload)
 	if ctx.checkpointWriter != nil && ctx.projectID != "" {
 		if _, err := ctx.checkpointWriter.Checkpoint(ctx, &pb.CheckpointRequest{
 			ProjectId: ctx.projectID,

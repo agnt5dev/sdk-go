@@ -59,6 +59,7 @@ type Worker struct {
 	grpcDialOptions     []grpc.DialOption
 	eventWriter         eventWriter
 	checkpointWriter    stepCheckpointWriter
+	stateStore          StateStore
 	maxReconnects       uint32
 	reconnectBackoff    time.Duration
 	reconnectBackoffMax time.Duration
@@ -280,6 +281,7 @@ func (w *Worker) configureRuntimeEventWriter(ctx context.Context) (func(), error
 	}
 	previousEventWriter := w.eventWriter
 	previousCheckpointWriter := w.checkpointWriter
+	previousStateStore := w.stateStore
 	writer := newEngineEventWriter(newEngineServiceClient(conn))
 	if w.eventWriter == nil {
 		w.eventWriter = writer
@@ -287,9 +289,13 @@ func (w *Worker) configureRuntimeEventWriter(ctx context.Context) (func(), error
 	if w.checkpointWriter == nil {
 		w.checkpointWriter = writer
 	}
+	if w.stateStore == nil {
+		w.stateStore = newEngineStateStore(writer.client, w.projectID)
+	}
 	return func() {
 		w.eventWriter = previousEventWriter
 		w.checkpointWriter = previousCheckpointWriter
+		w.stateStore = previousStateStore
 		_ = conn.Close()
 	}, nil
 }
@@ -300,6 +306,7 @@ func (w *Worker) configureEventWriterFromClient(client pb.EngineServiceClient) f
 	}
 	previousEventWriter := w.eventWriter
 	previousCheckpointWriter := w.checkpointWriter
+	previousStateStore := w.stateStore
 	writer := newEngineEventWriter(client)
 	if w.eventWriter == nil {
 		w.eventWriter = writer
@@ -307,9 +314,13 @@ func (w *Worker) configureEventWriterFromClient(client pb.EngineServiceClient) f
 	if w.checkpointWriter == nil {
 		w.checkpointWriter = writer
 	}
+	if w.stateStore == nil {
+		w.stateStore = newEngineStateStore(client, w.projectID)
+	}
 	return func() {
 		w.eventWriter = previousEventWriter
 		w.checkpointWriter = previousCheckpointWriter
+		w.stateStore = previousStateStore
 	}
 }
 
@@ -393,7 +404,7 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation) (result InvocationR
 	if inv.ComponentType != "" && inv.ComponentType != component.Type {
 		return InvocationResult{}, ErrComponentNotFound
 	}
-	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(w.invocationMetadata(inv)))
+	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(w.invocationMetadata(inv)), w.stateStore)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = InvocationResult{

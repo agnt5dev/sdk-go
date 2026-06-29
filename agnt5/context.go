@@ -15,22 +15,41 @@ type Context struct {
 	logger     *Logger
 	projectID  string
 
+	stateMu    sync.Mutex
+	stateStore StateStore
+	state      *StateManager
+	memory     *MemoryAccessor
+	sandbox    SandboxRunner
+
 	stepMu           sync.Mutex
 	stepCounts       map[string]int
+	completedSteps   map[string][]byte
 	checkpointWriter stepCheckpointWriter
+
+	hitlMu        sync.Mutex
+	pauseIndex    int
+	userResponses map[int]*string
 }
 
-func newContext(parent context.Context, inv Invocation, checkpointWriter stepCheckpointWriter, projectID string) *Context {
+func newContext(parent context.Context, inv Invocation, checkpointWriter stepCheckpointWriter, projectID string, stores ...StateStore) *Context {
 	if parent == nil {
 		parent = context.Background()
+	}
+	var stateStore StateStore
+	if len(stores) > 0 {
+		stateStore = stores[0]
 	}
 	ctx := &Context{
 		Context:          parent,
 		invocation:       inv,
 		projectID:        projectID,
+		stateStore:       stateStore,
 		stepCounts:       make(map[string]int),
+		completedSteps:   make(map[string][]byte),
+		userResponses:    make(map[int]*string),
 		checkpointWriter: checkpointWriter,
 	}
+	ctx.loadReplayMetadata(inv.Metadata)
 	ctx.logger = &Logger{ctx: ctx}
 	return ctx
 }
@@ -86,6 +105,46 @@ func (c *Context) IsStreaming() bool {
 // Logger returns the run-scoped logger.
 func (c *Context) Logger() *Logger {
 	return c.logger
+}
+
+// State returns a run-scoped state accessor. The default implementation is an
+// in-memory adapter so handlers can use the API before a runtime-backed adapter
+// is configured.
+func (c *Context) State() *StateManager {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	if c.state == nil {
+		c.state = NewStateManager(c.stateStore, StateScopeRun, c.RunID())
+	}
+	return c.state
+}
+
+// Memory returns a session/user-aware memory accessor backed by State.
+func (c *Context) Memory() *MemoryAccessor {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	if c.memory == nil {
+		c.memory = NewMemoryAccessor(c.stateStore, MemoryContext{
+			RunID:     c.RunID(),
+			SessionID: c.Metadata("session_id"),
+			UserID:    c.Metadata("user_id"),
+		})
+	}
+	return c.memory
+}
+
+// SetSandbox attaches a sandbox runner to the context.
+func (c *Context) SetSandbox(sandbox SandboxRunner) {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	c.sandbox = sandbox
+}
+
+// Sandbox returns the context sandbox runner, if one was attached.
+func (c *Context) Sandbox() SandboxRunner {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	return c.sandbox
 }
 
 // Emit records an event produced by the handler. Transport delivery lands in a

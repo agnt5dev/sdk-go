@@ -112,6 +112,13 @@ func WithMetadata(metadata map[string]string) WorkerOption {
 	}
 }
 
+// WithStateStore overrides the default run/session/user state backend.
+func WithStateStore(store StateStore) WorkerOption {
+	return func(w *Worker) {
+		w.stateStore = store
+	}
+}
+
 func withEventWriter(writer eventWriter) WorkerOption {
 	return func(w *Worker) {
 		w.eventWriter = writer

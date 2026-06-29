@@ -14,6 +14,7 @@ type Component struct {
 	Type     ComponentType
 	Config   map[string]string
 	Metadata map[string]string
+	Triggers []TriggerSpec
 
 	invoke rawInvoker
 }
@@ -28,6 +29,44 @@ func WithComponentMetadata(metadata map[string]string) ComponentOption {
 			c.Metadata[key] = value
 		}
 	}
+}
+
+// WithCron marks a workflow as scheduled with a cron expression.
+func WithCron(expression string) ComponentOption {
+	return func(c *Component) {
+		if strings.TrimSpace(expression) != "" {
+			c.Metadata["cron"] = strings.TrimSpace(expression)
+		}
+	}
+}
+
+// WithTriggers attaches runtime trigger declarations to a component.
+func WithTriggers(triggers ...TriggerSpec) ComponentOption {
+	return func(c *Component) {
+		for _, trigger := range triggers {
+			if strings.TrimSpace(trigger.TriggerType) == "" {
+				continue
+			}
+			c.Triggers = append(c.Triggers, trigger)
+		}
+	}
+}
+
+// EventTrigger declares an event trigger for a workflow.
+func EventTrigger(name string) TriggerSpec {
+	return TriggerSpec{TriggerType: "event", EventName: strings.TrimSpace(name)}
+}
+
+// WebhookTrigger declares a webhook event trigger. Runtime webhooks dispatch as
+// "{source}.{event}", matching Python and TypeScript SDK helpers.
+func WebhookTrigger(source, event string) TriggerSpec {
+	source = strings.TrimSpace(strings.ToLower(source))
+	event = strings.TrimSpace(event)
+	name := event
+	if source != "" && event != "" {
+		name = source + "." + event
+	}
+	return EventTrigger(name)
 }
 
 // WithComponentConfig adds config values to a component registration.
@@ -78,6 +117,7 @@ func newComponent(name string, componentType ComponentType, invoker rawInvoker, 
 		Type:     componentType,
 		Config:   make(map[string]string),
 		Metadata: make(map[string]string),
+		Triggers: nil,
 		invoke:   invoker,
 	}
 	for _, opt := range opts {
@@ -95,7 +135,17 @@ func (c Component) Info() ComponentInfo {
 		Type:     c.Type,
 		Config:   cloneStringMap(c.Config),
 		Metadata: cloneStringMap(c.Metadata),
+		Triggers: cloneTriggers(c.Triggers),
 	}
+}
+
+func cloneTriggers(in []TriggerSpec) []TriggerSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]TriggerSpec, len(in))
+	copy(out, in)
+	return out
 }
 
 func typedInvoker[In any, Out any](handler func(*Context, In) (Out, error)) rawInvoker {

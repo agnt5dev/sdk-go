@@ -9,6 +9,10 @@ const (
 	ComponentTypeWorkflow ComponentType = "workflow"
 	ComponentTypeAgent    ComponentType = "agent"
 	ComponentTypeTool     ComponentType = "tool"
+	ComponentTypeMCP      ComponentType = "mcp"
+	ComponentTypeEntity   ComponentType = "entity"
+	ComponentTypeScorer   ComponentType = "scorer"
+	ComponentTypeChat     ComponentType = "chat"
 )
 
 // WorkerMode controls how the worker receives assignments from the runtime.
@@ -41,6 +45,17 @@ type InvocationResult struct {
 	Events   []Event
 }
 
+// TriggerSpec declares a runtime trigger attached to a component registration.
+type TriggerSpec struct {
+	TriggerID        string `json:"trigger_id,omitempty"`
+	TriggerType      string `json:"trigger_type"`
+	EventName        string `json:"event_name,omitempty"`
+	FilterExpression string `json:"filter_expression,omitempty"`
+	InputMapping     string `json:"input_mapping,omitempty"`
+	BatchWindowMS    int64  `json:"batch_window_ms,omitempty"`
+	DelayExpression  string `json:"delay_expression,omitempty"`
+}
+
 // ComponentInfo is the SDK-local registration descriptor. Transport adapters
 // convert this shape to the runtime protobuf ComponentInfo.
 type ComponentInfo struct {
@@ -48,4 +63,5 @@ type ComponentInfo struct {
 	Type     ComponentType
 	Config   map[string]string
 	Metadata map[string]string
+	Triggers []TriggerSpec
 }

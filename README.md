@@ -1,6 +1,7 @@
 # AGNT5 Go SDK
 
-Status: early SDK scaffold: worker MVP plus core gateway client.
+Status: worker MVP, core gateway client, and broad application-surface parity
+APIs for the Go kitchen-sink template.
 
 This package is the Go SDK for AGNT5 durable workers. The current slice provides
 the public worker, registry, context, logging, event-classification, and typed
@@ -20,7 +21,21 @@ checkpoint API for durable step start/completion/failure records and memoized
 output replay. The package also includes a first gateway `Client` for deployed
 component calls: `Run`, `Submit`, `GetStatus`, `GetResult`, `WaitForResult`,
 `GetEvents`, `Stream`, `StreamEvents`, `Batch`, `BatchStream`,
-`GetBatchStatus`, and `CancelBatch`.
+`GetBatchStatus`, `CancelBatch`, and `CancelRun`. The current parity layer adds
+scoped state/memory helpers, tools, HITL request errors, MCP client types,
+provider-neutral LLM interfaces, agents, scorers/evals, sandbox interfaces,
+chat helpers, workflow/session client proxies, and chat/eval client wrappers.
+The LLM layer includes OpenAI-compatible and Anthropic adapters, and the agent
+layer supports bounded model/tool loops, local tool execution, handoffs, and an
+agent registry/manager. When the worker has a direct engine client,
+state/session memory uses the engine state API; otherwise it falls back to
+in-memory state for local tests and examples. HITL pauses emit
+`workflow.paused`, `Client.ResumeWorkflow` targets the gateway resume endpoint,
+and push fire-and-forget handling treats paused workflows as terminal until
+resumed. MCP includes static, stdio, and HTTP/SSE transports. Sandbox includes
+the deterministic in-memory provider plus `HTTPSandbox` for a runtime-backed
+sandbox endpoint, with sandbox operation events emitted through the handler
+context.
 
 ## Current Example Shape
 
@@ -148,8 +163,9 @@ log.Println(output.Message)
 ```
 
 For async work, call `Submit`, poll with `GetStatus`, then read the terminal
-payload with `GetResult` or `WaitForResult`. `GetEvents` returns journal
-records for a run; `Stream` and `StreamEvents` consume the gateway SSE endpoint.
+payload with `GetResult` or `WaitForResult`. `CancelRun` requests gateway
+cancellation for an in-flight run. `GetEvents` returns journal records for a
+run; `Stream` and `StreamEvents` consume the gateway SSE endpoint.
 
 For batch work, call `Batch` with either plain inputs or `BatchItemInput`
 values:
@@ -209,9 +225,10 @@ serializable because memoized outputs are stored and decoded as JSON.
 
 ## Current Limits
 
-- The Go SDK is focused on workers and the core gateway invocation client.
-  Python parity gaps still include eval helpers, entity/session proxies, agents,
-  MCP, memory, sandbox APIs, and native model/provider wrappers.
+- The Go SDK now has concrete APIs and kitchen-sink coverage for the main
+  Python/TypeScript application surfaces. Remaining parity work is narrower:
+  richer agent callbacks and skills/AGENTS.md discovery, and semantic/vector
+  memory beyond the state-backed memory helpers.
 - The public module path is `agnt5.dev/sdk-go`, but the vanity import endpoint
   must be configured before external users can `go get` it. The intended
   release shape is a dedicated module-root repository tagged with plain
@@ -223,6 +240,12 @@ serializable because memoized outputs are stored and decoded as JSON.
 - Pull streaming requires the runtime to mark the job with `is_streaming=true`
   or `stream_mode=full`; SSE-only logs and output deltas then use Engine
   `EventStream`.
+- Live Go kitchen-sink conformance is wired into
+  `.github/workflows/sdk-go-tests.yml` as a manual `workflow_dispatch` job. It
+  requires a running Go kitchen-sink worker plus `AGNT5_GO_*` repository
+  secrets. The contract covers cancellation, `/stream` SSE output ordering,
+  batch submit plus per-item result polling, and pull-mode metadata when the
+  manual `include-pull-mode` input is enabled.
 
 ## Verification
 
@@ -230,3 +253,14 @@ serializable because memoized outputs are stored and decoded as JSON.
 cd sdk/sdk-go
 GOCACHE=/private/tmp/agnt5-go-cache GOTOOLCHAIN=local go test ./...
 ```
+
+The shared conformance harness lives under `sdk/conformance`. Run its unit tests
+from the repository root:
+
+```bash
+python3 -m unittest discover -s sdk/conformance -p '*_test.py'
+```
+
+When a runtime and the Go kitchen-sink worker are running, use
+`sdk/conformance/kitchen-sink-go-mvp.json` with
+`sdk/conformance/run_kitchen_sink_contract.py` for live parity checks.
