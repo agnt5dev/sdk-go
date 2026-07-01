@@ -56,6 +56,10 @@ type Agent struct {
 	Tools        []Tool
 	Handoffs     []Handoff
 	MaxTurns     int
+	Cache        *PromptCache
+	// Deprecated compatibility aliases. Prefer Cache.
+	CacheControl bool
+	CacheTTL     string
 }
 
 // AgentOption mutates Agent construction.
@@ -82,6 +86,32 @@ func WithAgentMaxTurns(maxTurns int) AgentOption {
 		if maxTurns > 0 {
 			a.MaxTurns = maxTurns
 		}
+	}
+}
+
+func WithAgentCacheControl(enabled bool, ttl string) AgentOption {
+	return func(a *Agent) {
+		a.CacheControl = enabled
+		a.CacheTTL = ttl
+		a.Cache = &PromptCache{Enabled: enabled || strings.TrimSpace(ttl) != "", TTL: ttl}
+	}
+}
+
+func WithAgentPromptCache(cache *PromptCache) AgentOption {
+	return func(a *Agent) {
+		if cache == nil {
+			a.Cache = nil
+			a.CacheControl = false
+			a.CacheTTL = ""
+			return
+		}
+		copied := *cache
+		if copied.TTL != "" || copied.Key != "" || copied.Retention != "" || copied.Resource != "" {
+			copied.Enabled = true
+		}
+		a.Cache = &copied
+		a.CacheControl = copied.Enabled
+		a.CacheTTL = copied.TTL
 	}
 }
 
@@ -181,7 +211,11 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 			"iteration":  iteration,
 		}})
 
-		resp, err := ctx.Generate(a.Model, GenerateRequest{Messages: messages, Tools: tools})
+		resp, err := ctx.Generate(a.Model, GenerateRequest{
+			Messages: messages,
+			Tools:    tools,
+			Cache:    a.Cache,
+		})
 		if err != nil {
 			_ = ctx.Emit(Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
 			return AgentResult{}, err

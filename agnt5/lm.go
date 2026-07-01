@@ -42,19 +42,47 @@ type ToolCall struct {
 
 // GenerateRequest is a provider-neutral model request.
 type GenerateRequest struct {
-	Model       string         `json:"model,omitempty"`
-	Messages    []Message      `json:"messages"`
-	Tools       []Tool         `json:"tools,omitempty"`
-	Temperature *float64       `json:"temperature,omitempty"`
-	MaxTokens   *int           `json:"max_tokens,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	Model       string       `json:"model,omitempty"`
+	Messages    []Message    `json:"messages"`
+	Tools       []Tool       `json:"tools,omitempty"`
+	Temperature *float64     `json:"temperature,omitempty"`
+	MaxTokens   *int         `json:"max_tokens,omitempty"`
+	Cache       *PromptCache `json:"cache,omitempty"`
+	// Deprecated compatibility aliases. Prefer Cache.
+	CacheControl        bool           `json:"cache_control,omitempty"`
+	CacheTTL            string         `json:"cache_ttl,omitempty"`
+	GoogleCachedContent string         `json:"google_cached_content,omitempty"`
+	Metadata            map[string]any `json:"metadata,omitempty"`
+}
+
+// PromptCache is a provider-neutral prompt-cache policy.
+type PromptCache struct {
+	Enabled   bool   `json:"enabled,omitempty"`
+	TTL       string `json:"ttl,omitempty"`
+	Key       string `json:"key,omitempty"`
+	Retention string `json:"retention,omitempty"`
+	Resource  string `json:"resource,omitempty"`
+}
+
+func EnablePromptCache() *PromptCache {
+	return &PromptCache{Enabled: true}
+}
+
+func PromptCacheWithTTL(ttl string) *PromptCache {
+	return &PromptCache{Enabled: true, TTL: ttl}
+}
+
+func PromptCacheResource(name string) *PromptCache {
+	return &PromptCache{Enabled: true, Resource: name}
 }
 
 // TokenUsage captures provider token accounting.
 type TokenUsage struct {
-	InputTokens  int `json:"input_tokens,omitempty"`
-	OutputTokens int `json:"output_tokens,omitempty"`
-	TotalTokens  int `json:"total_tokens,omitempty"`
+	InputTokens         int `json:"input_tokens,omitempty"`
+	OutputTokens        int `json:"output_tokens,omitempty"`
+	TotalTokens         int `json:"total_tokens,omitempty"`
+	CachedTokens        int `json:"cached_tokens,omitempty"`
+	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
 }
 
 // GenerateResponse is a provider-neutral model response.
@@ -71,6 +99,24 @@ type GenerateResponse struct {
 // LanguageModel is the provider boundary used by Agent and direct LLM helpers.
 type LanguageModel interface {
 	Generate(ctx context.Context, request GenerateRequest) (GenerateResponse, error)
+}
+
+func (r GenerateRequest) promptCache() *PromptCache {
+	if r.Cache != nil {
+		cache := *r.Cache
+		if cache.TTL != "" || cache.Key != "" || cache.Retention != "" || cache.Resource != "" {
+			cache.Enabled = true
+		}
+		return &cache
+	}
+	if r.CacheControl || r.CacheTTL != "" || r.GoogleCachedContent != "" {
+		return &PromptCache{
+			Enabled:  r.CacheControl || r.CacheTTL != "" || r.GoogleCachedContent != "",
+			TTL:      r.CacheTTL,
+			Resource: r.GoogleCachedContent,
+		}
+	}
+	return nil
 }
 
 // StaticModel is a deterministic model useful for tests and examples.
@@ -162,6 +208,12 @@ func (m *OpenAIModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 	if request.MaxTokens != nil {
 		payload["max_tokens"] = *request.MaxTokens
 	}
+	if cache := request.promptCache(); cache != nil && strings.TrimSpace(cache.Resource) != "" {
+		return GenerateResponse{}, errors.New("agnt5: explicit context caches are only supported for Google Gemini")
+	}
+	// OpenAI-compatible chat completions expose prompt cache hits in usage,
+	// but provider-specific key/retention hints are only sent by the
+	// Responses API adapters in the Rust-backed SDKs.
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return GenerateResponse{}, err
@@ -273,6 +325,17 @@ func (m *AnthropicModel) Generate(ctx context.Context, request GenerateRequest) 
 	if system := firstSystemMessage(request.Messages); system != "" {
 		payload["system"] = system
 	}
+	cache := request.promptCache()
+	if cache != nil && strings.TrimSpace(cache.Resource) != "" {
+		return GenerateResponse{}, errors.New("agnt5: explicit context caches are only supported for Google Gemini")
+	}
+	if cache != nil && (cache.Enabled || strings.TrimSpace(cache.TTL) != "") {
+		cacheControl := map[string]any{"type": "ephemeral"}
+		if ttl := strings.TrimSpace(cache.TTL); ttl != "" {
+			cacheControl["ttl"] = ttl
+		}
+		payload["cache_control"] = cacheControl
+	}
 	if len(request.Tools) > 0 {
 		payload["tools"] = anthropicTools(request.Tools)
 	}
@@ -318,6 +381,179 @@ func (m *AnthropicModel) Generate(ctx context.Context, request GenerateRequest) 
 		ToolCalls:    toolCalls,
 		Metadata:     decoded,
 	}, nil
+}
+
+// GoogleConfig configures Google Gemini API access.
+type GoogleConfig struct {
+	BaseURL    string
+	APIKey     string
+	Model      string
+	Version    string
+	HTTPClient *http.Client
+}
+
+// GoogleModel is a minimal Gemini LanguageModel.
+type GoogleModel struct {
+	config GoogleConfig
+}
+
+func NewGoogleModel(config GoogleConfig) *GoogleModel {
+	if config.BaseURL == "" {
+		config.BaseURL = "https://generativelanguage.googleapis.com"
+	}
+	if config.Version == "" {
+		config.Version = "v1beta"
+	}
+	if config.HTTPClient == nil {
+		config.HTTPClient = &http.Client{Timeout: 60 * time.Second}
+	}
+	return &GoogleModel{config: config}
+}
+
+func NewGeminiModel(config GoogleConfig) *GoogleModel {
+	return NewGoogleModel(config)
+}
+
+func (m *GoogleModel) Generate(ctx context.Context, request GenerateRequest) (GenerateResponse, error) {
+	if m == nil {
+		return GenerateResponse{}, errors.New("agnt5: nil model")
+	}
+	model := request.Model
+	if model == "" {
+		model = m.config.Model
+	}
+	model = normalizeGoogleModel(model)
+	if model == "" {
+		return GenerateResponse{}, errors.New("agnt5: model is required")
+	}
+	payload := map[string]any{
+		"contents": googleContents(request.Messages),
+	}
+	if system := firstSystemMessage(request.Messages); system != "" {
+		payload["systemInstruction"] = googleContent("", system)
+	}
+	if cache := request.promptCache(); cache != nil && strings.TrimSpace(cache.Resource) != "" {
+		payload["cachedContent"] = strings.TrimSpace(cache.Resource)
+	}
+	generationConfig := map[string]any{}
+	if request.Temperature != nil {
+		generationConfig["temperature"] = *request.Temperature
+	}
+	if request.MaxTokens != nil {
+		generationConfig["maxOutputTokens"] = *request.MaxTokens
+	}
+	if len(generationConfig) > 0 {
+		payload["generationConfig"] = generationConfig
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return GenerateResponse{}, err
+	}
+	endpoint := strings.TrimRight(m.config.BaseURL, "/") + "/" + strings.Trim(m.config.Version, "/") + "/models/" + url.PathEscape(model) + ":generateContent?key=" + url.QueryEscape(m.config.APIKey)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return GenerateResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := m.config.HTTPClient.Do(req)
+	if err != nil {
+		return GenerateResponse{}, err
+	}
+	defer resp.Body.Close()
+	var decoded map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return GenerateResponse{}, err
+	}
+	if resp.StatusCode >= 400 {
+		return GenerateResponse{}, errors.New("agnt5: google provider returned HTTP " + intString(resp.StatusCode))
+	}
+	content, finishReason := parseGoogleContent(decoded["candidates"])
+	return GenerateResponse{
+		ID:           firstString(decoded, "id"),
+		Model:        model,
+		Content:      content,
+		Usage:        parseGoogleUsage(decoded["usageMetadata"]),
+		FinishReason: finishReason,
+		Metadata:     decoded,
+	}, nil
+}
+
+func (m *GoogleModel) CreateCachedContent(ctx context.Context, model string, system string, contents []string, ttlSeconds int) (string, error) {
+	if m == nil {
+		return "", errors.New("agnt5: nil model")
+	}
+	model = normalizeGoogleModel(model)
+	if model == "" {
+		model = normalizeGoogleModel(m.config.Model)
+	}
+	if model == "" {
+		return "", errors.New("agnt5: model is required")
+	}
+	cacheContents := googleTextContents(contents)
+	if len(cacheContents) == 0 {
+		return "", errors.New("agnt5: cache contents are required")
+	}
+	payload := map[string]any{
+		"model":    "models/" + model,
+		"contents": cacheContents,
+	}
+	if strings.TrimSpace(system) != "" {
+		payload["systemInstruction"] = googleContent("", system)
+	}
+	if ttlSeconds > 0 {
+		payload["ttl"] = intString(ttlSeconds) + "s"
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	endpoint := strings.TrimRight(m.config.BaseURL, "/") + "/" + strings.Trim(m.config.Version, "/") + "/cachedContents?key=" + url.QueryEscape(m.config.APIKey)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := m.config.HTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var decoded map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return "", err
+	}
+	if resp.StatusCode >= 400 {
+		return "", errors.New("agnt5: google cache create returned HTTP " + intString(resp.StatusCode))
+	}
+	name, _ := decoded["name"].(string)
+	if name == "" {
+		return "", errors.New("agnt5: google cache create response missing name")
+	}
+	return name, nil
+}
+
+func (m *GoogleModel) DeleteCachedContent(ctx context.Context, name string) error {
+	if m == nil {
+		return errors.New("agnt5: nil model")
+	}
+	name = strings.TrimLeft(strings.TrimSpace(name), "/")
+	if name == "" {
+		return errors.New("agnt5: cache name is required")
+	}
+	endpoint := strings.TrimRight(m.config.BaseURL, "/") + "/" + strings.Trim(m.config.Version, "/") + "/" + name + "?key=" + url.QueryEscape(m.config.APIKey)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := m.config.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return errors.New("agnt5: google cache delete returned HTTP " + intString(resp.StatusCode))
+	}
+	return nil
 }
 
 type AzureOpenAIConfig struct {
@@ -512,10 +748,15 @@ func parseToolArguments(value any) map[string]any {
 
 func parseOpenAIUsage(value any) TokenUsage {
 	usage, _ := value.(map[string]any)
+	cachedTokens := 0
+	if details, ok := usage["prompt_tokens_details"].(map[string]any); ok {
+		cachedTokens = intFromAny(details["cached_tokens"])
+	}
 	return TokenUsage{
 		InputTokens:  intFromAny(usage["prompt_tokens"]),
 		OutputTokens: intFromAny(usage["completion_tokens"]),
 		TotalTokens:  intFromAny(usage["total_tokens"]),
+		CachedTokens: cachedTokens,
 	}
 }
 
@@ -619,7 +860,92 @@ func parseAnthropicUsage(value any) TokenUsage {
 	usage, _ := value.(map[string]any)
 	input := intFromAny(usage["input_tokens"])
 	output := intFromAny(usage["output_tokens"])
-	return TokenUsage{InputTokens: input, OutputTokens: output, TotalTokens: input + output}
+	cacheCreation := intFromAny(usage["cache_creation_input_tokens"])
+	cacheRead := intFromAny(usage["cache_read_input_tokens"])
+	inputTotal := input + cacheCreation + cacheRead
+	return TokenUsage{
+		InputTokens:         inputTotal,
+		OutputTokens:        output,
+		TotalTokens:         inputTotal + output,
+		CachedTokens:        cacheRead,
+		CacheCreationTokens: cacheCreation,
+	}
+}
+
+func normalizeGoogleModel(model string) string {
+	model = strings.TrimSpace(model)
+	if provider, rest, ok := strings.Cut(model, "/"); ok {
+		if provider == "google" || provider == "gemini" {
+			return strings.TrimPrefix(rest, "models/")
+		}
+		return model
+	}
+	return strings.TrimPrefix(model, "models/")
+}
+
+func googleContents(messages []Message) []map[string]any {
+	out := make([]map[string]any, 0, len(messages))
+	for _, message := range messages {
+		if message.Role == MessageRoleSystem {
+			continue
+		}
+		role := "user"
+		if message.Role == MessageRoleAssistant {
+			role = "model"
+		}
+		out = append(out, googleContent(role, message.Content))
+	}
+	return out
+}
+
+func googleTextContents(contents []string) []map[string]any {
+	out := make([]map[string]any, 0, len(contents))
+	for _, content := range contents {
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		out = append(out, googleContent("user", content))
+	}
+	return out
+}
+
+func googleContent(role string, text string) map[string]any {
+	content := map[string]any{
+		"parts": []map[string]any{{"text": text}},
+	}
+	if role != "" {
+		content["role"] = role
+	}
+	return content
+}
+
+func parseGoogleContent(value any) (string, string) {
+	candidates, ok := value.([]any)
+	if !ok || len(candidates) == 0 {
+		return "", ""
+	}
+	candidate, _ := candidates[0].(map[string]any)
+	finishReason, _ := candidate["finishReason"].(string)
+	content, _ := candidate["content"].(map[string]any)
+	parts, _ := content["parts"].([]any)
+	var text strings.Builder
+	for _, raw := range parts {
+		part, _ := raw.(map[string]any)
+		if s, ok := part["text"].(string); ok {
+			text.WriteString(s)
+		}
+	}
+	return text.String(), finishReason
+}
+
+func parseGoogleUsage(value any) TokenUsage {
+	usage, _ := value.(map[string]any)
+	return TokenUsage{
+		InputTokens:  intFromAny(usage["promptTokenCount"]),
+		OutputTokens: intFromAny(usage["candidatesTokenCount"]),
+		TotalTokens:  intFromAny(usage["totalTokenCount"]),
+		CachedTokens: intFromAny(usage["cachedContentTokenCount"]),
+	}
 }
 
 func cloneToolCalls(in []ToolCall) []ToolCall {

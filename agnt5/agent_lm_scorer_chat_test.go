@@ -43,6 +43,27 @@ func TestAgentRunEmitsEvents(t *testing.T) {
 	}
 }
 
+func TestAgentForwardsPromptCache(t *testing.T) {
+	model := &recordingModel{response: GenerateResponse{Content: "done"}}
+	agent, err := NewAgent(
+		"assistant",
+		WithAgentModel(model),
+		WithAgentPromptCache(PromptCacheWithTTL("1h")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = agent.Run(nil, AgentInput{Message: "work"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if model.request.Cache == nil || !model.request.Cache.Enabled || model.request.Cache.TTL != "1h" {
+		t.Fatalf("request = %#v", model.request)
+	}
+}
+
 func TestAgentRunsToolLoop(t *testing.T) {
 	lookup, err := NewTool("lookup", func(_ context.Context, input map[string]any) (any, error) {
 		return map[string]any{"name": "Alice", "key": input["key"]}, nil
@@ -82,6 +103,16 @@ func TestAgentRunsToolLoop(t *testing.T) {
 	if !containsEventType(types, "tool_call.started") || !containsEventType(types, "tool_call.completed") {
 		t.Fatalf("events = %#v", types)
 	}
+}
+
+type recordingModel struct {
+	request  GenerateRequest
+	response GenerateResponse
+}
+
+func (m *recordingModel) Generate(_ context.Context, request GenerateRequest) (GenerateResponse, error) {
+	m.request = request
+	return m.response, nil
 }
 
 func TestAgentHandoff(t *testing.T) {
