@@ -169,7 +169,7 @@ func (Priority) EnumDescriptor() ([]byte, []int) {
 //     over it.
 //
 // Default behavior when UNSPECIFIED is PUSH so existing workers (built
-// before Phase 6) continue to receive dispatches without any client
+// before explicit worker modes) continue to receive dispatches without any client
 // changes.
 type WorkerMode int32
 

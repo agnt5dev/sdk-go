@@ -6104,7 +6104,7 @@ type ListRunsResponse struct {
 	// Empty when `has_more` is false. Today encodes
 	// `(submitted_at_ms, run_id)` per Decision 15; treat as opaque.
 	NextCursor string `protobuf:"bytes,7,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
-	// Phase 3 task 3.8: replication lag at the receiving node when this
+	// replication lag at the receiving node when this
 	// response was assembled, in milliseconds. Computed as
 	// `now_ms - last_applied_record_ts_ms` for the local processor's
 	// last-applied record. Exposes the eventually-consistent contract

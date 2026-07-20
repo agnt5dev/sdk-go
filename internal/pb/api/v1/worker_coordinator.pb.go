@@ -1261,7 +1261,7 @@ type RuntimeServiceRequest_AgentResolveActive struct {
 }
 
 type RuntimeServiceRequest_SessionCreate struct {
-	// Session / Message operations (Phase 2)
+	// Session / Message operations
 	SessionCreate *SessionCreateRequest `protobuf:"bytes,19,opt,name=session_create,json=sessionCreate,proto3,oneof"`
 }
 
@@ -1673,7 +1673,7 @@ type RuntimeServiceResponse_AgentResolveActive struct {
 }
 
 type RuntimeServiceResponse_SessionCreate struct {
-	// Session / Message results (Phase 2)
+	// Session / Message results
 	SessionCreate *SessionCreateResult `protobuf:"bytes,20,opt,name=session_create,json=sessionCreate,proto3,oneof"`
 }
 
@@ -4654,18 +4654,18 @@ type RegisterService struct {
 	ServiceType    string                 `protobuf:"bytes,3,opt,name=service_type,json=serviceType,proto3" json:"service_type,omitempty"`
 	Components     []*ComponentInfo       `protobuf:"bytes,4,rep,name=components,proto3" json:"components,omitempty"`
 	Metadata       map[string]string      `protobuf:"bytes,5,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Phase 6: data-path mode declared at registration. Default
+	// data-path mode declared at registration. Default
 	// (`WORKER_MODE_UNSPECIFIED`) is interpreted as `WORKER_MODE_PUSH`
 	// by the coordinator so existing clients keep working unchanged.
 	// PULL workers wait for `PollJobs` instead of receiving dispatches
 	// over the bidirectional stream.
 	Mode WorkerMode `protobuf:"varint,6,opt,name=mode,proto3,enum=api.v1.WorkerMode" json:"mode,omitempty"`
-	// Phase 6: deployment this worker serves. Mirrors what the gateway
+	// deployment this worker serves. Mirrors what the gateway
 	// already stamps onto records as `deployment_id`. The coordinator
 	// prefers this proto field but falls back to `metadata["AGNT5_DEPLOYMENT_ID"]`
 	// for backward compat with older SDKs.
 	DeploymentId string `protobuf:"bytes,7,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"`
-	// Phase 7: declared concurrency budget for this worker (max in-flight
+	// declared concurrency budget for this worker (max in-flight
 	// dispatches). The coordinator tracks `outstanding = dispatched -
 	// responded` and uses this number as the denominator for headroom
 	// reservation per priority class (INTERACTIVE up to 100%, NORMAL up to
@@ -5236,7 +5236,7 @@ type DispatchComponentRequest struct {
 	// in a legacy `project_id` field at lower layers.
 	// so the scheduler only considers workers serving this exact deployment.
 	DeploymentId string `protobuf:"bytes,19,opt,name=deployment_id,json=deploymentId,proto3" json:"deployment_id,omitempty"`
-	// Lease fence token (Phase 5 of lease-based dispatch redesign).
+	// Lease fence token.
 	//
 	// When non-empty, the coordinator has created a lease for this dispatch
 	// and expects the worker to echo the same value on
@@ -5245,7 +5245,7 @@ type DispatchComponentRequest struct {
 	// not match the stored lease (stale / spoofed acks). Empty string when
 	// the coordinator is running under the legacy non-lease push path.
 	LeaseId string `protobuf:"bytes,20,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
-	// Failure-retry policy (Phase 7f of lease-based dispatch redesign).
+	// Failure-retry policy.
 	//
 	// Set at gateway ingress with defaults per priority class. Independent
 	// from lease-expiry retries (which live in the expiry sweeper). When
@@ -5557,13 +5557,13 @@ type DispatchComponentResponse struct {
 	Sequence          int64  `protobuf:"varint,10,opt,name=sequence,proto3" json:"sequence,omitempty"`                                              // Global sequence number for ordering and resumability
 	Attempt           int32  `protobuf:"varint,11,opt,name=attempt,proto3" json:"attempt,omitempty"`                                                // Retry attempt number (0-indexed)
 	SourceTimestampNs int64  `protobuf:"varint,12,opt,name=source_timestamp_ns,json=sourceTimestampNs,proto3" json:"source_timestamp_ns,omitempty"` // Nanosecond timestamp when event was created at source (for correct logical ordering)
-	// Lease fencing (Phase 5 of lease-based dispatch redesign).
+	// Lease fencing.
 	//
 	// Echoes the `lease_id` from the originating `DispatchComponentRequest`
 	// so the coordinator can reject stale acks — only the current lease
-	// holder may complete a run. Pre-Phase-5 clients leave this empty; the
-	// coordinator treats an empty lease_id as "fencing disabled for this
-	// response" and falls through to the legacy path.
+	// holder may complete a run. Clients without lease-fencing support leave
+	// this empty; the coordinator treats an empty lease_id as "fencing
+	// disabled for this response" and uses the compatibility path.
 	LeaseId       string `protobuf:"bytes,13,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
