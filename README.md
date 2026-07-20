@@ -1,5 +1,7 @@
 # AGNT5 Go SDK
 
+[![CI](https://github.com/agnt5dev/sdk-go/actions/workflows/ci.yml/badge.svg)](https://github.com/agnt5dev/sdk-go/actions/workflows/ci.yml)
+
 Status: worker MVP, core gateway client, and broad application-surface parity
 APIs for the Go kitchen-sink template.
 
@@ -88,15 +90,15 @@ func main() {
 }
 ```
 
-`Worker.Run` currently supports push and pull modes. The Go quickstart template
-is available under `sdk/templates/go/go-quickstart`.
+`Worker.Run` supports push and pull modes. A runnable quickstart is available
+under `examples/quickstart`.
 
 For local HA runtime smoke testing, run the worker with the local coordinator
 and deployment routing keys:
 
 ```bash
-AGNT5_COORDINATOR_ENDPOINT=http://localhost:34182 \
-AGNT5_ENGINE_URL=http://localhost:34182 \
+AGNT5_COORDINATOR_ENDPOINT=http://localhost:34186 \
+AGNT5_ENGINE_URL=http://localhost:34185 \
 AGNT5_PROJECT_ID=<project-id> \
 AGNT5_DEPLOYMENT_ID=<deployment-id> \
 go run ./examples/quickstart
