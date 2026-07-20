@@ -270,6 +270,53 @@ func TestClientStreamEventsParsesSSE(t *testing.T) {
 	}
 }
 
+func TestClientStreamUnwrapsGatewayEventEnvelope(t *testing.T) {
+	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "event: output.delta\n")
+		_, _ = fmt.Fprint(w, "data: {\"event_type\":\"output.delta\",\"run_id\":\"run-6\",\"data\":{\"content\":\"hel\",\"index\":0}}\n\n")
+		_, _ = fmt.Fprint(w, "event: output.delta\n")
+		_, _ = fmt.Fprint(w, "data: {\"event_type\":\"output.delta\",\"run_id\":\"run-6\",\"data\":{\"content\":\"lo\",\"index\":0}}\n\n")
+		_, _ = fmt.Fprint(w, "event: run.completed\n")
+		_, _ = fmt.Fprint(w, "data: {\"event_type\":\"run.completed\",\"run_id\":\"run-6\",\"data\":{\"output_data\":\"hello\"}}\n\n")
+	})
+	var chunks []string
+	err := client.Stream(context.Background(), "generate", nil, func(chunk string) error {
+		chunks = append(chunks, chunk)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("stream: %v", err)
+	}
+	if strings.Join(chunks, "") != "hello" {
+		t.Fatalf("chunks: %#v", chunks)
+	}
+	var events []ReceivedEvent
+	err = client.StreamEvents(context.Background(), "generate", nil, func(event ReceivedEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("stream events: %v", err)
+	}
+	if len(events) != 3 || events[0].Data["content"] != "hel" || events[0].RunID != "run-6" || events[0].Sequence != 1 {
+		t.Fatalf("events: %#v", events)
+	}
+}
+
+func TestClientStreamReturnsEnvelopedRunFailure(t *testing.T) {
+	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "event: run.failed\n")
+		_, _ = fmt.Fprint(w, "data: {\"event_type\":\"run.failed\",\"run_id\":\"run-7\",\"data\":{\"error_message\":\"boom\",\"error_code\":\"FUNCTION_ERROR\"}}\n\n")
+	})
+	err := client.Stream(context.Background(), "generate", nil, func(string) error { return nil })
+	var runErr *RunError
+	if !errors.As(err, &runErr) || runErr.Message != "boom" || runErr.ErrorCode != "FUNCTION_ERROR" {
+		t.Fatalf("run error: %#v (%v)", runErr, err)
+	}
+}
+
 func TestClientStreamEventsReturnsRunError(t *testing.T) {
 	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

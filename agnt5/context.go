@@ -12,6 +12,7 @@ type Context struct {
 	invocation Invocation
 	eventsMu   sync.Mutex
 	events     []Event
+	streamEmit func(Event) error
 	logger     *Logger
 	projectID  string
 
@@ -153,17 +154,26 @@ func (c *Context) Emit(event Event) error {
 	if event.RunID == "" {
 		event.RunID = c.RunID()
 	}
+	if c.IsStreaming() && IsSSEOnlyEventType(event.Type) && c.streamEmit != nil {
+		if err := c.streamEmit(event); err == nil {
+			return nil
+		}
+	}
 	c.eventsMu.Lock()
 	defer c.eventsMu.Unlock()
 	c.events = append(c.events, event)
 	return nil
 }
 
+func (c *Context) setStreamEmitter(emitter func(Event) error) {
+	c.streamEmit = emitter
+}
+
 // Output emits an output.delta event.
 func (c *Context) Output(delta string) {
 	_ = c.Emit(Event{
 		Type: EventTypeOutputDelta,
-		Data: map[string]any{"delta": delta},
+		Data: map[string]any{"content": delta},
 	})
 }
 

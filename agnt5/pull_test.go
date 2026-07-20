@@ -19,19 +19,22 @@ import (
 type testEngine struct {
 	pb.UnimplementedEngineServiceServer
 
-	mu         sync.Mutex
-	job        *pb.JobAssignment
-	jobPolled  bool
-	pollErrs   []error
-	renewErrs  []error
-	polled     chan *pb.PollJobRequest
-	registered chan *pb.RegisterWorkerSessionRequest
-	completed  chan *pb.CompleteJobRequest
-	renewed    chan *pb.RenewJobLeaseRequest
-	appends    chan *pb.AppendRequest
-	batches    chan *pb.AppendBatchRequest
-	streamed   chan *pb.EventStreamMessage
-	capacity   chan *pb.ReportWorkerCapacityRequest
+	mu           sync.Mutex
+	job          *pb.JobAssignment
+	jobPolled    bool
+	pollErrs     []error
+	renewErrs    []error
+	completeErrs []error
+	polled       chan *pb.PollJobRequest
+	registered   chan *pb.RegisterWorkerSessionRequest
+	completed    chan *pb.CompleteJobRequest
+	renewed      chan *pb.RenewJobLeaseRequest
+	appends      chan *pb.AppendRequest
+	batches      chan *pb.AppendBatchRequest
+	streamed     chan *pb.EventStreamMessage
+	streamClosed chan int64
+	capacity     chan *pb.ReportWorkerCapacityRequest
+	completeWait bool
 }
 
 func (s *testEngine) RegisterWorkerSession(_ context.Context, req *pb.RegisterWorkerSessionRequest) (*pb.RegisterWorkerSessionResponse, error) {
@@ -88,6 +91,9 @@ func (s *testEngine) EventStream(stream grpc.ClientStreamingServer[pb.EventStrea
 	for {
 		msg, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
+			if s.streamClosed != nil {
+				s.streamClosed <- count
+			}
 			return stream.SendAndClose(&pb.EventStreamAck{Success: true, EventsReceived: count})
 		}
 		if err != nil {
@@ -100,8 +106,20 @@ func (s *testEngine) EventStream(stream grpc.ClientStreamingServer[pb.EventStrea
 	}
 }
 
-func (s *testEngine) CompleteJob(_ context.Context, req *pb.CompleteJobRequest) (*pb.CompleteJobResponse, error) {
+func (s *testEngine) CompleteJob(ctx context.Context, req *pb.CompleteJobRequest) (*pb.CompleteJobResponse, error) {
 	s.completed <- req
+	s.mu.Lock()
+	if len(s.completeErrs) > 0 {
+		err := s.completeErrs[0]
+		s.completeErrs = s.completeErrs[1:]
+		s.mu.Unlock()
+		return nil, err
+	}
+	s.mu.Unlock()
+	if s.completeWait {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	return &pb.CompleteJobResponse{Acknowledged: true}, nil
 }
 
@@ -422,10 +440,11 @@ func TestWorkerRunPullStreamsSSEEvents(t *testing.T) {
 			Metadata:      map[string]string{"stream_mode": "full"},
 			LeaseId:       "lease-pull-stream",
 		},
-		registered: make(chan *pb.RegisterWorkerSessionRequest, 1),
-		completed:  make(chan *pb.CompleteJobRequest, 1),
-		streamed:   make(chan *pb.EventStreamMessage, 1),
-		capacity:   make(chan *pb.ReportWorkerCapacityRequest, 2),
+		registered:   make(chan *pb.RegisterWorkerSessionRequest, 1),
+		completed:    make(chan *pb.CompleteJobRequest, 1),
+		streamed:     make(chan *pb.EventStreamMessage, 1),
+		streamClosed: make(chan int64, 1),
+		capacity:     make(chan *pb.ReportWorkerCapacityRequest, 2),
 	}
 	listener := newTestEngineListener(t, server)
 	worker := NewWorker("svc",
@@ -437,8 +456,10 @@ func TestWorkerRunPullStreamsSSEEvents(t *testing.T) {
 		WithMaxConcurrency(1),
 		withGRPCDialOptions(grpc.WithContextDialer(testBufconnDialer(listener))),
 	)
+	releaseHandler := make(chan struct{})
 	if err := RegisterFunction(worker, "greet", func(ctx *Context, in dispatchGreetInput) (dispatchGreetOutput, error) {
 		ctx.Output("hello " + in.Name)
+		<-releaseHandler
 		return dispatchGreetOutput{Message: "done"}, nil
 	}); err != nil {
 		t.Fatal(err)
@@ -451,6 +472,22 @@ func TestWorkerRunPullStreamsSSEEvents(t *testing.T) {
 	}()
 	<-server.registered
 	streamed := <-server.streamed
+	select {
+	case completion := <-server.completed:
+		t.Fatalf("job completed before streaming handler returned: %#v", completion)
+	default:
+	}
+	close(releaseHandler)
+	select {
+	case count := <-server.streamClosed:
+		if count != 1 {
+			t.Fatalf("flushed event count = %d, want 1", count)
+		}
+	case completion := <-server.completed:
+		t.Fatalf("job completed before event stream flush: %#v", completion)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for event stream flush")
+	}
 	completion := <-server.completed
 	cancel()
 	if streamed.GetRunId() != "run-pull-stream" ||
@@ -461,9 +498,53 @@ func TestWorkerRunPullStreamsSSEEvents(t *testing.T) {
 	if completion.GetLeaseId() != "lease-pull-stream" || !completion.GetSuccess() {
 		t.Fatalf("completion: %#v", completion)
 	}
+	if got := completion.GetMetadata()["completion_event_type"]; got != "run.completed" {
+		t.Fatalf("completion_event_type = %q, want run.completed", got)
+	}
 	err := <-done
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("worker run: %v", err)
+	}
+}
+
+func TestDispatchRequestFromJobStampsPullDispatchMode(t *testing.T) {
+	request := dispatchRequestFromJob(&pb.JobAssignment{
+		JobId:    "job-1",
+		RunId:    "run-1",
+		Metadata: map[string]string{"source": "test"},
+		LeaseId:  "lease-1",
+	}, "svc")
+
+	if got := request.GetMetadata()["dispatch_mode"]; got != "pull" {
+		t.Fatalf("dispatch_mode = %q, want pull", got)
+	}
+	if got := request.GetMetadata()["source"]; got != "test" {
+		t.Fatalf("source = %q, want test", got)
+	}
+}
+
+func TestPollConcurrencyLimitReservesControlStream(t *testing.T) {
+	for _, test := range []struct {
+		config pullSlotConfig
+		want   int
+	}{
+		{config: pullSlotConfig{minSlots: 1, maxSlots: 10}, want: 1},
+		{config: pullSlotConfig{minSlots: 2, maxSlots: 10}, want: 2},
+		{config: pullSlotConfig{minSlots: 10, maxSlots: 10}, want: 10},
+	} {
+		if got := pollConcurrencyLimit(test.config); got != test.want {
+			t.Fatalf("pollConcurrencyLimit(%+v) = %d, want %d", test.config, got, test.want)
+		}
+	}
+}
+
+func TestIsTerminalPullResponseRecognizesPausedLifecycle(t *testing.T) {
+	for _, eventType := range []string{"run.paused", "workflow.paused"} {
+		t.Run(eventType, func(t *testing.T) {
+			if !isTerminalPullResponse(&pb.DispatchComponentResponse{EventType: eventType}) {
+				t.Fatalf("%s should terminate a parked pull job", eventType)
+			}
+		})
 	}
 }
 
@@ -479,6 +560,50 @@ func TestCompletePolledJobRejectsMismatchedLease(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), "stale lease") {
 		t.Fatalf("expected stale lease error, got %v", err)
+	}
+}
+
+func TestCompletePolledJobHasBoundedDeadline(t *testing.T) {
+	server := &testEngine{
+		completed:    make(chan *pb.CompleteJobRequest, 1),
+		completeWait: true,
+	}
+	client := newTestEngineClient(t, server)
+	worker := NewWorker("svc", WithWorkerID("worker-pull"), WithProjectID("proj-1"))
+
+	err := worker.completePolledJobWithin(
+		context.Background(),
+		client,
+		"session-1",
+		&pb.JobAssignment{JobId: "job-timeout", LeaseId: "lease-1"},
+		&pb.DispatchComponentResponse{
+			InvocationId: "job-timeout",
+			Success:      true,
+			EventType:    "run.completed",
+			LeaseId:      "lease-1",
+		},
+		20*time.Millisecond,
+	)
+	if err == nil || !strings.Contains(err.Error(), "DeadlineExceeded") {
+		t.Fatalf("expected bounded CompleteJob deadline, got %v", err)
+	}
+}
+
+func TestCompletePolledJobRetriesTransientFailure(t *testing.T) {
+	server := &testEngine{
+		completed:    make(chan *pb.CompleteJobRequest, 2),
+		completeErrs: []error{errors.New("transient completion failure")},
+	}
+	client := newTestEngineClient(t, server)
+	worker := NewWorker("svc", WithWorkerID("worker-pull"), WithProjectID("proj-1"))
+	request := &pb.CompleteJobRequest{JobId: "job-retry", LeaseId: "lease-1"}
+
+	err := worker.completePolledJobRequestWithRetry(context.Background(), client, request, 20*time.Millisecond, 2, time.Millisecond)
+	if err != nil {
+		t.Fatalf("retry CompleteJob: %v", err)
+	}
+	if got := len(server.completed); got != 2 {
+		t.Fatalf("CompleteJob attempts = %d, want 2", got)
 	}
 }
 
@@ -515,6 +640,9 @@ func TestEngineEventWriterBatchesAndStreamsEvents(t *testing.T) {
 		t.Fatalf("stream events: %v", err)
 	}
 	streamed := <-server.streamed
+	if err := writer.FlushEvents(context.Background()); err != nil {
+		t.Fatalf("flush events: %v", err)
+	}
 	if streamed.GetRunId() != "run-1" ||
 		streamed.GetEventType() != EventTypeOutputDelta ||
 		streamed.GetProjectId() != "proj-1" ||

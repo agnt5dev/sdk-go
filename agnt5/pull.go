@@ -19,6 +19,9 @@ const (
 	defaultLeaseRenewEvery     = 30 * time.Second
 	defaultPollErrorBackoff    = 250 * time.Millisecond
 	defaultPollErrorBackoffMax = 5 * time.Second
+	defaultCompleteJobTimeout  = 3 * time.Second
+	defaultCompleteJobAttempts = 3
+	defaultCompleteJobBackoff  = 100 * time.Millisecond
 )
 
 type pullSlotConfig struct {
@@ -59,10 +62,16 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 
 	var openPollSlots atomic.Uint32
 	var activeSlots atomic.Uint32
+	// PollJob is a long-lived unary RPC. Keep only the configured minimum
+	// parked at once so idle polls cannot starve CompleteJob, lease renewal,
+	// and capacity calls on the shared gRPC connection. A claimed job releases
+	// its permit before execution, allowing waiting slots to claim immediately
+	// and active execution to ramp independently toward maxSlots.
+	pollPermits := make(chan struct{}, pollConcurrencyLimit(config))
 	go w.reportPullCapacity(runCtx, client, sessionID, config, &openPollSlots, &activeSlots)
 
 	errCh := make(chan error, config.desiredSlots)
-	go w.launchPullSlots(runCtx, client, sessionID, config, &openPollSlots, &activeSlots, errCh)
+	go w.launchPullSlots(runCtx, client, sessionID, config, pollPermits, &openPollSlots, &activeSlots, errCh)
 
 	select {
 	case <-ctx.Done():
@@ -122,7 +131,11 @@ func (w *Worker) pullSlotConfig() pullSlotConfig {
 	}
 }
 
-func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots *atomic.Uint32, errCh chan<- error) {
+func pollConcurrencyLimit(config pullSlotConfig) int {
+	return int(clampUint32(config.minSlots, 1, config.maxSlots))
+}
+
+func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32, errCh chan<- error) {
 	desiredSlots := clampUint32(config.desiredSlots, config.minSlots, config.maxSlots)
 	for slot := uint32(0); slot < desiredSlots; slot++ {
 		if slot >= config.minSlots {
@@ -131,16 +144,21 @@ func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceCli
 			}
 		}
 		go func(slot uint32) {
-			errCh <- w.runPullSlot(ctx, client, sessionID, config, slot, openPollSlots, activeSlots)
+			errCh <- w.runPullSlot(ctx, client, sessionID, config, slot, pollPermits, openPollSlots, activeSlots)
 		}(slot)
 	}
 }
 
-func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, openPollSlots, activeSlots *atomic.Uint32) error {
+func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32) error {
 	pollBackoff := defaultPollErrorBackoff
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		select {
+		case pollPermits <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 		openPollSlots.Add(1)
 		pollResp, err := client.PollJob(ctx, &pb.PollJobRequest{
@@ -150,6 +168,7 @@ func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient,
 			ClaimTimeoutMs:  config.claimTimeoutMS,
 		})
 		openPollSlots.Add(^uint32(0))
+		<-pollPermits
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -194,6 +213,11 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 	if terminal == nil {
 		terminal = dispatchResponseFromResult(req, InvocationResult{LeaseID: job.GetLeaseId()}, fmt.Errorf("agnt5: pull job produced no terminal response"))
 	}
+	if pullJobStreamingRequested(job.GetMetadata()) {
+		flushCtx, cancel := context.WithTimeout(ctx, defaultCompleteJobTimeout)
+		_ = w.flushStreamEvents(flushCtx)
+		cancel()
+	}
 	return w.completePolledJob(ctx, client, sessionID, job, terminal)
 }
 
@@ -202,13 +226,17 @@ func dispatchRequestFromJob(job *pb.JobAssignment, serviceName string) *pb.Dispa
 	if invocationID == "" {
 		invocationID = job.GetJobId()
 	}
+	metadata := cloneStringMap(job.GetMetadata())
+	if metadata["dispatch_mode"] == "" {
+		metadata["dispatch_mode"] = "pull"
+	}
 	return &pb.DispatchComponentRequest{
 		InvocationId:  invocationID,
 		ServiceName:   serviceName,
 		ComponentType: job.GetComponentType(),
 		ComponentName: job.GetComponentName(),
 		InputData:     cloneBytes(job.GetInputData()),
-		Metadata:      cloneStringMap(job.GetMetadata()),
+		Metadata:      metadata,
 		Attempt:       job.GetAttempt(),
 		LeaseId:       job.GetLeaseId(),
 		IsStreaming:   pullJobStreamingRequested(job.GetMetadata()),
@@ -224,7 +252,7 @@ func isTerminalPullResponse(resp *pb.DispatchComponentResponse) bool {
 		return false
 	}
 	switch resp.GetEventType() {
-	case "run.completed", "run.failed", "run.cancelled":
+	case "run.completed", "run.failed", "run.cancelled", "run.paused", "workflow.paused":
 		return true
 	default:
 		return resp.GetErrorMessage() != ""
@@ -232,19 +260,38 @@ func isTerminalPullResponse(resp *pb.DispatchComponentResponse) bool {
 }
 
 func (w *Worker) completePolledJob(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse) error {
+	request, err := w.polledJobCompletionRequest(sessionID, job, resp)
+	if err != nil {
+		return err
+	}
+	return w.completePolledJobRequestWithRetry(ctx, client, request, defaultCompleteJobTimeout, defaultCompleteJobAttempts, defaultCompleteJobBackoff)
+}
+
+func (w *Worker) completePolledJobWithin(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse, timeout time.Duration) error {
+	request, err := w.polledJobCompletionRequest(sessionID, job, resp)
+	if err != nil {
+		return err
+	}
+	return w.completePolledJobRequestWithin(ctx, client, request, timeout)
+}
+
+func (w *Worker) polledJobCompletionRequest(sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse) (*pb.CompleteJobRequest, error) {
 	leaseID := resp.GetLeaseId()
 	if leaseID == "" {
 		leaseID = job.GetLeaseId()
 	}
 	if job.GetLeaseId() != "" && resp.GetLeaseId() != "" && resp.GetLeaseId() != job.GetLeaseId() {
-		return fmt.Errorf("agnt5: refusing to complete pull job %s with stale lease %q, want %q", job.GetJobId(), resp.GetLeaseId(), job.GetLeaseId())
+		return nil, fmt.Errorf("agnt5: refusing to complete pull job %s with stale lease %q, want %q", job.GetJobId(), resp.GetLeaseId(), job.GetLeaseId())
 	}
 	jobID := job.GetJobId()
 	if jobID == "" {
 		jobID = runIDFromInvocationID(resp.GetInvocationId())
 	}
 	metadata := cloneStringMap(resp.GetMetadata())
-	response, err := client.CompleteJob(ctx, &pb.CompleteJobRequest{
+	if eventType := resp.GetEventType(); eventType != "" {
+		metadata["completion_event_type"] = eventType
+	}
+	return &pb.CompleteJobRequest{
 		JobId:           jobID,
 		WorkerId:        w.workerID,
 		Success:         resp.GetSuccess(),
@@ -255,15 +302,44 @@ func (w *Worker) completePolledJob(ctx context.Context, client pb.EngineServiceC
 		ProjectId:       w.projectID,
 		LeaseId:         leaseID,
 		WorkerSessionId: sessionID,
-	})
+	}, nil
+}
+
+func (w *Worker) completePolledJobRequestWithRetry(ctx context.Context, client pb.EngineServiceClient, request *pb.CompleteJobRequest, timeout time.Duration, attempts int, backoff time.Duration) error {
+	if attempts < 1 {
+		attempts = 1
+	}
+	var lastErr error
+	for attempt := 0; attempt < attempts; attempt++ {
+		if err := w.completePolledJobRequestWithin(ctx, client, request, timeout); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if attempt+1 < attempts {
+			if err := sleepContext(ctx, backoff); err != nil {
+				return err
+			}
+		}
+	}
+	return lastErr
+}
+
+func (w *Worker) completePolledJobRequestWithin(ctx context.Context, client pb.EngineServiceClient, request *pb.CompleteJobRequest, timeout time.Duration) error {
+	completionCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	response, err := client.CompleteJob(completionCtx, request)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return fmt.Errorf("agnt5: complete pull job %s: %w", jobID, err)
+		return fmt.Errorf("agnt5: complete pull job %s: %w", request.GetJobId(), err)
 	}
 	if !response.GetAcknowledged() {
-		return fmt.Errorf("agnt5: complete pull job %s was not acknowledged", jobID)
+		return fmt.Errorf("agnt5: complete pull job %s was not acknowledged", request.GetJobId())
 	}
 	return nil
 }

@@ -436,7 +436,7 @@ func TestRunWorkerStreamStreamsSSEEventsBeforeTerminal(t *testing.T) {
 	if err := json.Unmarshal(streamEvents[0].Data, &delta); err != nil {
 		t.Fatalf("decode delta: %v", err)
 	}
-	if delta["delta"] != "hello Ada" {
+	if delta["content"] != "hello Ada" {
 		t.Fatalf("delta: %#v", delta)
 	}
 	response := <-server.response
@@ -488,7 +488,7 @@ func TestRunWorkerStreamFallsBackToDispatchForSSEEvents(t *testing.T) {
 	if err := json.Unmarshal(first.GetOutputData(), &delta); err != nil {
 		t.Fatalf("decode delta: %v", err)
 	}
-	if delta["delta"] != "hello Ada" {
+	if delta["content"] != "hello Ada" {
 		t.Fatalf("delta: %#v", delta)
 	}
 	second := <-server.response
