@@ -1,6 +1,6 @@
 # AGNT5 Go SDK
 
-[![CI](https://github.com/agnt5dev/sdk-go/actions/workflows/ci.yml/badge.svg)](https://github.com/agnt5dev/sdk-go/actions/workflows/ci.yml)
+[![CI](https://github.com/agnt5dev/agnt5/actions/workflows/sdk-go-tests.yml/badge.svg)](https://github.com/agnt5dev/agnt5/actions/workflows/sdk-go-tests.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Build typed AGNT5 workers, durable workflows, and runtime clients in Go. The
