@@ -250,17 +250,15 @@ serializable because memoized outputs are stored and decoded as JSON.
 ## Verification
 
 ```bash
-cd sdk/sdk-go
 GOCACHE=/private/tmp/agnt5-go-cache GOTOOLCHAIN=local go test ./...
 ```
 
-The shared conformance harness lives under `sdk/e2e/conformance`. Run its unit tests
-from the repository root:
+The shared conformance contracts live in
+[`agnt5dev/sdk-core`](https://github.com/agnt5dev/sdk-core/tree/main/conformance).
+Run this repository's unit tests from the repository root:
 
 ```bash
-python3 -m unittest discover -s sdk/e2e/conformance -p '*_test.py'
+GOCACHE=/private/tmp/agnt5-go-cache GOTOOLCHAIN=local go test ./...
 ```
 
-When a runtime and the Go kitchen-sink worker are running, use
-`sdk/e2e/conformance/contracts/ks_analyze_text.yaml` with
-`sdk/e2e/conformance/run_kitchen_sink_contract.py` for live parity checks.
+Use the shared contracts with a deployed Go worker for live parity checks.
