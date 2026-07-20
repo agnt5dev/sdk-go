@@ -254,13 +254,13 @@ cd sdk/sdk-go
 GOCACHE=/private/tmp/agnt5-go-cache GOTOOLCHAIN=local go test ./...
 ```
 
-The shared conformance harness lives under `sdk/conformance`. Run its unit tests
+The shared conformance harness lives under `sdk/e2e/conformance`. Run its unit tests
 from the repository root:
 
 ```bash
-python3 -m unittest discover -s sdk/conformance -p '*_test.py'
+python3 -m unittest discover -s sdk/e2e/conformance -p '*_test.py'
 ```
 
 When a runtime and the Go kitchen-sink worker are running, use
-`sdk/conformance/kitchen-sink-go-mvp.json` with
-`sdk/conformance/run_kitchen_sink_contract.py` for live parity checks.
+`sdk/e2e/conformance/contracts/ks_analyze_text.yaml` with
+`sdk/e2e/conformance/run_kitchen_sink_contract.py` for live parity checks.

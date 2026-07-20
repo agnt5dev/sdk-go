@@ -20,7 +20,7 @@ module-root repository. Release tags in that repository are plain module tags:
 v0.x.y
 ```
 
-The first intended module version is `v0.1.0`. Do not tag the monorepo with
+The current module version is `v0.2.0`. Do not tag the monorepo with
 `sdk/sdk-go/v0.x.y` for this module path; that convention only applies if the
 public module path includes the monorepo subdirectory.
 

@@ -26,7 +26,7 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 		return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
 	}
 
-	result, invokeErr := w.invoke(ctx, invocation)
+	result, invokeErr := w.invoke(ctx, invocation, componentCorrelationID)
 	durationMS := time.Since(startedAt).Milliseconds()
 	messages, eventsErr := w.flushInvocationEvents(ctx, invocation, result.Events, metadata, componentCorrelationID)
 	if invokeErr == nil && eventsErr != nil {
@@ -284,19 +284,9 @@ func (w *Worker) flushInvocationEvents(ctx context.Context, inv Invocation, even
 		}
 		if IsSSEOnlyEventType(event.Type) {
 			if inv.IsStreaming {
-				streamEvents = append(streamEvents, streamEvent{
-					RunID:             event.RunID,
-					EventType:         event.Type,
-					Data:              eventDataBytes(event.Data),
-					Metadata:          metadata,
-					TraceID:           correlationID,
-					SpanID:            eventParentCorrelationID,
-					ContentIndex:      event.ContentIndex,
-					Sequence:          event.Sequence,
-					Attempt:           int32(inv.Attempt),
-					SourceTimestampNS: event.SourceTimestampNS,
-					LeaseID:           inv.LeaseID,
-				})
+				streamEvents = append(streamEvents, streamEventFromEvent(
+					inv, event, metadata, correlationID, eventParentCorrelationID,
+				))
 			}
 			continue
 		}
@@ -322,6 +312,46 @@ func (w *Worker) flushInvocationEvents(ctx context.Context, inv Invocation, even
 	return messages, nil
 }
 
+func (w *Worker) streamInvocationEvent(ctx context.Context, inv Invocation, event Event, baseMetadata map[string]string, parentCorrelationID string) error {
+	if event.RunID == "" {
+		event.RunID = inv.RunID
+	}
+	if event.SourceTimestampNS == 0 {
+		event.SourceTimestampNS = nowUnixNS()
+	}
+	metadata := cloneStringMap(baseMetadata)
+	for key, value := range event.Metadata {
+		metadata[key] = value
+	}
+	correlationID := event.CorrelationID
+	if correlationID == "" {
+		correlationID = newCorrelationID("event")
+	}
+	eventParentCorrelationID := event.ParentCorrelationID
+	if eventParentCorrelationID == "" {
+		eventParentCorrelationID = parentCorrelationID
+	}
+	return w.streamInvocationEvents(ctx, []streamEvent{
+		streamEventFromEvent(inv, event, metadata, correlationID, eventParentCorrelationID),
+	})
+}
+
+func streamEventFromEvent(inv Invocation, event Event, metadata map[string]string, correlationID, parentCorrelationID string) streamEvent {
+	return streamEvent{
+		RunID:             event.RunID,
+		EventType:         event.Type,
+		Data:              eventDataBytes(event.Data),
+		Metadata:          metadata,
+		TraceID:           correlationID,
+		SpanID:            parentCorrelationID,
+		ContentIndex:      event.ContentIndex,
+		Sequence:          event.Sequence,
+		Attempt:           int32(inv.Attempt),
+		SourceTimestampNS: event.SourceTimestampNS,
+		LeaseID:           inv.LeaseID,
+	}
+}
+
 func (w *Worker) streamInvocationEvents(ctx context.Context, events []streamEvent) error {
 	if len(events) == 0 {
 		return nil
@@ -331,6 +361,14 @@ func (w *Worker) streamInvocationEvents(ctx context.Context, events []streamEven
 		return ErrTransportNotImplemented
 	}
 	return streamer.StreamEvents(ctx, events)
+}
+
+func (w *Worker) flushStreamEvents(ctx context.Context) error {
+	flusher, ok := w.eventWriter.(eventStreamFlusher)
+	if !ok || flusher == nil {
+		return nil
+	}
+	return flusher.FlushEvents(ctx)
 }
 
 func (w *Worker) dispatchMessagesFromStreamEvents(inv Invocation, events []streamEvent) []*pb.ServiceMessage {

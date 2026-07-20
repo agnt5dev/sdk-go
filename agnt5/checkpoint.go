@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
@@ -21,6 +22,10 @@ type batchEventWriter interface {
 
 type eventStreamer interface {
 	StreamEvents(context.Context, []streamEvent) error
+}
+
+type eventStreamFlusher interface {
+	FlushEvents(context.Context) error
 }
 
 type stepCheckpointWriter interface {
@@ -52,7 +57,11 @@ type streamEvent struct {
 }
 
 type engineEventWriter struct {
-	client pb.EngineServiceClient
+	client       pb.EngineServiceClient
+	streamMu     sync.Mutex
+	stream       pb.EngineService_EventStreamClient
+	streamCancel context.CancelFunc
+	streamCount  int64
 }
 
 func newEngineEventWriter(client pb.EngineServiceClient) *engineEventWriter {
@@ -100,16 +109,37 @@ func (w *engineEventWriter) StreamEvents(ctx context.Context, events []streamEve
 	if w == nil || w.client == nil || len(events) == 0 {
 		return nil
 	}
-	stream, err := w.client.EventStream(ctx)
-	if err != nil {
-		return fmt.Errorf("agnt5: open event stream: %w", err)
+	w.streamMu.Lock()
+	defer w.streamMu.Unlock()
+	for attempt := 0; attempt < 2; attempt++ {
+		if w.stream == nil {
+			streamCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+			stream, err := w.client.EventStream(streamCtx)
+			if err != nil {
+				cancel()
+				return fmt.Errorf("agnt5: open event stream: %w", err)
+			}
+			w.stream = stream
+			w.streamCancel = cancel
+			w.streamCount = 0
+		}
+		if err := w.sendStreamEvents(events); err == nil {
+			return nil
+		} else if attempt == 1 {
+			return err
+		}
+		w.resetStreamLocked()
 	}
+	return fmt.Errorf("agnt5: event stream retry exhausted")
+}
+
+func (w *engineEventWriter) sendStreamEvents(events []streamEvent) error {
 	for _, event := range events {
 		projectID := canonicalProjectID(event.Metadata)
 		if projectID == "" {
 			return fmt.Errorf("agnt5: cannot stream %s without project_id metadata", event.EventType)
 		}
-		if err := stream.Send(&pb.EventStreamMessage{
+		if err := w.stream.Send(&pb.EventStreamMessage{
 			RunId:             event.RunID,
 			EventType:         event.EventType,
 			Data:              cloneBytes(event.Data),
@@ -121,15 +151,74 @@ func (w *engineEventWriter) StreamEvents(ctx context.Context, events []streamEve
 		}); err != nil {
 			return fmt.Errorf("agnt5: stream %s event: %w", event.EventType, err)
 		}
-	}
-	ack, err := stream.CloseAndRecv()
-	if err != nil {
-		return fmt.Errorf("agnt5: close event stream: %w", err)
-	}
-	if !ack.GetSuccess() {
-		return fmt.Errorf("agnt5: event stream rejected %d events", len(events))
+		w.streamCount++
 	}
 	return nil
+}
+
+// FlushEvents closes the current client stream and waits for the runtime to
+// acknowledge every frame. Pull workers call this before CompleteJob so a
+// terminal lifecycle event cannot overtake transient output deltas.
+func (w *engineEventWriter) FlushEvents(ctx context.Context) error {
+	if w == nil || w.client == nil {
+		return nil
+	}
+	w.streamMu.Lock()
+	defer w.streamMu.Unlock()
+	if w.stream == nil {
+		return nil
+	}
+
+	stream := w.stream
+	cancel := w.streamCancel
+	expected := w.streamCount
+	w.stream = nil
+	w.streamCancel = nil
+	w.streamCount = 0
+
+	type flushResult struct {
+		ack *pb.EventStreamAck
+		err error
+	}
+	resultCh := make(chan flushResult, 1)
+	go func() {
+		ack, err := stream.CloseAndRecv()
+		resultCh <- flushResult{ack: ack, err: err}
+	}()
+
+	select {
+	case result := <-resultCh:
+		if cancel != nil {
+			cancel()
+		}
+		if result.err != nil {
+			return fmt.Errorf("agnt5: flush event stream: %w", result.err)
+		}
+		if !result.ack.GetSuccess() {
+			return fmt.Errorf("agnt5: runtime rejected event stream flush")
+		}
+		if result.ack.GetEventsReceived() != expected {
+			return fmt.Errorf("agnt5: runtime acknowledged %d streamed events, want %d", result.ack.GetEventsReceived(), expected)
+		}
+		return nil
+	case <-ctx.Done():
+		if cancel != nil {
+			cancel()
+		}
+		return fmt.Errorf("agnt5: flush event stream: %w", ctx.Err())
+	}
+}
+
+func (w *engineEventWriter) resetStreamLocked() {
+	if w.stream != nil {
+		_ = w.stream.CloseSend()
+	}
+	if w.streamCancel != nil {
+		w.streamCancel()
+	}
+	w.stream = nil
+	w.streamCancel = nil
+	w.streamCount = 0
 }
 
 func recordFromJournalEvent(event journalEvent) (*pb.Record, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
@@ -17,13 +18,23 @@ const (
 type engineStateStore struct {
 	client    pb.EngineServiceClient
 	projectID string
+	mu        sync.Mutex
+	cache     map[string]engineStateCacheEntry
 }
+
+type engineStateCacheEntry struct {
+	values  map[string]any
+	version int64
+	expires time.Time
+}
+
+const engineStateReadYourWriteTTL = 500 * time.Millisecond
 
 func newEngineStateStore(client pb.EngineServiceClient, projectID string) StateStore {
 	if client == nil {
 		return nil
 	}
-	return &engineStateStore{client: client, projectID: projectID}
+	return &engineStateStore{client: client, projectID: projectID, cache: make(map[string]engineStateCacheEntry)}
 }
 
 func (s *engineStateStore) Get(ctx context.Context, scope StateScope, namespace, key string) (any, bool, error) {
@@ -70,7 +81,7 @@ func (s *engineStateStore) update(ctx context.Context, scope StateScope, namespa
 		if err != nil {
 			return err
 		}
-		_, err = s.client.PutEntityState(ctx, &pb.PutEntityStateRequest{
+		resp, err := s.client.PutEntityState(ctx, &pb.PutEntityStateRequest{
 			ProjectId:       s.projectID,
 			EntityType:      stateEntityType,
 			EntityKey:       stateEntityKey,
@@ -80,6 +91,7 @@ func (s *engineStateStore) update(ctx context.Context, scope StateScope, namespa
 			ExpectedVersion: version,
 		})
 		if err == nil {
+			s.storeCached(scope, namespace, values, resp.GetNewVersion())
 			return nil
 		}
 		lastErr = err
@@ -98,6 +110,9 @@ func (s *engineStateStore) load(ctx context.Context, scope StateScope, namespace
 	}
 	if s.projectID == "" {
 		return nil, 0, errors.New("agnt5: project id is required for runtime-backed state")
+	}
+	if values, version, ok := s.loadCached(scope, namespace); ok {
+		return values, version, nil
 	}
 	resp, err := s.client.GetEntityState(ctx, &pb.GetEntityStateRequest{
 		ProjectId:  s.projectID,
@@ -120,4 +135,23 @@ func (s *engineStateStore) load(ctx context.Context, scope StateScope, namespace
 		values = map[string]any{}
 	}
 	return values, resp.GetVersion(), nil
+}
+
+func (s *engineStateStore) loadCached(scope StateScope, namespace string) (map[string]any, int64, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.cache[stateStoreKey(scope, namespace, "")]
+	if !ok || time.Now().After(entry.expires) {
+		delete(s.cache, stateStoreKey(scope, namespace, ""))
+		return nil, 0, false
+	}
+	return cloneAnyMap(entry.values), entry.version, true
+}
+
+func (s *engineStateStore) storeCached(scope StateScope, namespace string, values map[string]any, version int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache[stateStoreKey(scope, namespace, "")] = engineStateCacheEntry{
+		values: cloneAnyMap(values), version: version, expires: time.Now().Add(engineStateReadYourWriteTTL),
+	}
 }

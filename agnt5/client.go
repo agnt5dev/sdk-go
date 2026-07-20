@@ -323,6 +323,7 @@ type ReceivedEvent struct {
 	Data         map[string]any `json:"data"`
 	ContentIndex int            `json:"content_index"`
 	Sequence     int            `json:"sequence"`
+	RunID        string         `json:"run_id,omitempty"`
 }
 
 // RunError is returned when a run or stream reaches an error state.
@@ -622,6 +623,9 @@ func (c *Client) Stream(ctx context.Context, component string, input any, handle
 		return errors.New("agnt5: nil stream handler")
 	}
 	return c.StreamEvents(ctx, component, input, func(event ReceivedEvent) error {
+		if event.EventType == "run.failed" {
+			return parseRunErrorMap(event.Data, event.RunID)
+		}
 		if event.EventType == "output.delta" {
 			if value, ok := event.Data["delta"].(string); ok {
 				return handle(value)
@@ -658,7 +662,15 @@ func (c *Client) StreamEvents(ctx context.Context, component string, input any, 
 
 	statusCode, body, err := c.doStream(ctx, []string{
 		"v1", componentCollection(config.componentType), component, "stream",
-	}, inputOrEmptyObject(input), headers, config.timeout, handle)
+	}, inputOrEmptyObject(input), headers, config.timeout, func(event ReceivedEvent) error {
+		payload := gatewayEventPayload(event.Data)
+		event.Data = payload
+		event.ContentIndex = fieldInt(payload, "index", "content_index", "contentIndex")
+		if payloadSequence := fieldInt(payload, "sequence"); payloadSequence != 0 {
+			event.Sequence = payloadSequence
+		}
+		return handle(event)
+	})
 	if err != nil {
 		return err
 	}
@@ -1060,6 +1072,7 @@ func parseSSE(reader io.Reader, handle func(ReceivedEvent) error) error {
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	currentEvent := ""
 	dataLines := make([]string, 0, 1)
+	sequence := 0
 
 	dispatch := func() error {
 		if len(dataLines) == 0 {
@@ -1080,11 +1093,17 @@ func parseSSE(reader io.Reader, handle func(ReceivedEvent) error) error {
 		if currentEvent == "error" || data["error"] != nil {
 			return parseRunErrorMap(data, firstString(data, "run_id", "runId"))
 		}
+		sequence++
+		eventSequence := fieldInt(data, "sequence")
+		if eventSequence == 0 {
+			eventSequence = sequence
+		}
 		event := ReceivedEvent{
 			EventType:    currentEvent,
 			Data:         data,
 			ContentIndex: fieldInt(data, "index", "content_index", "contentIndex"),
-			Sequence:     fieldInt(data, "sequence"),
+			Sequence:     eventSequence,
+			RunID:        firstString(data, "run_id", "runId"),
 		}
 		return handle(event)
 	}
@@ -1127,6 +1146,17 @@ func parseSSE(reader io.Reader, handle func(ReceivedEvent) error) error {
 	return err
 }
 
+func gatewayEventPayload(data map[string]any) map[string]any {
+	nested, ok := data["data"].(map[string]any)
+	if !ok {
+		return data
+	}
+	if firstString(data, "event_type", "eventType", "run_id", "runId") == "" {
+		return data
+	}
+	return nested
+}
+
 var errSSEDone = errors.New("agnt5: sse done")
 
 func parseRunErrorMap(data map[string]any, runID string) *RunError {
@@ -1145,6 +1175,8 @@ func parseRunErrorMap(data map[string]any, runID string) *RunError {
 			metadata = fieldMap(errorMap, "details")
 		}
 	} else if value := fieldString(data, "error"); value != "" {
+		message = value
+	} else if value := fieldString(data, "error_message", "errorMessage"); value != "" {
 		message = value
 	}
 	if runID == "" {

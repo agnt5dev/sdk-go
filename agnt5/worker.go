@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultServiceVersion      = "0.1.0"
+	defaultServiceVersion      = "0.2.0"
 	defaultServiceType         = "go"
 	defaultCoordinatorEndpoint = "http://localhost:34186"
 	defaultMaxReconnects       = uint32(5)
@@ -396,7 +396,7 @@ func nextBackoff(current, max time.Duration) time.Duration {
 	return next
 }
 
-func (w *Worker) invoke(ctx context.Context, inv Invocation) (result InvocationResult, err error) {
+func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrelationID ...string) (result InvocationResult, err error) {
 	component, ok := w.registry.Get(inv.ComponentName)
 	if !ok {
 		return InvocationResult{}, ErrComponentNotFound
@@ -405,6 +405,15 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation) (result InvocationR
 		return InvocationResult{}, ErrComponentNotFound
 	}
 	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(w.invocationMetadata(inv)), w.stateStore)
+	if inv.IsStreaming {
+		parentCorrelationID := ""
+		if len(streamParentCorrelationID) > 0 {
+			parentCorrelationID = streamParentCorrelationID[0]
+		}
+		runCtx.setStreamEmitter(func(event Event) error {
+			return w.streamInvocationEvent(ctx, inv, event, w.invocationMetadata(inv), parentCorrelationID)
+		})
+	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = InvocationResult{
