@@ -626,6 +626,14 @@ func NewXAIModel(config OpenAIConfig) *OpenAIModel {
 	return NewOpenAIModel(config)
 }
 
+// NewMoonshotModel constructs an OpenAI-compatible Moonshot AI (Kimi) adapter.
+func NewMoonshotModel(config OpenAIConfig) *OpenAIModel {
+	if config.BaseURL == "" {
+		config.BaseURL = "https://api.moonshot.ai"
+	}
+	return NewOpenAIModel(config)
+}
+
 func NewOllamaModel(config OpenAIConfig) *OpenAIModel {
 	if config.BaseURL == "" {
 		config.BaseURL = "http://localhost:11434"

@@ -9,6 +9,16 @@ import (
 	"testing"
 )
 
+func TestMoonshotModelUsesOfficialAPIBase(t *testing.T) {
+	model := NewMoonshotModel(OpenAIConfig{APIKey: "test-key", Model: "kimi-k3"})
+	if model.config.BaseURL != "https://api.moonshot.ai" {
+		t.Fatalf("base URL = %q", model.config.BaseURL)
+	}
+	if model.config.Model != "kimi-k3" {
+		t.Fatalf("model = %q", model.config.Model)
+	}
+}
+
 func TestOpenAIModelSendsToolsAndParsesToolCalls(t *testing.T) {
 	var captured map[string]any
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
