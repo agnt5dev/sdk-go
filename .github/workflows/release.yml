@@ -1,6 +1,9 @@
 name: SDK Go Release
 
 on:
+  pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -30,19 +33,40 @@ jobs:
           fetch-depth: 0
 
       - name: Require main branch
-        if: inputs.skip-publish != true
+        if: github.event_name == 'workflow_dispatch' && inputs.skip-publish != true
         run: test "${GITHUB_REF_NAME}" = main
 
       - name: Validate version
         id: version
         env:
-          VERSION: ${{ inputs.version }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            echo "version=pull-request" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = release ]; then
+            if ! printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "Release tag must be vX.Y.Z: $RELEASE_TAG" >&2
+              exit 1
+            fi
+            VERSION=${RELEASE_TAG#v}
+            if ! grep -Fq "## [$VERSION]" CHANGELOG.md; then
+              echo "CHANGELOG.md is missing ## [$VERSION]" >&2
+              exit 1
+            fi
+          else
+            VERSION=$INPUT_VERSION
+          fi
+
           if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "Version must be x.y.z without a leading v: $VERSION" >&2
             exit 1
           fi
-          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+          if [ "$EVENT_NAME" = workflow_dispatch ] && git rev-parse "v${VERSION}" >/dev/null 2>&1; then
             echo "Tag v${VERSION} already exists" >&2
             exit 1
           fi
@@ -58,7 +82,7 @@ jobs:
         run: go test ./...
 
       - name: Create and push release tag
-        if: inputs.skip-publish != true
+        if: github.event_name == 'workflow_dispatch' && inputs.skip-publish != true
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -72,7 +96,14 @@ jobs:
           {
             echo "## Go SDK Release"
             echo "**Module:** \`github.com/agnt5dev/sdk-go\`"
-            echo "**Version:** \`v${{ steps.version.outputs.version }}\`"
             echo "**Commit:** \`${{ github.sha }}\`"
-            echo "**Dry run:** \`${{ inputs.skip-publish && 'yes' || 'no' }}\`"
+            if [ "${{ github.event_name }}" = release ]; then
+              echo "**Version:** \`v${{ steps.version.outputs.version }}\`"
+              echo "**Release:** GitHub Release validation"
+            elif [ "${{ github.event_name }}" = pull_request ]; then
+              echo "**Release:** pull-request validation only"
+            else
+              echo "**Version:** \`v${{ steps.version.outputs.version }}\`"
+              echo "**Dry run:** \`${{ inputs.skip-publish && 'yes' || 'no' }}\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
