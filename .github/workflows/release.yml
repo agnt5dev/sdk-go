@@ -1,6 +1,7 @@
 name: SDK Go Release
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       version:
@@ -30,10 +31,11 @@ jobs:
           fetch-depth: 0
 
       - name: Require main branch
-        if: inputs.skip-publish != true
+        if: github.event_name == 'workflow_dispatch' && inputs.skip-publish != true
         run: test "${GITHUB_REF_NAME}" = main
 
       - name: Validate version
+        if: github.event_name == 'workflow_dispatch'
         id: version
         env:
           VERSION: ${{ inputs.version }}
@@ -58,7 +60,7 @@ jobs:
         run: go test ./...
 
       - name: Create and push release tag
-        if: inputs.skip-publish != true
+        if: github.event_name == 'workflow_dispatch' && inputs.skip-publish != true
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -70,9 +72,13 @@ jobs:
       - name: Output release summary
         run: |
           {
-            echo "## Go SDK Release"
+            echo "## Go SDK Validation"
             echo "**Module:** \`github.com/agnt5dev/sdk-go\`"
-            echo "**Version:** \`v${{ steps.version.outputs.version }}\`"
             echo "**Commit:** \`${{ github.sha }}\`"
-            echo "**Dry run:** \`${{ inputs.skip-publish && 'yes' || 'no' }}\`"
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "**Version:** \`v${{ steps.version.outputs.version }}\`"
+              echo "**Dry run:** \`${{ inputs.skip-publish && 'yes' || 'no' }}\`"
+            else
+              echo "**Release:** pull-request validation only"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
