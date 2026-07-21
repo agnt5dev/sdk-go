@@ -10,19 +10,17 @@ runtime events.
 
 ## Requirements
 
-- Go 1.23.1 or newer
+- Go 1.26.5 or newer
 - An AGNT5 runtime for deployed execution
 
 ## Installation
 
-The module path is `agnt5.dev/sdk-go`:
+The module path is `github.com/agnt5dev/sdk-go`:
 
 ```bash
-go get agnt5.dev/sdk-go@latest
+go get github.com/agnt5dev/sdk-go@latest
 ```
 
-The module's vanity import endpoint must be available before the first public
-module release. Until then, clone this repository to build the examples.
 
 ## Quick start
 
@@ -35,7 +33,7 @@ import (
 	"context"
 	"log"
 
-	"agnt5.dev/sdk-go/agnt5"
+	"github.com/agnt5dev/sdk-go/agnt5"
 )
 
 type GreetInput struct {

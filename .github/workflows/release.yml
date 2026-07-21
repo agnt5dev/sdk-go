@@ -1,0 +1,78 @@
+name: SDK Go Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without the leading v (for example, 0.2.0)"
+        required: true
+        type: string
+      skip-publish:
+        description: "Validate without creating the release tag"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Validate and tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Require main branch
+        if: inputs.skip-publish != true
+        run: test "${GITHUB_REF_NAME}" = main
+
+      - name: Validate version
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Version must be x.y.z without a leading v: $VERSION" >&2
+            exit 1
+          fi
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Test SDK
+        run: go test ./...
+
+      - name: Create and push release tag
+        if: inputs.skip-publish != true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "agnt5-release-bot"
+          git config user.email "release-bot@agnt5.com"
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Output release summary
+        run: |
+          {
+            echo "## Go SDK Release"
+            echo "**Module:** \`github.com/agnt5dev/sdk-go\`"
+            echo "**Version:** \`v${{ steps.version.outputs.version }}\`"
+            echo "**Commit:** \`${{ github.sha }}\`"
+            echo "**Dry run:** \`${{ inputs.skip-publish && 'yes' || 'no' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

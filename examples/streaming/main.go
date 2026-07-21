@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"agnt5.dev/sdk-go/agnt5"
+	"github.com/agnt5dev/sdk-go/agnt5"
 )
 
 type StreamInput struct {
