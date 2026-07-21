@@ -3,7 +3,7 @@ package agnt5
 import (
 	"strconv"
 
-	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
 func (w *Worker) registrationServiceMessage() *pb.ServiceMessage {

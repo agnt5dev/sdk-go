@@ -1,6 +1,6 @@
-module agnt5.dev/sdk-go
+module github.com/agnt5dev/sdk-go
 
-go 1.23.1
+go 1.26.5
 
 require (
 	google.golang.org/grpc v1.75.0

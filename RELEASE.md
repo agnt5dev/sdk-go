@@ -2,16 +2,15 @@
 
 ## Module Path
 
-The public module path is `agnt5.dev/sdk-go`.
+The public module path is `github.com/agnt5dev/sdk-go`.
 
 Release the Go SDK from this module-root repository. Its root `go.mod` is:
 
 ```text
-module agnt5.dev/sdk-go
+module github.com/agnt5dev/sdk-go
 ```
 
-Configure the `agnt5.dev/sdk-go?go-get=1` vanity endpoint to point at that
-module-root repository. Release tags in that repository are plain module tags:
+Because the module path is the GitHub repository URL, no vanity endpoint is required. Release tags in that repository are plain module tags:
 
 ```text
 v0.x.y
@@ -36,7 +35,6 @@ The current module version is `v0.2.0`.
 
 - `go test ./...`
 - Verify the Go quickstart template compiles against the release candidate.
-- Confirm `https://agnt5.dev/sdk-go?go-get=1` serves valid Go vanity metadata.
 - Tag the module-root repository with `v0.x.y`.
 - Publish template bundles that reference the released SDK version.
 - Confirm `ghcr.io/agnt5dev/go-worker:latest` is published or update

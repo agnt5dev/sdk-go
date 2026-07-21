@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
 type recordingCheckpointWriter struct {

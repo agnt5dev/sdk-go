@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
 func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchComponentRequest) []*pb.ServiceMessage {

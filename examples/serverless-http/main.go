@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"agnt5.dev/sdk-go/serverless"
+	"github.com/agnt5dev/sdk-go/serverless"
 )
 
 type helloInput struct {

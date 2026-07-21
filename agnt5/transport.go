@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 	"google.golang.org/grpc"
 )
 

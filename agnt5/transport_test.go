@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"

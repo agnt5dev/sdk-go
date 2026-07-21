@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	pb "agnt5.dev/sdk-go/internal/pb/api/v1"
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
 // Step runs a named unit of work and memoizes successful output when the worker
