@@ -47,6 +47,8 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 	if sessionID == "" {
 		return fmt.Errorf("agnt5: register pull worker session returned empty session id")
 	}
+	w.writeHealthMarker()
+	defer w.removeHealthMarker()
 	if policy := session.GetEffectiveSlotPolicy(); policy != nil {
 		if policy.GetMinSlots() > 0 {
 			config.minSlots = clampUint32(policy.GetMinSlots(), 1, config.maxSlots)

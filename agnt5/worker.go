@@ -3,7 +3,7 @@ package agnt5
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -114,12 +114,17 @@ func envOrDefault(name, fallback string) string {
 	return fallback
 }
 
+// newWorkerID returns a random RFC-4122 v4 UUID. The platform's readiness
+// checker only accepts marker files named after a valid UUID, so the fallback
+// identity must be one (managed pods override it via AGNT5_WORKER_ID).
 func newWorkerID() string {
-	var random [16]byte
-	if _, err := rand.Read(random[:]); err == nil {
-		return "go-" + hex.EncodeToString(random[:])
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		binary.BigEndian.PutUint64(b[:8], uint64(time.Now().UnixNano()))
 	}
-	return fmt.Sprintf("go-%d", time.Now().UnixNano())
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 func workerModeFromEnv() WorkerMode {
