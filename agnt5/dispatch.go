@@ -146,7 +146,7 @@ func dispatchPausedResponse(req *pb.DispatchComponentRequest, result InvocationR
 }
 
 func (w *Worker) invocationMetadata(inv Invocation) map[string]string {
-	metadata := cloneStringMap(w.metadata)
+	metadata := w.Metadata()
 	for key, value := range inv.Metadata {
 		metadata[key] = value
 	}

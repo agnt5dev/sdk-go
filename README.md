@@ -141,7 +141,18 @@ renewal, and fenced completed/failed outcome commits. The alpha.3 runtime does
 not advertise durable event append, live output, referenced payloads, durable
 operation replay, or suspended/cancelled/yielded outcomes. The SDK records
 omitted observability-event counts in outcome metadata and rejects unsupported
-correctness-driving payload, checkpoint, and outcome paths.
+correctness-driving payload, checkpoint, and outcome paths. Workflow, event
+trigger, cron trigger, and trigger-expression declarations require their
+matching runtime capabilities and fail during negotiation when unavailable;
+plain functions continue to use the protocol's base pull operations. Go does
+not yet expose a language-local v2 run-policy declaration, so `run_policy*`
+component configuration is rejected instead of being silently dropped.
+
+The adapter enforces the negotiated message and payload limits. Natural worker
+session expiry drains in-flight poll slots before registration is renewed,
+while a replaced session remains terminal so an old worker does not fight its
+replacement. Cancellation and stale execution authority are scoped to the
+affected execution and do not tear down the worker session.
 
 ## Examples
 

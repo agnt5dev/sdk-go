@@ -41,6 +41,12 @@ The current module version is `v0.2.0`.
 - Verify `protocol/agnt5-protocol.lock.json`, its fixtures, and the generated
   descriptor digest with `go test ./protocol`.
 - Verify the Go quickstart template compiles against the release candidate.
+- Run a forced-v2 plain-function submission against the matching runtime-OSS
+  release and verify registration, polling, renewal, and committed output.
+- Verify capability-gated workflows and triggers fail negotiation when the
+  target runtime does not advertise their required optional capabilities.
+- Verify natural session expiry re-registers only after all old poll slots
+  drain, while session replacement and stale execution authority do not retry.
 - Tag the module-root repository with `v0.x.y`.
 - Publish template bundles that reference the released SDK version.
 - Confirm `ghcr.io/agnt5dev/go-worker:latest` is published or update

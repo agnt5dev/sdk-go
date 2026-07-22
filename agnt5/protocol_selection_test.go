@@ -2,6 +2,7 @@ package agnt5
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	protocolv2 "github.com/agnt5dev/runtime/gen/go/agnt5/protocol/v2"
@@ -23,22 +24,22 @@ func (c fakeProtocolClient) GetCapabilities(context.Context, *protocolv2.GetCapa
 
 func TestNegotiateV2ReturnsSafeDiagnostics(t *testing.T) {
 	worker := NewWorker("svc", WithProtocolMode(ProtocolModeV2))
-	diagnostics, err := worker.negotiateV2(context.Background(), fakeProtocolClient{response: &protocolv2.GetCapabilitiesResponse{
+	diagnostics, _, err := worker.negotiateV2(context.Background(), fakeProtocolClient{response: &protocolv2.GetCapabilitiesResponse{
 		SelectedProtocol: &protocolv2.ProtocolVersion{Major: 2, Minor: 0},
 		RuntimeName:      "runtime",
 		RuntimeVersion:   "0.1.0-alpha.2",
 		Limits: &protocolv2.ProtocolLimits{
-			MaximumMessageBytes:       1,
-			MaximumInlinePayloadBytes: 1,
-			MaximumEventBatchBytes:    1,
+			MaximumMessageBytes:       1 << 20,
+			MaximumInlinePayloadBytes: 1 << 20,
+			MaximumEventBatchBytes:    1 << 20,
 			MaximumEventsPerBatch:     1,
-			MaximumPayloadBytes:       1,
-			MaximumPayloadChunkBytes:  1,
+			MaximumPayloadBytes:       1 << 20,
+			MaximumPayloadChunkBytes:  1 << 20,
 		},
 		Capabilities: []*protocolv2.Capability{
 			{Name: "worker.pull", Version: 1},
 		},
-	}})
+	}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,12 +53,37 @@ func TestNegotiateV2ReturnsSafeDiagnostics(t *testing.T) {
 
 func TestNegotiateV2RejectsInvalidLimits(t *testing.T) {
 	worker := NewWorker("svc", WithProtocolMode(ProtocolModeV2))
-	_, err := worker.negotiateV2(context.Background(), fakeProtocolClient{response: &protocolv2.GetCapabilitiesResponse{
+	_, _, err := worker.negotiateV2(context.Background(), fakeProtocolClient{response: &protocolv2.GetCapabilitiesResponse{
 		SelectedProtocol: &protocolv2.ProtocolVersion{Major: 2, Minor: 0},
 		Limits:           &protocolv2.ProtocolLimits{},
-	}})
+	}}, nil)
 	if err == nil {
 		t.Fatal("expected invalid protocol limits to fail negotiation")
+	}
+}
+
+func TestNegotiateV2RequiresDeclaredCapabilities(t *testing.T) {
+	requirement := &protocolv2.CapabilityRequirement{Name: v2CapabilityTriggersEvent, MinimumVersion: 1, Required: true}
+	response := &protocolv2.GetCapabilitiesResponse{
+		SelectedProtocol: &protocolv2.ProtocolVersion{Major: 2, Minor: 0},
+		Limits: &protocolv2.ProtocolLimits{
+			MaximumMessageBytes:       1 << 20,
+			MaximumInlinePayloadBytes: 1 << 20,
+			MaximumEventBatchBytes:    1 << 20,
+			MaximumEventsPerBatch:     1,
+			MaximumPayloadBytes:       1 << 20,
+			MaximumPayloadChunkBytes:  1 << 20,
+		},
+	}
+	worker := NewWorker("svc", WithProtocolMode(ProtocolModeV2))
+	if _, _, err := worker.negotiateV2(context.Background(), fakeProtocolClient{response: response}, []*protocolv2.CapabilityRequirement{requirement}); err == nil {
+		t.Fatal("expected missing required capability to fail negotiation")
+	} else if !errors.Is(err, ErrRegistrationRejected) || shouldReconnect(err) {
+		t.Fatalf("missing capability error = %v, want terminal registration rejection", err)
+	}
+	response.Capabilities = []*protocolv2.Capability{{Name: v2CapabilityTriggersEvent, Version: 1}}
+	if _, _, err := worker.negotiateV2(context.Background(), fakeProtocolClient{response: response}, []*protocolv2.CapabilityRequirement{requirement}); err != nil {
+		t.Fatalf("required capability should negotiate: %v", err)
 	}
 }
 

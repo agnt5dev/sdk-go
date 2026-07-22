@@ -98,3 +98,66 @@ func TestV2OutcomeMapping(t *testing.T) {
 		t.Fatalf("failed outcome=%#v err=%v", failed, err)
 	}
 }
+
+func TestV2ExecutionDefaultsRejectInvalidRetryConfiguration(t *testing.T) {
+	for name, config := range map[string]map[string]string{
+		"missing attempts": {"initial_interval_ms": "100"},
+		"zero attempts":    {"max_attempts": "0"},
+		"invalid attempts": {"max_attempts": "many"},
+		"inverted backoff": {"max_attempts": "3", "initial_interval_ms": "500", "max_interval_ms": "100"},
+		"unknown strategy": {"max_attempts": "3", "backoff_type": "random"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := v2ExecutionDefaults(config); err == nil {
+				t.Fatalf("expected config %#v to fail", config)
+			}
+		})
+	}
+}
+
+func TestV2RunPolicyConfigIsRejectedInsteadOfDropped(t *testing.T) {
+	if _, err := v2ComponentDescriptors("1.2.3", []ComponentInfo{{
+		Name:   "greet",
+		Type:   ComponentTypeFunction,
+		Config: map[string]string{"run_policy_json": `{}`},
+	}}); !errors.Is(err, ErrTransportNotImplemented) {
+		t.Fatalf("run policy error = %v, want ErrTransportNotImplemented", err)
+	}
+}
+
+func TestV2CapabilityRequirementsFollowTriggerDeclarations(t *testing.T) {
+	requirements, err := v2CapabilityRequirements([]ComponentInfo{{
+		Name:     "triggered",
+		Type:     ComponentTypeWorkflow,
+		Metadata: map[string]string{"cron": "*/5 * * * *"},
+		Triggers: []TriggerSpec{{TriggerType: "event", EventName: "user.created", FilterExpression: "event.enabled"}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make(map[string]uint32, len(requirements))
+	for _, requirement := range requirements {
+		if !requirement.GetRequired() {
+			t.Fatalf("capability %q is not required", requirement.GetName())
+		}
+		got[requirement.GetName()] = requirement.GetMinimumVersion()
+	}
+	for _, name := range []string{v2CapabilityDurableOperations, v2CapabilityTriggersEvent, v2CapabilityTriggerExpression, v2CapabilityTriggersSchedule} {
+		if got[name] != 1 {
+			t.Fatalf("capability %q = %d, want 1", name, got[name])
+		}
+	}
+}
+
+func TestV2CapabilityRequirementsKeepPlainFunctionsOnBasePull(t *testing.T) {
+	requirements, err := v2CapabilityRequirements([]ComponentInfo{{
+		Name: "greet",
+		Type: ComponentTypeFunction,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requirements) != 0 {
+		t.Fatalf("plain function requirements = %#v, want base pull with no optional capabilities", requirements)
+	}
+}

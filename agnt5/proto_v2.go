@@ -1,7 +1,11 @@
 package agnt5
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,8 +15,20 @@ import (
 
 const portableSchemaDialect = "https://json-schema.org/draft/2020-12/schema"
 
+const (
+	v2CapabilityDurableOperations = "durable.operations"
+	v2CapabilityTriggerExpression = "trigger.expression.cel"
+	v2CapabilityTriggersEvent     = "triggers.event"
+	v2CapabilityTriggersSchedule  = "triggers.schedule"
+)
+
 func (w *Worker) v2RegisterWorkerRequest() (*protocolv2.RegisterWorkerRequest, error) {
-	components, err := v2ComponentDescriptors(w.serviceVersion, w.Components())
+	infos := w.Components()
+	components, err := v2ComponentDescriptors(w.serviceVersion, infos)
+	if err != nil {
+		return nil, err
+	}
+	requirements, err := v2CapabilityRequirements(infos)
 	if err != nil {
 		return nil, err
 	}
@@ -28,6 +44,7 @@ func (w *Worker) v2RegisterWorkerRequest() (*protocolv2.RegisterWorkerRequest, e
 		SdkVersion:      defaultServiceVersion,
 		MinimumProtocol: newV2ProtocolVersion(),
 		MaximumProtocol: newV2ProtocolVersion(),
+		Capabilities:    requirements,
 		Components:      components,
 		MaxConcurrency:  maxConcurrency,
 		Metadata:        v2PublicMetadata(w.Metadata()),
@@ -52,9 +69,23 @@ func v2ComponentDescriptors(version string, infos []ComponentInfo) ([]*protocolv
 		if len(inputSchema) == 0 {
 			inputSchema = []byte(`{}`)
 		}
+		if !json.Valid(inputSchema) {
+			return nil, fmt.Errorf("agnt5: component %q input_schema_json is not valid JSON", info.Name)
+		}
 		outputSchema := []byte(info.Config["output_schema_json"])
 		if len(outputSchema) == 0 {
 			outputSchema = []byte(`{}`)
+		}
+		if !json.Valid(outputSchema) {
+			return nil, fmt.Errorf("agnt5: component %q output_schema_json is not valid JSON", info.Name)
+		}
+		executionDefaults, err := v2ExecutionDefaults(info.Config)
+		if err != nil {
+			return nil, fmt.Errorf("agnt5: component %q: %w", info.Name, err)
+		}
+		runPolicy, err := v2RunPolicy(info.Config)
+		if err != nil {
+			return nil, fmt.Errorf("agnt5: component %q: %w", info.Name, err)
 		}
 		out = append(out, &protocolv2.ComponentDescriptor{
 			Type:              componentType,
@@ -63,7 +94,8 @@ func v2ComponentDescriptors(version string, infos []ComponentInfo) ([]*protocolv
 			InputSchemaJson:   inputSchema,
 			OutputSchemaJson:  outputSchema,
 			Metadata:          v2PublicMetadata(info.Metadata),
-			ExecutionDefaults: v2ExecutionDefaults(info.Config),
+			RunPolicy:         runPolicy,
+			ExecutionDefaults: executionDefaults,
 			Triggers:          triggers,
 			SchemaDialect:     portableSchemaDialect,
 		})
@@ -109,37 +141,94 @@ func componentTypeFromV2(componentType protocolv2.ComponentType) ComponentType {
 	}
 }
 
-func v2ExecutionDefaults(config map[string]string) *protocolv2.ExecutionDefaults {
-	maximumAttempts, hasAttempts := int32Config(config, "max_attempts")
-	initialMS, hasInitial := int32Config(config, "initial_interval_ms")
-	maximumMS, hasMaximum := int32Config(config, "max_interval_ms")
-	multiplier, hasMultiplier := float64Config(config, "backoff_multiplier")
-	backoffType := config["backoff_type"]
-	if !hasAttempts && !hasInitial && !hasMaximum && !hasMultiplier && backoffType == "" {
-		return nil
+func v2ExecutionDefaults(config map[string]string) (*protocolv2.ExecutionDefaults, error) {
+	retryKeys := []string{"max_attempts", "initial_interval_ms", "max_interval_ms", "backoff_multiplier", "backoff_type"}
+	hasRetry := false
+	for _, key := range retryKeys {
+		if _, ok := config[key]; ok {
+			hasRetry = true
+			break
+		}
 	}
-	retry := &protocolv2.RetryPolicy{}
-	if maximumAttempts > 0 {
-		retry.MaximumAttempts = uint32(maximumAttempts)
+	hasRunTimeout := configHasKey(config, "run_timeout_ms")
+	hasExecutionTimeout := configHasKey(config, "execution_timeout_ms")
+	if !hasRetry && !hasRunTimeout && !hasExecutionTimeout {
+		return nil, nil
 	}
-	if initialMS > 0 {
-		retry.InitialBackoff = durationpb.New(time.Duration(initialMS) * time.Millisecond)
+	defaults := &protocolv2.ExecutionDefaults{}
+	if hasRetry {
+		maximumAttempts, ok, err := uint32ConfigStrict(config, "max_attempts")
+		if err != nil {
+			return nil, err
+		}
+		if !ok || maximumAttempts == 0 {
+			return nil, fmt.Errorf("v2 retry configuration requires max_attempts >= 1")
+		}
+		initialMS, hasInitial, err := durationMSConfigStrict(config, "initial_interval_ms", false)
+		if err != nil {
+			return nil, err
+		}
+		maximumMS, hasMaximum, err := durationMSConfigStrict(config, "max_interval_ms", false)
+		if err != nil {
+			return nil, err
+		}
+		if hasInitial && hasMaximum && maximumMS < initialMS {
+			return nil, fmt.Errorf("max_interval_ms must be greater than or equal to initial_interval_ms")
+		}
+		multiplier, hasMultiplier, err := float64ConfigStrict(config, "backoff_multiplier")
+		if err != nil {
+			return nil, err
+		}
+		if hasMultiplier && (multiplier <= 0 || math.IsInf(multiplier, 0) || math.IsNaN(multiplier)) {
+			return nil, fmt.Errorf("backoff_multiplier must be finite and greater than zero")
+		}
+		retry := &protocolv2.RetryPolicy{MaximumAttempts: maximumAttempts}
+		if hasInitial {
+			retry.InitialBackoff = durationpb.New(initialMS)
+		}
+		if hasMaximum {
+			retry.MaximumBackoff = durationpb.New(maximumMS)
+		}
+		if hasMultiplier {
+			retry.BackoffMultiplier = multiplier
+		}
+		switch value := strings.ToLower(strings.TrimSpace(config["backoff_type"])); value {
+		case "":
+		case "constant":
+			retry.BackoffStrategy = protocolv2.RetryBackoffStrategy_RETRY_BACKOFF_STRATEGY_CONSTANT
+		case "linear":
+			retry.BackoffStrategy = protocolv2.RetryBackoffStrategy_RETRY_BACKOFF_STRATEGY_LINEAR
+		case "exponential":
+			retry.BackoffStrategy = protocolv2.RetryBackoffStrategy_RETRY_BACKOFF_STRATEGY_EXPONENTIAL
+		default:
+			return nil, fmt.Errorf("unsupported backoff_type %q", value)
+		}
+		defaults.RetryPolicy = retry
 	}
-	if maximumMS > 0 {
-		retry.MaximumBackoff = durationpb.New(time.Duration(maximumMS) * time.Millisecond)
+	if hasRunTimeout {
+		duration, _, err := durationMSConfigStrict(config, "run_timeout_ms", true)
+		if err != nil {
+			return nil, err
+		}
+		defaults.RunTimeout = durationpb.New(duration)
 	}
-	if multiplier > 0 {
-		retry.BackoffMultiplier = multiplier
+	if hasExecutionTimeout {
+		duration, _, err := durationMSConfigStrict(config, "execution_timeout_ms", true)
+		if err != nil {
+			return nil, err
+		}
+		defaults.ExecutionTimeout = durationpb.New(duration)
 	}
-	switch strings.ToLower(backoffType) {
-	case "constant":
-		retry.BackoffStrategy = protocolv2.RetryBackoffStrategy_RETRY_BACKOFF_STRATEGY_CONSTANT
-	case "linear":
-		retry.BackoffStrategy = protocolv2.RetryBackoffStrategy_RETRY_BACKOFF_STRATEGY_LINEAR
-	case "exponential":
-		retry.BackoffStrategy = protocolv2.RetryBackoffStrategy_RETRY_BACKOFF_STRATEGY_EXPONENTIAL
+	return defaults, nil
+}
+
+func v2RunPolicy(config map[string]string) (*protocolv2.RunPolicy, error) {
+	for key := range config {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "run_policy") {
+			return nil, fmt.Errorf("%w: Go run-policy declarations are not available in the alpha.3 adapter", ErrTransportNotImplemented)
+		}
 	}
-	return &protocolv2.ExecutionDefaults{RetryPolicy: retry}
+	return nil, nil
 }
 
 func v2TriggerDescriptors(info ComponentInfo) ([]*protocolv2.TriggerDescriptor, error) {
@@ -147,6 +236,12 @@ func v2TriggerDescriptors(info ComponentInfo) ([]*protocolv2.TriggerDescriptor, 
 	for index, trigger := range info.Triggers {
 		if trigger.TriggerType != "event" {
 			return nil, fmt.Errorf("trigger type %q is not supported by the v2 Go adapter", trigger.TriggerType)
+		}
+		if strings.TrimSpace(trigger.EventName) == "" {
+			return nil, fmt.Errorf("event trigger requires a non-empty event name")
+		}
+		if trigger.BatchWindowMS < 0 {
+			return nil, fmt.Errorf("event trigger batch_window_ms must not be negative")
 		}
 		triggerID := trigger.TriggerID
 		if triggerID == "" {
@@ -184,6 +279,84 @@ func v2TriggerDescriptors(info ComponentInfo) ([]*protocolv2.TriggerDescriptor, 
 		})
 	}
 	return out, nil
+}
+
+func v2CapabilityRequirements(infos []ComponentInfo) ([]*protocolv2.CapabilityRequirement, error) {
+	required := make(map[string]uint32)
+	for _, info := range infos {
+		if info.Type == ComponentTypeWorkflow {
+			required[v2CapabilityDurableOperations] = 1
+		}
+		for _, trigger := range info.Triggers {
+			if trigger.TriggerType != "event" {
+				return nil, fmt.Errorf("agnt5: component %q trigger type %q is not supported by protocol v2", info.Name, trigger.TriggerType)
+			}
+			required[v2CapabilityTriggersEvent] = 1
+			if trigger.FilterExpression != "" || trigger.InputMapping != "" || trigger.DelayExpression != "" {
+				required[v2CapabilityTriggerExpression] = 1
+			}
+		}
+		if strings.TrimSpace(info.Metadata["cron"]) != "" {
+			required[v2CapabilityTriggersSchedule] = 1
+		}
+	}
+	names := make([]string, 0, len(required))
+	for name := range required {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	out := make([]*protocolv2.CapabilityRequirement, 0, len(names))
+	for _, name := range names {
+		out = append(out, &protocolv2.CapabilityRequirement{Name: name, MinimumVersion: required[name], Required: true})
+	}
+	return out, nil
+}
+
+func configHasKey(config map[string]string, key string) bool {
+	_, ok := config[key]
+	return ok
+}
+
+func uint32ConfigStrict(config map[string]string, key string) (uint32, bool, error) {
+	value, ok := config[key]
+	if !ok {
+		return 0, false, nil
+	}
+	parsed, err := strconv.ParseUint(strings.TrimSpace(value), 10, 32)
+	if err != nil {
+		return 0, true, fmt.Errorf("%s must be a uint32: %w", key, err)
+	}
+	return uint32(parsed), true, nil
+}
+
+func durationMSConfigStrict(config map[string]string, key string, allowZero bool) (time.Duration, bool, error) {
+	value, ok := config[key]
+	if !ok {
+		return 0, false, nil
+	}
+	parsed, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil {
+		return 0, true, fmt.Errorf("%s must be an integer number of milliseconds: %w", key, err)
+	}
+	if parsed < 0 || (!allowZero && parsed == 0) {
+		return 0, true, fmt.Errorf("%s must be %s", key, map[bool]string{true: "non-negative", false: "greater than zero"}[allowZero])
+	}
+	if parsed > int64(math.MaxInt64/int64(time.Millisecond)) {
+		return 0, true, fmt.Errorf("%s is too large", key)
+	}
+	return time.Duration(parsed) * time.Millisecond, true, nil
+}
+
+func float64ConfigStrict(config map[string]string, key string) (float64, bool, error) {
+	value, ok := config[key]
+	if !ok {
+		return 0, false, nil
+	}
+	parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0, true, fmt.Errorf("%s must be a number: %w", key, err)
+	}
+	return parsed, true, nil
 }
 
 func invocationFromV2Execute(request *protocolv2.ExecuteRunRequest) (Invocation, error) {

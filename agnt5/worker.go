@@ -60,6 +60,7 @@ type Worker struct {
 	protocolMu          sync.RWMutex
 	protocolDiagnostics ProtocolDiagnostics
 	maxConcurrency      uint32
+	metadataMu          sync.RWMutex
 	metadata            map[string]string
 	registry            *Registry
 	grpcDialOptions     []grpc.DialOption
@@ -244,6 +245,8 @@ func (w *Worker) MaxConcurrency() uint32 {
 
 // Metadata returns a defensive copy of service metadata.
 func (w *Worker) Metadata() map[string]string {
+	w.metadataMu.RLock()
+	defer w.metadataMu.RUnlock()
 	return cloneStringMap(w.metadata)
 }
 
@@ -401,6 +404,9 @@ func shouldReconnect(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, errV2SessionExpired) {
+		return true
+	}
 	if errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, ErrRegistrationRejected) ||
@@ -411,6 +417,9 @@ func shouldReconnect(err error) bool {
 	}
 	var protocolErr *ProtocolError
 	if errors.As(err, &protocolErr) {
+		if v2ExecutionAuthorityError(protocolErr) || protocolErr.Code == "STALE_WORKER_SESSION" {
+			return false
+		}
 		return protocolErr.Retryable
 	}
 	return true

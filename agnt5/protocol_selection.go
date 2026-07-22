@@ -28,6 +28,7 @@ type ProtocolError struct {
 	Details    map[string]string
 	GRPCCode   codes.Code
 	cause      error
+	structured bool
 }
 
 func (e *ProtocolError) Error() string {
@@ -47,29 +48,30 @@ func (e *ProtocolError) Unwrap() error {
 	return e.cause
 }
 
-func (w *Worker) negotiateV2(ctx context.Context, client protocolv2.ProtocolServiceClient) (ProtocolDiagnostics, error) {
+func (w *Worker) negotiateV2(ctx context.Context, client protocolv2.ProtocolServiceClient, requirements []*protocolv2.CapabilityRequirement) (ProtocolDiagnostics, *protocolv2.ProtocolLimits, error) {
 	request := &protocolv2.GetCapabilitiesRequest{
 		MinimumProtocol: newV2ProtocolVersion(),
 		MaximumProtocol: newV2ProtocolVersion(),
+		Capabilities:    cloneV2CapabilityRequirements(requirements),
 	}
 	var trailer metadata.MD
 	response, err := client.GetCapabilities(ctx, request, grpc.Trailer(&trailer))
 	if err != nil {
-		return ProtocolDiagnostics{}, wrapProtocolError(err, trailer)
+		return ProtocolDiagnostics{}, nil, wrapProtocolError(err, trailer)
 	}
 	selected := response.GetSelectedProtocol()
 	if selected.GetMajor() != 2 || selected.GetMinor() != 0 {
-		return ProtocolDiagnostics{}, fmt.Errorf("agnt5: runtime selected unsupported protocol %d.%d for forced v2 mode", selected.GetMajor(), selected.GetMinor())
+		return ProtocolDiagnostics{}, nil, fmt.Errorf("%w: runtime selected unsupported protocol %d.%d for forced v2 mode", ErrRegistrationRejected, selected.GetMajor(), selected.GetMinor())
 	}
 	if err := validateV2Limits(response.GetLimits()); err != nil {
-		return ProtocolDiagnostics{}, err
+		return ProtocolDiagnostics{}, nil, fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
 	}
-	capabilities := make(map[string]uint32, len(response.GetCapabilities()))
-	for _, capability := range response.GetCapabilities() {
-		if capability.GetName() == "" {
-			continue
-		}
-		capabilities[capability.GetName()] = capability.GetVersion()
+	if err := validateV2MessageSize(response, response.GetLimits(), "GetCapabilities response"); err != nil {
+		return ProtocolDiagnostics{}, nil, fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
+	}
+	capabilities := v2CapabilityMap(response.GetCapabilities())
+	if err := validateV2CapabilityRequirements(requirements, capabilities); err != nil {
+		return ProtocolDiagnostics{}, nil, fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
 	}
 	return ProtocolDiagnostics{
 		RequestedMode:   ProtocolModeV2,
@@ -78,7 +80,7 @@ func (w *Worker) negotiateV2(ctx context.Context, client protocolv2.ProtocolServ
 		RuntimeName:     response.GetRuntimeName(),
 		RuntimeVersion:  response.GetRuntimeVersion(),
 		Capabilities:    capabilities,
-	}, nil
+	}, response.GetLimits(), nil
 }
 
 func validateV2Limits(limits *protocolv2.ProtocolLimits) error {
@@ -100,6 +102,10 @@ func wrapProtocolError(err error, trailer metadata.MD) error {
 		return nil
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	var existing *ProtocolError
+	if errors.As(err, &existing) {
 		return err
 	}
 	grpcStatus, _ := status.FromError(err)
@@ -128,6 +134,7 @@ func wrapProtocolError(err error, trailer metadata.MD) error {
 		wrapped.RetryAfter = retryAfter.AsDuration()
 	}
 	wrapped.Details = cloneStringMap(detail.GetDetails())
+	wrapped.structured = true
 	return wrapped
 }
 
@@ -152,4 +159,48 @@ func v2FallbackAllowed(mode ProtocolMode, selected *protocolv2.ProtocolVersion, 
 		return protocolErr.GRPCCode == codes.Unimplemented
 	}
 	return status.Code(err) == codes.Unimplemented
+}
+
+func v2CapabilityMap(capabilities []*protocolv2.Capability) map[string]uint32 {
+	out := make(map[string]uint32, len(capabilities))
+	for _, capability := range capabilities {
+		if capability.GetName() == "" {
+			continue
+		}
+		out[capability.GetName()] = capability.GetVersion()
+	}
+	return out
+}
+
+func validateV2CapabilityRequirements(requirements []*protocolv2.CapabilityRequirement, capabilities map[string]uint32) error {
+	for _, requirement := range requirements {
+		if requirement == nil || !requirement.GetRequired() {
+			continue
+		}
+		if capabilities[requirement.GetName()] < requirement.GetMinimumVersion() {
+			return fmt.Errorf("agnt5: runtime does not satisfy required protocol capability %s@%d", requirement.GetName(), requirement.GetMinimumVersion())
+		}
+	}
+	return nil
+}
+
+func cloneV2CapabilityRequirements(in []*protocolv2.CapabilityRequirement) []*protocolv2.CapabilityRequirement {
+	out := make([]*protocolv2.CapabilityRequirement, 0, len(in))
+	for _, requirement := range in {
+		if requirement == nil {
+			continue
+		}
+		out = append(out, proto.Clone(requirement).(*protocolv2.CapabilityRequirement))
+	}
+	return out
+}
+
+func validateV2MessageSize(message proto.Message, limits *protocolv2.ProtocolLimits, label string) error {
+	if message == nil || limits == nil {
+		return nil
+	}
+	if size := uint64(proto.Size(message)); size > limits.GetMaximumMessageBytes() {
+		return fmt.Errorf("agnt5: %s is %d bytes, exceeding negotiated maximum_message_bytes %d", label, size, limits.GetMaximumMessageBytes())
+	}
+	return nil
 }

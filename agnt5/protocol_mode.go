@@ -66,6 +66,8 @@ func (w *Worker) setProtocolDiagnostics(diagnostics ProtocolDiagnostics) {
 	w.protocolDiagnostics = diagnostics
 	w.protocolMu.Unlock()
 
+	w.metadataMu.Lock()
+	defer w.metadataMu.Unlock()
 	w.metadata["agnt5.protocol.requested"] = string(diagnostics.RequestedMode)
 	w.metadata["agnt5.protocol.selected"] = diagnostics.SelectedVersion
 	w.metadata["agnt5.protocol.artifact_version"] = diagnostics.ArtifactVersion

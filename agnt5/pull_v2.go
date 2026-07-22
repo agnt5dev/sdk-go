@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	protocolv2 "github.com/agnt5dev/runtime/gen/go/agnt5/protocol/v2"
@@ -11,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -20,6 +22,12 @@ const (
 	defaultV2OperationAttempts = 3
 	defaultV2OperationBackoff  = 100 * time.Millisecond
 	defaultV2UnregisterTimeout = 3 * time.Second
+	defaultV2SessionExpirySkew = 500 * time.Millisecond
+)
+
+var (
+	errV2ExecutionScoped = errors.New("agnt5: protocol v2 execution ended without a committable outcome")
+	errV2SessionExpired  = errors.New("agnt5: protocol v2 worker session expired")
 )
 
 func (w *Worker) runV2(ctx context.Context) error {
@@ -29,15 +37,16 @@ func (w *Worker) runV2(ctx context.Context) error {
 	}
 	defer conn.Close()
 
-	diagnostics, err := w.negotiateV2(ctx, newProtocolServiceClient(conn))
+	request, err := w.v2RegisterWorkerRequest()
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
+	}
+	diagnostics, negotiatedLimits, err := w.negotiateV2(ctx, newProtocolServiceClient(conn), request.GetCapabilities())
 	if err != nil {
 		return err
 	}
-	w.setProtocolDiagnostics(diagnostics)
-
-	request, err := w.v2RegisterWorkerRequest()
-	if err != nil {
-		return err
+	if err := validateV2MessageSize(request, negotiatedLimits, "RegisterWorker request"); err != nil {
+		return fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
 	}
 	client := newV2WorkerServiceClient(conn)
 	var trailer metadata.MD
@@ -46,15 +55,31 @@ func (w *Worker) runV2(ctx context.Context) error {
 		return wrapProtocolError(err, trailer)
 	}
 	if len(registration.GetWorkerSessionToken()) == 0 {
-		return fmt.Errorf("agnt5: v2 worker registration returned an empty session token")
+		return fmt.Errorf("%w: v2 worker registration returned an empty session token", ErrRegistrationRejected)
 	}
 	selected := registration.GetSelectedProtocol()
 	if selected.GetMajor() != 2 || selected.GetMinor() != 0 {
-		return fmt.Errorf("agnt5: v2 worker registration selected unsupported protocol %d.%d", selected.GetMajor(), selected.GetMinor())
+		return fmt.Errorf("%w: v2 worker registration selected unsupported protocol %d.%d", ErrRegistrationRejected, selected.GetMajor(), selected.GetMinor())
 	}
 	if err := validateV2Limits(registration.GetLimits()); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
 	}
+	if err := validateV2MessageSize(registration, negotiatedLimits, "RegisterWorker response"); err != nil {
+		return fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
+	}
+	if !proto.Equal(negotiatedLimits, registration.GetLimits()) {
+		return fmt.Errorf("%w: protocol limits changed between negotiation and worker registration", ErrRegistrationRejected)
+	}
+	registeredCapabilities := v2CapabilityMap(registration.GetCapabilities())
+	if err := validateV2CapabilityRequirements(request.GetCapabilities(), registeredCapabilities); err != nil {
+		return fmt.Errorf("%w: %w", ErrRegistrationRejected, err)
+	}
+	expiresAt := registration.GetSessionExpiresAt()
+	if expiresAt == nil || expiresAt.CheckValid() != nil || !expiresAt.AsTime().After(time.Now()) {
+		return fmt.Errorf("%w: v2 worker registration returned an invalid session expiration", ErrRegistrationRejected)
+	}
+	diagnostics.Capabilities = registeredCapabilities
+	w.setProtocolDiagnostics(diagnostics)
 
 	w.writeHealthMarker()
 	defer w.removeHealthMarker()
@@ -80,22 +105,38 @@ func (w *Worker) runV2Worker(ctx context.Context, client protocolv2.WorkerServic
 		slots = 1
 	}
 	errCh := make(chan error, slots)
+	var slotsDone sync.WaitGroup
+	slotsDone.Add(int(slots))
 	for slot := uint32(0); slot < slots; slot++ {
 		go func() {
+			defer slotsDone.Done()
 			errCh <- w.runV2PollSlot(runCtx, client, registration)
 		}()
 	}
 
+	expiryDelay := time.Until(registration.GetSessionExpiresAt().AsTime())
+	if expiryDelay < 0 {
+		expiryDelay = 0
+	}
+	expiryTimer := time.NewTimer(expiryDelay)
+	defer expiryTimer.Stop()
+	var result error
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		result = ctx.Err()
 	case err := <-errCh:
-		return err
+		result = err
+	case <-expiryTimer.C:
+		result = errV2SessionExpired
 	}
+	cancel()
+	slotsDone.Wait()
+	return result
 }
 
 func (w *Worker) runV2PollSlot(ctx context.Context, client protocolv2.WorkerServiceClient, registration *protocolv2.RegisterWorkerResponse) error {
 	sessionToken := registration.GetWorkerSessionToken()
+	sessionExpiresAt := registration.GetSessionExpiresAt().AsTime()
 	pollWait := v2Duration(registration.GetMaximumPollWait(), defaultV2PollWait)
 	renewInterval := v2Duration(registration.GetRecommendedRenewInterval(), defaultV2RenewInterval)
 	for {
@@ -107,13 +148,24 @@ func (w *Worker) runV2PollSlot(ctx context.Context, client protocolv2.WorkerServ
 			WorkerSessionToken: cloneBytes(sessionToken),
 			PollId:             pollID,
 			WaitTimeout:        durationpb.New(pollWait),
-		})
+		}, registration.GetLimits())
 		if err != nil {
+			err = classifyV2SessionError(err, sessionExpiresAt)
+			if isV2PollBackpressure(err) {
+				if waitErr := sleepContext(ctx, defaultV2OperationBackoff); waitErr != nil {
+					return waitErr
+				}
+				continue
+			}
 			return err
 		}
 		switch result := response.GetResult().(type) {
 		case *protocolv2.PollRunResponse_Execute:
 			if err := w.executeV2Run(ctx, client, result.Execute, renewInterval, registration.GetLimits()); err != nil {
+				err = classifyV2SessionError(err, sessionExpiresAt)
+				if errors.Is(err, errV2ExecutionScoped) {
+					continue
+				}
 				return err
 			}
 		case *protocolv2.PollRunResponse_Idle:
@@ -126,12 +178,18 @@ func (w *Worker) runV2PollSlot(ctx context.Context, client protocolv2.WorkerServ
 	}
 }
 
-func pollV2WithRetry(ctx context.Context, client protocolv2.WorkerServiceClient, request *protocolv2.PollRunRequest) (*protocolv2.PollRunResponse, error) {
+func pollV2WithRetry(ctx context.Context, client protocolv2.WorkerServiceClient, request *protocolv2.PollRunRequest, limits *protocolv2.ProtocolLimits) (*protocolv2.PollRunResponse, error) {
+	if err := validateV2MessageSize(request, limits, "PollRun request"); err != nil {
+		return nil, err
+	}
 	backoff := defaultV2OperationBackoff
 	for attempt := 1; attempt <= defaultV2OperationAttempts; attempt++ {
 		var trailer metadata.MD
 		response, err := client.PollRun(ctx, request, grpc.Trailer(&trailer))
 		if err == nil {
+			if sizeErr := validateV2MessageSize(response, limits, "PollRun response"); sizeErr != nil {
+				return nil, sizeErr
+			}
 			return response, nil
 		}
 		wrapped := wrapProtocolError(err, trailer)
@@ -157,6 +215,9 @@ func (w *Worker) executeV2Run(ctx context.Context, client protocolv2.WorkerServi
 	if uint64(len(invocation.Input)) > limits.GetMaximumInlinePayloadBytes() {
 		return fmt.Errorf("agnt5: v2 input exceeds negotiated inline payload limit")
 	}
+	if uint64(len(invocation.Input)) > limits.GetMaximumPayloadBytes() {
+		return fmt.Errorf("agnt5: v2 input exceeds negotiated payload limit")
+	}
 
 	executionCtx := ctx
 	var cancelExecution context.CancelFunc
@@ -166,22 +227,27 @@ func (w *Worker) executeV2Run(ctx context.Context, client protocolv2.WorkerServi
 		executionCtx, cancelExecution = context.WithCancel(ctx)
 	}
 	defer cancelExecution()
-	renewErrCh := make(chan error, 1)
+	renewDone := make(chan error, 1)
 	stopRenewal := make(chan struct{})
-	go renewV2Lease(executionCtx, client, request.GetExecutionToken(), renewInterval, cancelExecution, stopRenewal, renewErrCh)
+	go func() {
+		renewDone <- renewV2Lease(executionCtx, client, request.GetExecutionToken(), renewInterval, cancelExecution, stopRenewal, limits)
+	}()
 
 	result, invokeErr := w.invoke(executionCtx, invocation)
 	close(stopRenewal)
-	select {
-	case renewErr := <-renewErrCh:
-		if renewErr != nil {
-			return renewErr
-		}
-	default:
+	if renewErr := <-renewDone; renewErr != nil {
+		return renewErr
+	}
+	if invokeErr == nil && executionCtx.Err() != nil {
+		invokeErr = executionCtx.Err()
 	}
 	annotateUnsupportedV2Events(&result)
 	if uint64(len(result.Output)) > limits.GetMaximumInlinePayloadBytes() {
 		invokeErr = fmt.Errorf("agnt5: v2 output exceeds negotiated inline payload limit")
+		result.Output = nil
+	}
+	if uint64(len(result.Output)) > limits.GetMaximumPayloadBytes() {
+		invokeErr = fmt.Errorf("agnt5: v2 output exceeds negotiated payload limit")
 		result.Output = nil
 	}
 	outcome, outcomeErr := v2OutcomeFromResult(result, invokeErr)
@@ -193,8 +259,11 @@ func (w *Worker) executeV2Run(ctx context.Context, client protocolv2.WorkerServi
 		CommitId:       v2CommitID(request),
 		Outcome:        outcome,
 	}
-	response, err := commitV2WithRetry(ctx, client, commit)
+	response, err := commitV2WithRetry(ctx, client, commit, limits)
 	if err != nil {
+		if v2ExecutionAuthorityError(err) || v2OperationRetryable(err, false) {
+			return fmt.Errorf("%w: commit outcome: %w", errV2ExecutionScoped, err)
+		}
 		return err
 	}
 	switch response.GetDisposition() {
@@ -206,7 +275,7 @@ func (w *Worker) executeV2Run(ctx context.Context, client protocolv2.WorkerServi
 	}
 }
 
-func renewV2Lease(ctx context.Context, client protocolv2.WorkerServiceClient, executionToken []byte, interval time.Duration, cancelExecution context.CancelFunc, stop <-chan struct{}, errCh chan<- error) {
+func renewV2Lease(ctx context.Context, client protocolv2.WorkerServiceClient, executionToken []byte, interval time.Duration, cancelExecution context.CancelFunc, stop <-chan struct{}, limits *protocolv2.ProtocolLimits) error {
 	if interval <= 0 {
 		interval = defaultV2RenewInterval
 	}
@@ -215,40 +284,47 @@ func renewV2Lease(ctx context.Context, client protocolv2.WorkerServiceClient, ex
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-stop:
-			return
+			return nil
 		case <-ticker.C:
 			var trailer metadata.MD
-			response, err := client.RenewRunLease(ctx, &protocolv2.RenewRunLeaseRequest{
+			request := &protocolv2.RenewRunLeaseRequest{
 				ExecutionToken: cloneBytes(executionToken),
-			}, grpc.Trailer(&trailer))
+			}
+			if err := validateV2MessageSize(request, limits, "RenewRunLease request"); err != nil {
+				cancelExecution()
+				return err
+			}
+			response, err := client.RenewRunLease(ctx, request, grpc.Trailer(&trailer))
 			if err != nil {
 				cancelExecution()
-				select {
-				case errCh <- wrapProtocolError(err, trailer):
-				default:
-				}
-				return
+				return fmt.Errorf("%w: renew execution lease: %w", errV2ExecutionScoped, wrapProtocolError(err, trailer))
+			}
+			if err := validateV2MessageSize(response, limits, "RenewRunLease response"); err != nil {
+				cancelExecution()
+				return err
 			}
 			if response.GetCancellationRequested() {
 				cancelExecution()
-				select {
-				case errCh <- fmt.Errorf("agnt5: v2 execution cancelled by runtime: %s", response.GetCancellationReason()):
-				default:
-				}
-				return
+				return fmt.Errorf("%w: runtime requested cancellation: %s", errV2ExecutionScoped, response.GetCancellationReason())
 			}
 		}
 	}
 }
 
-func commitV2WithRetry(ctx context.Context, client protocolv2.WorkerServiceClient, request *protocolv2.CommitRunOutcomeRequest) (*protocolv2.CommitRunOutcomeResponse, error) {
+func commitV2WithRetry(ctx context.Context, client protocolv2.WorkerServiceClient, request *protocolv2.CommitRunOutcomeRequest, limits *protocolv2.ProtocolLimits) (*protocolv2.CommitRunOutcomeResponse, error) {
+	if err := validateV2MessageSize(request, limits, "CommitRunOutcome request"); err != nil {
+		return nil, err
+	}
 	backoff := defaultV2OperationBackoff
 	for attempt := 1; attempt <= defaultV2OperationAttempts; attempt++ {
 		var trailer metadata.MD
 		response, err := client.CommitRunOutcome(ctx, request, grpc.Trailer(&trailer))
 		if err == nil {
+			if sizeErr := validateV2MessageSize(response, limits, "CommitRunOutcome response"); sizeErr != nil {
+				return nil, sizeErr
+			}
 			return response, nil
 		}
 		wrapped := wrapProtocolError(err, trailer)
@@ -269,6 +345,9 @@ func v2OperationRetryable(err error, poll bool) bool {
 	}
 	var protocolErr *ProtocolError
 	if errors.As(err, &protocolErr) {
+		if v2ExecutionAuthorityError(protocolErr) || protocolErr.Code == "STALE_WORKER_SESSION" {
+			return false
+		}
 		if protocolErr.Retryable {
 			return true
 		}
@@ -282,11 +361,49 @@ func waitForV2Retry(ctx context.Context, idle *protocolv2.PollIdle) error {
 	delay := defaultV2OperationBackoff
 	if retryAt := idle.GetRetryAt(); retryAt != nil {
 		until := time.Until(retryAt.AsTime())
-		if until > 0 && until < defaultV2PollWait {
-			delay = until
+		if until > 0 {
+			delay = min(until, defaultV2PollWait)
 		}
 	}
 	return sleepContext(ctx, delay)
+}
+
+func classifyV2SessionError(err error, expiresAt time.Time) error {
+	if err == nil {
+		return nil
+	}
+	var protocolErr *ProtocolError
+	if !errors.As(err, &protocolErr) || protocolErr.GRPCCode != codes.Unauthenticated {
+		return err
+	}
+	if protocolErr.structured {
+		if protocolErr.Code == "STALE_WORKER_SESSION" {
+			return fmt.Errorf("%w: %v", ErrWorkerReplaced, err)
+		}
+		return err
+	}
+	if !expiresAt.IsZero() && !time.Now().Add(defaultV2SessionExpirySkew).Before(expiresAt) {
+		return fmt.Errorf("%w: %v", errV2SessionExpired, err)
+	}
+	return fmt.Errorf("%w: %v", ErrWorkerReplaced, err)
+}
+
+func isV2PollBackpressure(err error) bool {
+	var protocolErr *ProtocolError
+	return errors.As(err, &protocolErr) && protocolErr.GRPCCode == codes.ResourceExhausted
+}
+
+func v2ExecutionAuthorityError(err error) bool {
+	var protocolErr *ProtocolError
+	if !errors.As(err, &protocolErr) {
+		return false
+	}
+	switch protocolErr.Code {
+	case "INVALID_EXECUTION_TOKEN", "STALE_EXECUTION_TOKEN", "EXECUTION_SUPERSEDED":
+		return true
+	default:
+		return false
+	}
 }
 
 func v2Duration(value *durationpb.Duration, fallback time.Duration) time.Duration {
