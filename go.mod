@@ -3,8 +3,9 @@ module github.com/agnt5dev/sdk-go
 go 1.26.5
 
 require (
+	github.com/agnt5dev/runtime/gen/go v0.1.0-alpha.3
 	google.golang.org/grpc v1.75.0
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 )
 
 require (

@@ -1,0 +1,22 @@
+{
+  "logical_bytes_base64": "eyJuYW1lIjoiQWRhIn0=",
+  "logical_size_bytes": "14",
+  "logical_sha256_hex": "88bab6d8f6dc68a877064d584cbb5b6c50e74f617ea50d81d3a53c2ee6ffbc4f",
+  "put_frames": [
+    {
+      "metadata": {
+        "request_id": "payload-request-01",
+        "content_type": "application/json",
+        "size_bytes": "14",
+        "sha256": "iLq22PbcaKh3Bk1YTLtbbFDnT2F+pQ2B06U8Lub/vE8=",
+        "minimum_ttl": "3600s"
+      }
+    },
+    {
+      "chunk": {
+        "offset": "0",
+        "data": "eyJuYW1lIjoiQWRhIn0="
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -31,6 +32,7 @@ const (
 	envProjectID               = "AGNT5_PROJECT_ID"
 	envDeploymentID            = "AGNT5_DEPLOYMENT_ID"
 	envWorkerMode              = "AGNT5_WORKER_MODE"
+	envProtocolMode            = "AGNT5_PROTOCOL_MODE"
 	envMaxConcurrency          = "AGNT5_MAX_CONCURRENCY"
 	envMaxRetries              = "AGNT5_MAX_RETRIES"
 	envMinSlots                = "AGNT5_MIN_SLOTS"
@@ -53,6 +55,10 @@ type Worker struct {
 	projectID           string
 	deploymentID        string
 	workerMode          WorkerMode
+	protocolMode        ProtocolMode
+	protocolConfigErr   error
+	protocolMu          sync.RWMutex
+	protocolDiagnostics ProtocolDiagnostics
 	maxConcurrency      uint32
 	metadata            map[string]string
 	registry            *Registry
@@ -71,6 +77,7 @@ type Worker struct {
 
 // NewWorker constructs a Go worker with environment-compatible defaults.
 func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
+	protocolMode, protocolErr := protocolModeFromEnv()
 	w := &Worker{
 		workerID:            envOrDefault(envWorkerID, newWorkerID()),
 		serviceName:         serviceName,
@@ -81,6 +88,8 @@ func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 		projectID:           os.Getenv(envProjectID),
 		deploymentID:        os.Getenv(envDeploymentID),
 		workerMode:          workerModeFromEnv(),
+		protocolMode:        protocolMode,
+		protocolConfigErr:   protocolErr,
 		maxConcurrency:      uint32FromEnv(envMaxConcurrency),
 		metadata:            make(map[string]string),
 		registry:            NewRegistry(),
@@ -215,6 +224,19 @@ func (w *Worker) WorkerMode() WorkerMode {
 	return w.workerMode
 }
 
+// ProtocolMode returns the requested worker protocol mode.
+func (w *Worker) ProtocolMode() ProtocolMode {
+	return w.protocolMode
+}
+
+// ProtocolDiagnostics returns a safe snapshot of protocol selection state.
+// Opaque worker-session and execution tokens are never included.
+func (w *Worker) ProtocolDiagnostics() ProtocolDiagnostics {
+	w.protocolMu.RLock()
+	defer w.protocolMu.RUnlock()
+	return w.protocolDiagnostics.clone()
+}
+
 // MaxConcurrency returns the configured in-flight invocation budget.
 func (w *Worker) MaxConcurrency() uint32 {
 	return w.maxConcurrency
@@ -240,6 +262,20 @@ func (w *Worker) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if w.protocolConfigErr != nil {
+		return w.protocolConfigErr
+	}
+	if w.protocolMode == ProtocolModeV2 {
+		return w.runWithReconnect(ctx, func(ctx context.Context) error {
+			return w.runV2(ctx)
+		})
+	}
+	w.setProtocolDiagnostics(ProtocolDiagnostics{
+		RequestedMode:   w.protocolMode,
+		SelectedVersion: "v1",
+		ArtifactVersion: ProtocolArtifactVersion,
+		FallbackReason:  protocolFallbackReason(w.protocolMode),
+	})
 	if w.workerMode == WorkerModePull {
 		return w.runWithReconnect(ctx, func(ctx context.Context) error {
 			return w.runPull(ctx)
@@ -372,6 +408,10 @@ func shouldReconnect(err error) bool {
 		errors.Is(err, ErrTransportNotImplemented) ||
 		errors.Is(err, ErrWorkerReplaced) {
 		return false
+	}
+	var protocolErr *ProtocolError
+	if errors.As(err, &protocolErr) {
+		return protocolErr.Retryable
 	}
 	return true
 }

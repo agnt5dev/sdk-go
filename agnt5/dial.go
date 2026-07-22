@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	protocolv2 "github.com/agnt5dev/runtime/gen/go/agnt5/protocol/v2"
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -92,6 +93,14 @@ func newWorkerCoordinatorClient(conn grpc.ClientConnInterface) pb.WorkerCoordina
 
 func newEngineServiceClient(conn grpc.ClientConnInterface) pb.EngineServiceClient {
 	return pb.NewEngineServiceClient(conn)
+}
+
+func newProtocolServiceClient(conn grpc.ClientConnInterface) protocolv2.ProtocolServiceClient {
+	return protocolv2.NewProtocolServiceClient(conn)
+}
+
+func newV2WorkerServiceClient(conn grpc.ClientConnInterface) protocolv2.WorkerServiceClient {
+	return protocolv2.NewWorkerServiceClient(conn)
 }
 
 func withGRPCDialOptions(opts ...grpc.DialOption) WorkerOption {

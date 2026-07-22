@@ -107,12 +107,41 @@ cancellation, workflow resume, chat, and evaluation.
 | `AGNT5_PROJECT_ID` | Project identity used by workers |
 | `AGNT5_DEPLOYMENT_ID` | Deployment routing identity |
 | `AGNT5_WORKER_MODE` | `push` or `pull` dispatch mode |
+| `AGNT5_PROTOCOL_MODE` | `auto`, `v1`, or `v2` worker protocol |
 | `AGNT5_MAX_CONCURRENCY` | Maximum concurrent work |
 | `AGNT5_API_KEY` | Service key used by the client |
 | `AGNT5_GATEWAY_URL` | Gateway base URL used by the client |
 
 See the package configuration types for retry, slot, lease, queue, and
 streaming controls.
+
+### Worker protocol selection
+
+Workers expose three protocol modes through `WithProtocolMode` or
+`AGNT5_PROTOCOL_MODE`:
+
+- `auto` is the default and selects v1 during the dual-stack rollout;
+- `v1` forces the existing v1 push or pull transport; and
+- `v2` negotiates protocol v2.0 and uses the session-pinned pull worker.
+
+An explicit API option takes precedence over the environment. Values are
+case-sensitive, and an invalid value fails when the worker starts. Forced v2
+never falls back after authentication, invalid-request, timeout, or network
+errors.
+
+```go
+worker := agnt5.NewWorker(
+	"hello-go",
+	agnt5.WithProtocolMode(agnt5.ProtocolModeV2),
+)
+```
+
+The initial v2 adapter supports registration, replay-stable polling, lease
+renewal, and fenced completed/failed outcome commits. The alpha.3 runtime does
+not advertise durable event append, live output, referenced payloads, durable
+operation replay, or suspended/cancelled/yielded outcomes. The SDK records
+omitted observability-event counts in outcome metadata and rejects unsupported
+correctness-driving payload, checkpoint, and outcome paths.
 
 ## Examples
 

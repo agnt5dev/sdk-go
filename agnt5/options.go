@@ -77,6 +77,17 @@ func WithWorkerMode(mode WorkerMode) WorkerOption {
 	}
 }
 
+// WithProtocolMode selects the runtime wire protocol. A valid API option takes
+// precedence over AGNT5_PROTOCOL_MODE. Invalid values fail when the worker is
+// started, preserving the existing NewWorker signature.
+func WithProtocolMode(mode ProtocolMode) WorkerOption {
+	return func(w *Worker) {
+		parsed, err := parseProtocolMode(string(mode))
+		w.protocolMode = parsed
+		w.protocolConfigErr = err
+	}
+}
+
 // WithMaxConcurrency sets the max in-flight invocation budget.
 func WithMaxConcurrency(maxConcurrency uint32) WorkerOption {
 	return func(w *Worker) {

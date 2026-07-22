@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agnt5.com/schemas/protocol-lock.v1.json",
+  "title": "AGNT5 protocol dependency lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_package",
+    "wire_version",
+    "release_tag",
+    "artifact_version",
+    "source_commit",
+    "descriptor",
+    "projections",
+    "files"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "protocol_package": {"const": "agnt5.protocol.v2"},
+    "wire_version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["major", "minor"],
+      "properties": {
+        "major": {"const": 2},
+        "minor": {"type": "integer", "minimum": 0}
+      }
+    },
+    "release_tag": {"type": "string", "pattern": "^protocol/v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
+    "artifact_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"},
+    "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "descriptor": {"$ref": "#/$defs/file"},
+    "projections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rust", "go"],
+      "properties": {
+        "rust": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["package", "version"],
+          "properties": {
+            "package": {"const": "agnt5-proto"},
+            "version": {"type": "string"}
+          }
+        },
+        "go": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["module", "version"],
+          "properties": {
+            "module": {"const": "github.com/agnt5dev/runtime/gen/go"},
+            "version": {"type": "string"}
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/file"}
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

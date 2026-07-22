@@ -1,0 +1,15 @@
+{
+  "type": "COMPONENT_TYPE_ENTITY",
+  "name": "shopping_cart",
+  "version": "v1",
+  "input_schema_json": "e30=",
+  "output_schema_json": "e30=",
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "methods": [
+    {
+      "name": "add_item",
+      "input_schema_json": "e30=",
+      "output_schema_json": "e30="
+    }
+  ]
+}

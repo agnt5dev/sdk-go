@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "protocol_package": "agnt5.protocol.v2",
+  "wire_version": {
+    "major": 2,
+    "minor": 0
+  },
+  "release_tag": "protocol/v0.1.0-alpha.3",
+  "artifact_version": "0.1.0-alpha.3",
+  "source_commit": "d5eed246c87beb5dec915b9f23139af0155f8443",
+  "descriptor": {
+    "name": "agnt5-protocol-v0.1.0-alpha.3.binpb",
+    "sha256": "822f37807d7d18e2eaf708ffddd4a95b1912851f560d1c1b00e050a0b629cf4b"
+  },
+  "projections": {
+    "rust": {
+      "package": "agnt5-proto",
+      "version": "0.1.0-alpha.3"
+    },
+    "go": {
+      "module": "github.com/agnt5dev/runtime/gen/go",
+      "version": "v0.1.0-alpha.3"
+    }
+  },
+  "files": [
+    {
+      "name": "README.md",
+      "sha256": "ddcf227729699a2216a5f95dd967a9d9cca154d08ecbadb97f0376901bbaa3ea"
+    },
+    {
+      "name": "capabilities.json",
+      "sha256": "406af29f20bfa1f7c70ef92060b15530c3e80adc4d4267ed907ca92012e478e4"
+    },
+    {
+      "name": "compatibility.json",
+      "sha256": "9a3f5d03c819251909eabe677a4dd4a6d26f5c4ebc8a2fd0ccdd56797b6faf63"
+    },
+    {
+      "name": "component-descriptor-v1.json",
+      "sha256": "962d9f0e845baab9f0de687aa981b848ebf62813b3e5bb0568fbaef39801d7b9"
+    },
+    {
+      "name": "declarations.md",
+      "sha256": "806dc21e6cd01ebb64966fdb3b54e1b362efd7d4508b87b9dc3ce989c358108d"
+    },
+    {
+      "name": "endpoint-signature-v1.json",
+      "sha256": "9b37e8a6be666b92ab09abfbc28f562c987f549abb58d4670db13f84eb71be71"
+    },
+    {
+      "name": "error-mapping.json",
+      "sha256": "4f58f2d211a0573c78d62f2b551e9b44f4ce2028dc3755babea2f69def61fb24"
+    },
+    {
+      "name": "lifecycle.md",
+      "sha256": "b9ce0785c07bc1430c6965981360e7f0b288ade703f99ae4163f082214e80ee7"
+    },
+    {
+      "name": "payload-transfer-v1.json",
+      "sha256": "65b0eb9d8c16022637a4660c55f5e3bdf7ca2431593a94f1b6214bd1d17f5a53"
+    },
+    {
+      "name": "protocol-lock.schema.json",
+      "sha256": "9d8c31ccae2a7e1df88f7c4061bf9f9622c43388a2c1370cb79bf4a32e2ab26c"
+    },
+    {
+      "name": "sdk-synchronization.md",
+      "sha256": "7d57e9a5c34dfc97d91becf9cc268029014e45793338003e89ef2476a2de850a"
+    },
+    {
+      "name": "transports.md",
+      "sha256": "ed60f1199df3d489179b42062c0db2d9654d70f3b7e2a91a85eb73e5be833321"
+    }
+  ]
+}

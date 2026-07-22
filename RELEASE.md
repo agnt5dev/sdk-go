@@ -20,11 +20,13 @@ The current module version is `v0.2.0`.
 
 ## Compatibility Policy
 
-- The Go SDK targets the runtime protobuf/event contract generated under
+- The v1 worker targets the frozen SDK-local runtime contract generated under
   `internal/pb`.
-- `internal/pb` stays SDK-local for `v0.x` releases. Split it into a standalone
-  public proto module only if another public Go package needs those generated
-  types.
+- The v2 worker pins the immutable public projection
+  `github.com/agnt5dev/runtime/gen/go` and verifies it against
+  `protocol/agnt5-protocol.lock.json` and the release fixtures.
+- `internal/pb` remains SDK-local and v1-only. Generated v2 types stay behind
+  internal adapter functions and do not appear in exported handler signatures.
 - Runtime protobuf changes that affect worker registration, dispatch,
   checkpointing, `EventStream`, `AppendBatch`, pull polling, lease renewal, or
   completion fencing must update Go SDK tests in the same PR.
@@ -34,6 +36,10 @@ The current module version is `v0.2.0`.
 ## Release Checklist
 
 - `go test ./...`
+- `go vet ./...`
+- `go mod verify`
+- Verify `protocol/agnt5-protocol.lock.json`, its fixtures, and the generated
+  descriptor digest with `go test ./protocol`.
 - Verify the Go quickstart template compiles against the release candidate.
 - Tag the module-root repository with `v0.x.y`.
 - Publish template bundles that reference the released SDK version.

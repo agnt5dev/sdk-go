@@ -1,0 +1,15 @@
+{
+  "scheme": "agnt5-http-hmac-sha256.v1",
+  "secret_utf8": "m0-test-secret",
+  "timestamp": "1784750400000",
+  "execution_id": "execution-01",
+  "raw_body": "{\"protocol\":{\"major\":2,\"minor\":0},\"execution_id\":\"execution-01\",\"run_id\":\"run-01\",\"target\":{\"type\":\"COMPONENT_TYPE_WORKFLOW\",\"name\":\"hello\",\"version\":\"v1\"},\"input\":{\"inline_data\":\"eyJuYW1lIjoiQWRhIn0=\",\"content_type\":\"application/json\",\"size_bytes\":\"14\"},\"attempt\":1,\"manifest_revision\":\"manifest-01\"}",
+  "signing_input": "1784750400000.execution-01.{\"protocol\":{\"major\":2,\"minor\":0},\"execution_id\":\"execution-01\",\"run_id\":\"run-01\",\"target\":{\"type\":\"COMPONENT_TYPE_WORKFLOW\",\"name\":\"hello\",\"version\":\"v1\"},\"input\":{\"inline_data\":\"eyJuYW1lIjoiQWRhIn0=\",\"content_type\":\"application/json\",\"size_bytes\":\"14\"},\"attempt\":1,\"manifest_revision\":\"manifest-01\"}",
+  "expected_signature": "sha256=d4f1ac7c7869104e3e23771296233fa5b2fa6990e50f51813c5e8311099e3319",
+  "headers": {
+    "X-AGNT5-Signature-Version": "agnt5-http-hmac-sha256.v1",
+    "X-AGNT5-Timestamp": "1784750400000",
+    "X-AGNT5-Execution-ID": "execution-01",
+    "X-AGNT5-Signature": "sha256=d4f1ac7c7869104e3e23771296233fa5b2fa6990e50f51813c5e8311099e3319"
+  }
+}
