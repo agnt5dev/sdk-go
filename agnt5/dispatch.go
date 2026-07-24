@@ -336,6 +336,36 @@ func (w *Worker) streamInvocationEvent(ctx context.Context, inv Invocation, even
 	})
 }
 
+func (w *Worker) writeInvocationEvent(ctx context.Context, inv Invocation, event Event, baseMetadata map[string]string, parentCorrelationID string) error {
+	if event.RunID == "" {
+		event.RunID = inv.RunID
+	}
+	if event.SourceTimestampNS == 0 {
+		event.SourceTimestampNS = nowUnixNS()
+	}
+	metadata := cloneStringMap(baseMetadata)
+	for key, value := range event.Metadata {
+		metadata[key] = value
+	}
+	correlationID := event.CorrelationID
+	if correlationID == "" {
+		correlationID = newCorrelationID("event")
+	}
+	eventParentCorrelationID := event.ParentCorrelationID
+	if eventParentCorrelationID == "" {
+		eventParentCorrelationID = parentCorrelationID
+	}
+	return w.writeEvent(ctx, journalEvent{
+		RunID:               event.RunID,
+		EventType:           event.Type,
+		Data:                eventDataBytes(event.Data),
+		Metadata:            metadata,
+		CorrelationID:       correlationID,
+		ParentCorrelationID: eventParentCorrelationID,
+		SourceTimestampNS:   event.SourceTimestampNS,
+	})
+}
+
 func streamEventFromEvent(inv Invocation, event Event, metadata map[string]string, correlationID, parentCorrelationID string) streamEvent {
 	return streamEvent{
 		RunID:             event.RunID,

@@ -181,7 +181,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 	if ctx == nil {
 		ctx = newContext(context.Background(), Invocation{ID: a.Name, RunID: a.Name, ComponentName: a.Name, ComponentType: ComponentTypeAgent}, nil, "")
 	}
-	_ = ctx.Emit(Event{Type: "agent.started", Data: map[string]any{"agent_name": a.Name}})
+	a.emitLifecycle(ctx, Event{Type: "agent.started", Data: map[string]any{"agent_name": a.Name}})
 
 	messages := a.initialMessages(input)
 	tools := append([]Tool{}, a.Tools...)
@@ -217,7 +217,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 			Cache:    a.Cache,
 		})
 		if err != nil {
-			_ = ctx.Emit(Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+			a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
 			return AgentResult{}, err
 		}
 
@@ -239,7 +239,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				ToolCalls:       len(toolCalls),
 				ToolCallDetails: cloneAgentToolCalls(toolCalls),
 			}
-			_ = ctx.Emit(Event{Type: "agent.completed", Data: result})
+			a.emitLifecycle(ctx, Event{Type: "agent.completed", Data: result})
 			return result, nil
 		}
 
@@ -278,7 +278,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 					"error":      err.Error(),
 					"tool_call":  record,
 				}})
-				_ = ctx.Emit(Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+				a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
 				return AgentResult{}, err
 			}
 
@@ -292,7 +292,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 					"error":      err.Error(),
 					"tool_call":  record,
 				}})
-				_ = ctx.Emit(Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+				a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
 				return AgentResult{}, err
 			}
 
@@ -318,7 +318,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 	}
 
 	err := errors.New("agnt5: agent max turns exceeded")
-	_ = ctx.Emit(Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+	a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
 	return AgentResult{}, err
 }
 
@@ -328,6 +328,7 @@ func RegisterAgent(w *Worker, agent *Agent, opts ...ComponentOption) error {
 		return ErrNilHandler
 	}
 	return RegisterRaw(w, agent.Name, ComponentTypeAgent, func(ctx *Context, input []byte) ([]byte, error) {
+		ctx.setManagedAgent(agent.Name)
 		var in AgentInput
 		if len(input) > 0 {
 			if err := json.Unmarshal(input, &in); err != nil {
@@ -340,6 +341,13 @@ func RegisterAgent(w *Worker, agent *Agent, opts ...ComponentOption) error {
 		}
 		return json.Marshal(out)
 	}, opts...)
+}
+
+func (a *Agent) emitLifecycle(ctx *Context, event Event) {
+	if ctx == nil || ctx.managesAgent(a.Name) {
+		return
+	}
+	_ = ctx.Emit(event)
 }
 
 // AgentRegistry stores named agents for application-level orchestration.
@@ -523,7 +531,7 @@ func (a *Agent) runHandoff(ctx *Context, handoff Handoff, input AgentInput, mess
 			"error":      err.Error(),
 			"tool_call":  record,
 		}})
-		_ = ctx.Emit(Event{Type: "agent.failed", Data: map[string]any{
+		a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{
 			"agent_name": a.Name,
 			"error":      err.Error(),
 			"tool_calls": toolCalls,
@@ -557,7 +565,7 @@ func (a *Agent) runHandoff(ctx *Context, handoff Handoff, input AgentInput, mess
 			"handoff_result": result,
 		},
 	}
-	_ = ctx.Emit(Event{Type: "agent.completed", Data: final})
+	a.emitLifecycle(ctx, Event{Type: "agent.completed", Data: final})
 	return final, nil
 }
 

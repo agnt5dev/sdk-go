@@ -9,12 +9,14 @@ import (
 type Context struct {
 	context.Context
 
-	invocation Invocation
-	eventsMu   sync.Mutex
-	events     []Event
-	streamEmit func(Event) error
-	logger     *Logger
-	projectID  string
+	invocation     Invocation
+	eventsMu       sync.Mutex
+	events         []Event
+	streamEmit     func(Event) error
+	checkpointEmit func(Event) error
+	managedAgent   string
+	logger         *Logger
+	projectID      string
 
 	stateMu    sync.Mutex
 	stateStore StateStore
@@ -148,15 +150,22 @@ func (c *Context) Sandbox() SandboxRunner {
 	return c.sandbox
 }
 
-// Emit records an event produced by the handler. Transport delivery lands in a
-// later implementation slice.
+// Emit delivers streaming events immediately when transport emitters are
+// available; otherwise it buffers the event for the invocation flush.
 func (c *Context) Emit(event Event) error {
 	if event.RunID == "" {
 		event.RunID = c.RunID()
 	}
-	if c.IsStreaming() && IsSSEOnlyEventType(event.Type) && c.streamEmit != nil {
-		if err := c.streamEmit(event); err == nil {
-			return nil
+	if c.IsStreaming() {
+		if IsSSEOnlyEventType(event.Type) && c.streamEmit != nil {
+			if err := c.streamEmit(event); err == nil {
+				return nil
+			}
+		}
+		if !IsSSEOnlyEventType(event.Type) && c.checkpointEmit != nil {
+			if err := c.checkpointEmit(event); err == nil {
+				return nil
+			}
 		}
 	}
 	c.eventsMu.Lock()
@@ -167,6 +176,18 @@ func (c *Context) Emit(event Event) error {
 
 func (c *Context) setStreamEmitter(emitter func(Event) error) {
 	c.streamEmit = emitter
+}
+
+func (c *Context) setCheckpointEmitter(emitter func(Event) error) {
+	c.checkpointEmit = emitter
+}
+
+func (c *Context) setManagedAgent(name string) {
+	c.managedAgent = name
+}
+
+func (c *Context) managesAgent(name string) bool {
+	return c.managedAgent != "" && c.managedAgent == name
 }
 
 // Output emits an output.delta event.
