@@ -415,8 +415,15 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 		if len(streamParentCorrelationID) > 0 {
 			parentCorrelationID = streamParentCorrelationID[0]
 		}
+		metadata := w.invocationMetadata(inv)
 		runCtx.setStreamEmitter(func(event Event) error {
-			return w.streamInvocationEvent(ctx, inv, event, w.invocationMetadata(inv), parentCorrelationID)
+			return w.streamInvocationEvent(ctx, inv, event, metadata, parentCorrelationID)
+		})
+		runCtx.setCheckpointEmitter(func(event Event) error {
+			if err := w.flushStreamEvents(ctx); err != nil {
+				return err
+			}
+			return w.writeInvocationEvent(ctx, inv, event, metadata, parentCorrelationID)
 		})
 	}
 	defer func() {

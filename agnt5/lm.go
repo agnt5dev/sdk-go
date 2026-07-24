@@ -101,6 +101,43 @@ type LanguageModel interface {
 	Generate(ctx context.Context, request GenerateRequest) (GenerateResponse, error)
 }
 
+// ModelStreamChunkType identifies one provider-neutral model stream event.
+type ModelStreamChunkType string
+
+const (
+	ModelStreamMessageStart  ModelStreamChunkType = "message_start"
+	ModelStreamMessageDelta  ModelStreamChunkType = "message_delta"
+	ModelStreamMessageStop   ModelStreamChunkType = "message_stop"
+	ModelStreamToolCallStart ModelStreamChunkType = "tool_call_start"
+	ModelStreamToolCallDelta ModelStreamChunkType = "tool_call_delta"
+	ModelStreamToolCallStop  ModelStreamChunkType = "tool_call_stop"
+)
+
+// ModelStreamChunk is emitted while a StreamingLanguageModel is generating.
+// Tool-call arguments use their provider-neutral JSON representation so agents
+// can expose partial arguments without executing an incomplete call.
+type ModelStreamChunk struct {
+	Type           ModelStreamChunkType
+	Content        string
+	Index          int
+	ToolCallID     string
+	ToolName       string
+	ArgumentsDelta string
+	Arguments      map[string]any
+}
+
+// StreamingLanguageModel is the optional streaming extension implemented by
+// models that can return incremental text and tool-call chunks. LanguageModel
+// remains the required compatibility surface, so existing models are unchanged.
+type StreamingLanguageModel interface {
+	LanguageModel
+	Stream(
+		ctx context.Context,
+		request GenerateRequest,
+		emit func(ModelStreamChunk) error,
+	) (GenerateResponse, error)
+}
+
 func (r GenerateRequest) promptCache() *PromptCache {
 	if r.Cache != nil {
 		cache := *r.Cache
@@ -647,13 +684,54 @@ func (c *Context) Generate(model LanguageModel, request GenerateRequest) (Genera
 		return GenerateResponse{}, errors.New("agnt5: nil language model")
 	}
 	_ = c.Emit(Event{Type: "lm.started", Data: map[string]any{"model": request.Model}})
-	resp, err := model.Generate(c, request)
+	var (
+		resp GenerateResponse
+		err  error
+	)
+	if streamingModel, ok := model.(StreamingLanguageModel); ok && c.IsStreaming() {
+		resp, err = streamingModel.Stream(c, request, func(chunk ModelStreamChunk) error {
+			return c.Emit(modelStreamEvent(chunk))
+		})
+	} else {
+		resp, err = model.Generate(c, request)
+	}
 	if err != nil {
 		_ = c.Emit(Event{Type: "lm.failed", Data: map[string]any{"model": request.Model, "error": err.Error()}})
 		return GenerateResponse{}, err
 	}
 	_ = c.Emit(Event{Type: "lm.completed", Data: map[string]any{"model": resp.Model, "usage": resp.Usage}})
 	return resp, nil
+}
+
+func modelStreamEvent(chunk ModelStreamChunk) Event {
+	data := map[string]any{"index": chunk.Index}
+	eventType := ""
+	switch chunk.Type {
+	case ModelStreamMessageStart:
+		eventType = "lm.message.start"
+	case ModelStreamMessageDelta:
+		eventType = "lm.message.delta"
+		data["content"] = chunk.Content
+	case ModelStreamMessageStop:
+		eventType = "lm.message.stop"
+	case ModelStreamToolCallStart:
+		eventType = "lm.tool_call.start"
+		data["id"] = chunk.ToolCallID
+		data["name"] = chunk.ToolName
+	case ModelStreamToolCallDelta:
+		eventType = "lm.tool_call.delta"
+		data["input_delta"] = chunk.ArgumentsDelta
+	case ModelStreamToolCallStop:
+		eventType = "lm.tool_call.stop"
+		data["id"] = chunk.ToolCallID
+		data["name"] = chunk.ToolName
+		data["input"] = cloneAnyMap(chunk.Arguments)
+	}
+	return Event{
+		Type:         eventType,
+		Data:         data,
+		ContentIndex: chunk.Index,
+	}
 }
 
 func openAIMessages(messages []Message) []map[string]any {
