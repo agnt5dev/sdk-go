@@ -68,6 +68,41 @@ func newEngineEventWriter(client pb.EngineServiceClient) *engineEventWriter {
 	return &engineEventWriter{client: client}
 }
 
+func validateAppendBatchRecords(records []*pb.Record) error {
+	if len(records) == 0 {
+		return nil
+	}
+	runID := records[0].GetRunId()
+	for _, record := range records[1:] {
+		if record.GetRunId() != runID {
+			return fmt.Errorf("agnt5: append batch records must share one run_id")
+		}
+	}
+	return nil
+}
+
+func validateAppendBatchResponse(resp *pb.AppendBatchResponse, expected int) error {
+	if resp == nil {
+		return fmt.Errorf("agnt5: append batch returned a nil response")
+	}
+	if len(resp.GetOffsets()) != expected {
+		return fmt.Errorf(
+			"agnt5: append batch returned %d offsets, want %d",
+			len(resp.GetOffsets()),
+			expected,
+		)
+	}
+	written := resp.GetWrittenCount()
+	if written < 0 || int(written) > expected {
+		return fmt.Errorf(
+			"agnt5: append batch written_count %d is outside 0..%d",
+			written,
+			expected,
+		)
+	}
+	return nil
+}
+
 func (w *engineEventWriter) WriteEvent(ctx context.Context, event journalEvent) error {
 	if w == nil || w.client == nil {
 		return nil
@@ -95,12 +130,15 @@ func (w *engineEventWriter) WriteEvents(ctx context.Context, events []journalEve
 		}
 		records = append(records, record)
 	}
+	if err := validateAppendBatchRecords(records); err != nil {
+		return err
+	}
 	resp, err := w.client.AppendBatch(ctx, &pb.AppendBatchRequest{Records: records})
 	if err != nil {
 		return fmt.Errorf("agnt5: append %d journal events: %w", len(events), err)
 	}
-	if resp.GetWrittenCount() != 0 && int(resp.GetWrittenCount()) != len(records) {
-		return fmt.Errorf("agnt5: append batch wrote %d events, want %d", resp.GetWrittenCount(), len(records))
+	if err := validateAppendBatchResponse(resp, len(records)); err != nil {
+		return err
 	}
 	return nil
 }

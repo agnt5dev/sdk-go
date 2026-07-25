@@ -392,7 +392,8 @@ type AppendBatchResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Offsets assigned to each record (same order as input).
 	Offsets []uint64 `protobuf:"varint,1,rep,packed,name=offsets,proto3" json:"offsets,omitempty"`
-	// Number of records successfully appended.
+	// Number of input records successfully appended. This is always in
+	// 0..=offsets.size(), even when the runtime expands an input internally.
 	WrittenCount  int32 `protobuf:"varint,2,opt,name=written_count,json=writtenCount,proto3" json:"written_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2418,8 +2419,10 @@ type ForwardAppendRequest struct {
 	PartitionId uint32 `protobuf:"varint,2,opt,name=partition_id,json=partitionId,proto3" json:"partition_id,omitempty"`
 	// Epoch of the forwarding node — sequencer rejects if stale.
 	SequencerEpoch uint64 `protobuf:"varint,3,opt,name=sequencer_epoch,json=sequencerEpoch,proto3" json:"sequencer_epoch,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Must match the V2 forward-append protocol.
+	ProtocolVersion uint32 `protobuf:"varint,4,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ForwardAppendRequest) Reset() {
@@ -2473,9 +2476,20 @@ func (x *ForwardAppendRequest) GetSequencerEpoch() uint64 {
 	return 0
 }
 
+func (x *ForwardAppendRequest) GetProtocolVersion() uint32 {
+	if x != nil {
+		return x.ProtocolVersion
+	}
+	return 0
+}
+
 type ForwardAppendResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Offsets       []uint64               `protobuf:"varint,1,rep,packed,name=offsets,proto3" json:"offsets,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Retained for older readers. New readers require all three vectors to have
+	// exact input cardinality and verify input_indices before accepting them.
+	Offsets       []uint64 `protobuf:"varint,1,rep,packed,name=offsets,proto3" json:"offsets,omitempty"`
+	Appended      []bool   `protobuf:"varint,2,rep,packed,name=appended,proto3" json:"appended,omitempty"`
+	InputIndices  []uint32 `protobuf:"varint,3,rep,packed,name=input_indices,json=inputIndices,proto3" json:"input_indices,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2513,6 +2527,20 @@ func (*ForwardAppendResponse) Descriptor() ([]byte, []int) {
 func (x *ForwardAppendResponse) GetOffsets() []uint64 {
 	if x != nil {
 		return x.Offsets
+	}
+	return nil
+}
+
+func (x *ForwardAppendResponse) GetAppended() []bool {
+	if x != nil {
+		return x.Appended
+	}
+	return nil
+}
+
+func (x *ForwardAppendResponse) GetInputIndices() []uint32 {
+	if x != nil {
+		return x.InputIndices
 	}
 	return nil
 }
@@ -8041,8 +8069,12 @@ type CompleteJobRequest struct {
 	ProjectId       string                 `protobuf:"bytes,8,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	LeaseId         string                 `protobuf:"bytes,9,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
 	WorkerSessionId string                 `protobuf:"bytes,10,opt,name=worker_session_id,json=workerSessionId,proto3" json:"worker_session_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Exact zero-based attempt returned by PollJob. Presence is required for
+	// lease-fenced completion; optional preserves wire compatibility while
+	// allowing the runtime to distinguish attempt 0 from an old client.
+	Attempt       *uint32 `protobuf:"varint,11,opt,name=attempt,proto3,oneof" json:"attempt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CompleteJobRequest) Reset() {
@@ -8143,6 +8175,13 @@ func (x *CompleteJobRequest) GetWorkerSessionId() string {
 		return x.WorkerSessionId
 	}
 	return ""
+}
+
+func (x *CompleteJobRequest) GetAttempt() uint32 {
+	if x != nil && x.Attempt != nil {
+		return *x.Attempt
+	}
+	return 0
 }
 
 // CompleteJobResponse acknowledges the job completion.
@@ -8399,13 +8438,16 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x13segment_config_json\x18\x03 \x01(\tR\x11segmentConfigJson\x12!\n" +
 	"\fpartition_id\x18\x04 \x01(\rR\vpartitionId\"4\n" +
 	"\x16AnnounceLeaderResponse\x12\x1a\n" +
-	"\baccepted\x18\x01 \x01(\bR\baccepted\"\x8c\x01\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\"\xb7\x01\n" +
 	"\x14ForwardAppendRequest\x12(\n" +
 	"\arecords\x18\x01 \x03(\v2\x0e.api.v1.RecordR\arecords\x12!\n" +
 	"\fpartition_id\x18\x02 \x01(\rR\vpartitionId\x12'\n" +
-	"\x0fsequencer_epoch\x18\x03 \x01(\x04R\x0esequencerEpoch\"1\n" +
+	"\x0fsequencer_epoch\x18\x03 \x01(\x04R\x0esequencerEpoch\x12)\n" +
+	"\x10protocol_version\x18\x04 \x01(\rR\x0fprotocolVersion\"r\n" +
 	"\x15ForwardAppendResponse\x12\x18\n" +
-	"\aoffsets\x18\x01 \x03(\x04R\aoffsets\"?\n" +
+	"\aoffsets\x18\x01 \x03(\x04R\aoffsets\x12\x1a\n" +
+	"\bappended\x18\x02 \x03(\bR\bappended\x12#\n" +
+	"\rinput_indices\x18\x03 \x03(\rR\finputIndices\"?\n" +
 	"\x10AddMemberRequest\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\"C\n" +
@@ -8960,7 +9002,7 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x0eobserved_at_ms\x18\t \x01(\x03R\fobservedAtMs\"`\n" +
 	"\x1cReportWorkerCapacityResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12$\n" +
-	"\x0erecorded_at_ms\x18\x02 \x01(\x03R\frecordedAtMs\"\xb0\x03\n" +
+	"\x0erecorded_at_ms\x18\x02 \x01(\x03R\frecordedAtMs\"\xdb\x03\n" +
 	"\x12CompleteJobRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x1b\n" +
 	"\tworker_id\x18\x02 \x01(\tR\bworkerId\x12\x18\n" +
@@ -8975,10 +9017,13 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"project_id\x18\b \x01(\tR\tprojectId\x12\x19\n" +
 	"\blease_id\x18\t \x01(\tR\aleaseId\x12*\n" +
 	"\x11worker_session_id\x18\n" +
-	" \x01(\tR\x0fworkerSessionId\x1a;\n" +
+	" \x01(\tR\x0fworkerSessionId\x12\x1d\n" +
+	"\aattempt\x18\v \x01(\rH\x00R\aattempt\x88\x01\x01\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"9\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\n" +
+	"\n" +
+	"\b_attempt\"9\n" +
 	"\x13CompleteJobResponse\x12\"\n" +
 	"\facknowledged\x18\x01 \x01(\bR\facknowledged*\xbc\x01\n" +
 	"\x0eCheckpointType\x12\x1f\n" +
@@ -9029,7 +9074,7 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\vGetRunStats\x12\x1a.api.v1.GetRunStatsRequest\x1a\x1b.api.v1.GetRunStatsResponse\x12C\n" +
 	"\n" +
 	"ListEvents\x12\x19.api.v1.ListEventsRequest\x1a\x1a.api.v1.ListEventsResponse\x12@\n" +
-	"\tGetStatus\x12\x18.api.v1.GetStatusRequest\x1a\x19.api.v1.GetStatusResponse2\xc9\x05\n" +
+	"\tGetStatus\x12\x18.api.v1.GetStatusRequest\x1a\x19.api.v1.GetStatusResponse2\x99\x06\n" +
 	"\x12ReplicationService\x124\n" +
 	"\x05Store\x12\x14.api.v1.StoreRequest\x1a\x15.api.v1.StoreResponse\x12E\n" +
 	"\n" +
@@ -9038,7 +9083,8 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\tHeartbeat\x12\x18.api.v1.HeartbeatRequest\x1a\x19.api.v1.HeartbeatResponse\x128\n" +
 	"\vRequestVote\x12\x13.api.v1.VoteRequest\x1a\x14.api.v1.VoteResponse\x12O\n" +
 	"\x0eAnnounceLeader\x12\x1d.api.v1.AnnounceLeaderRequest\x1a\x1e.api.v1.AnnounceLeaderResponse\x12L\n" +
-	"\rForwardAppend\x12\x1c.api.v1.ForwardAppendRequest\x1a\x1d.api.v1.ForwardAppendResponse\x12@\n" +
+	"\rForwardAppend\x12\x1c.api.v1.ForwardAppendRequest\x1a\x1d.api.v1.ForwardAppendResponse\x12N\n" +
+	"\x0fForwardAppendV2\x12\x1c.api.v1.ForwardAppendRequest\x1a\x1d.api.v1.ForwardAppendResponse\x12@\n" +
 	"\tAddMember\x12\x18.api.v1.AddMemberRequest\x1a\x19.api.v1.AddMemberResponse\x12I\n" +
 	"\fRemoveMember\x12\x1b.api.v1.RemoveMemberRequest\x1a\x1c.api.v1.RemoveMemberResponse\x12[\n" +
 	"\x12TransferLeadership\x12!.api.v1.TransferLeadershipRequest\x1a\".api.v1.TransferLeadershipResponseB%Z#agnt5.dev/platform/pkg/pb/api/v1;v1b\x06proto3"
@@ -9303,58 +9349,60 @@ var file_api_v1_engine_proto_depIdxs = []int32{
 	29,  // 117: api.v1.ReplicationService.RequestVote:input_type -> api.v1.VoteRequest
 	31,  // 118: api.v1.ReplicationService.AnnounceLeader:input_type -> api.v1.AnnounceLeaderRequest
 	33,  // 119: api.v1.ReplicationService.ForwardAppend:input_type -> api.v1.ForwardAppendRequest
-	35,  // 120: api.v1.ReplicationService.AddMember:input_type -> api.v1.AddMemberRequest
-	37,  // 121: api.v1.ReplicationService.RemoveMember:input_type -> api.v1.RemoveMemberRequest
-	39,  // 122: api.v1.ReplicationService.TransferLeadership:input_type -> api.v1.TransferLeadershipRequest
-	3,   // 123: api.v1.EngineService.Append:output_type -> api.v1.AppendResponse
-	5,   // 124: api.v1.EngineService.AppendBatch:output_type -> api.v1.AppendBatchResponse
-	93,  // 125: api.v1.EngineService.Checkpoint:output_type -> api.v1.CheckpointResponse
-	95,  // 126: api.v1.EngineService.EventStream:output_type -> api.v1.EventStreamAck
-	97,  // 127: api.v1.EngineService.PollJobs:output_type -> api.v1.PollJobsResponse
-	100, // 128: api.v1.EngineService.RegisterWorkerSession:output_type -> api.v1.RegisterWorkerSessionResponse
-	102, // 129: api.v1.EngineService.PollJob:output_type -> api.v1.PollJobResponse
-	105, // 130: api.v1.EngineService.RenewJobLease:output_type -> api.v1.RenewJobLeaseResponse
-	107, // 131: api.v1.EngineService.ReportWorkerCapacity:output_type -> api.v1.ReportWorkerCapacityResponse
-	109, // 132: api.v1.EngineService.CompleteJob:output_type -> api.v1.CompleteJobResponse
-	7,   // 133: api.v1.EngineService.ReadByRunID:output_type -> api.v1.ReadByRunIDResponse
-	9,   // 134: api.v1.EngineService.FindByStepKey:output_type -> api.v1.FindByStepKeyResponse
-	11,  // 135: api.v1.EngineService.GetRun:output_type -> api.v1.GetRunResponse
-	13,  // 136: api.v1.EngineService.ListRoutingWorkers:output_type -> api.v1.ListRoutingWorkersResponse
-	17,  // 137: api.v1.EngineService.Tail:output_type -> api.v1.TailResponse
-	42,  // 138: api.v1.EngineService.GetEntityState:output_type -> api.v1.GetEntityStateResponse
-	44,  // 139: api.v1.EngineService.PutEntityState:output_type -> api.v1.PutEntityStateResponse
-	47,  // 140: api.v1.EngineService.GetApproval:output_type -> api.v1.GetApprovalResponse
-	49,  // 141: api.v1.EngineService.ListApprovals:output_type -> api.v1.EngineListApprovalsResponse
-	52,  // 142: api.v1.EngineService.GetSignal:output_type -> api.v1.GetSignalResponse
-	54,  // 143: api.v1.EngineService.LookupSignal:output_type -> api.v1.LookupSignalResponse
-	56,  // 144: api.v1.EngineService.ListSignals:output_type -> api.v1.ListSignalsResponse
-	59,  // 145: api.v1.EngineService.GetTimer:output_type -> api.v1.GetTimerResponse
-	61,  // 146: api.v1.EngineService.ListTimers:output_type -> api.v1.ListTimersResponse
-	63,  // 147: api.v1.EngineService.ListDueTimers:output_type -> api.v1.ListDueTimersResponse
-	66,  // 148: api.v1.EngineService.GetJob:output_type -> api.v1.GetJobResponse
-	68,  // 149: api.v1.EngineService.ListJobsByRun:output_type -> api.v1.ListJobsByRunResponse
-	70,  // 150: api.v1.EngineService.ListJobsByBatch:output_type -> api.v1.ListJobsByBatchResponse
-	73,  // 151: api.v1.EngineService.GetBatch:output_type -> api.v1.GetBatchResponse
-	76,  // 152: api.v1.EngineService.GetSession:output_type -> api.v1.GetSessionResponse
-	78,  // 153: api.v1.EngineService.ListSessions:output_type -> api.v1.ListSessionsResponse
-	81,  // 154: api.v1.EngineService.GetMessage:output_type -> api.v1.GetMessageResponse
-	83,  // 155: api.v1.EngineService.ListMessagesByCorrelation:output_type -> api.v1.ListMessagesByCorrelationResponse
-	85,  // 156: api.v1.EngineService.ListRuns:output_type -> api.v1.ListRunsResponse
-	90,  // 157: api.v1.EngineService.GetRunStats:output_type -> api.v1.GetRunStatsResponse
-	88,  // 158: api.v1.EngineService.ListEvents:output_type -> api.v1.ListEventsResponse
-	19,  // 159: api.v1.EngineService.GetStatus:output_type -> api.v1.GetStatusResponse
-	21,  // 160: api.v1.ReplicationService.Store:output_type -> api.v1.StoreResponse
-	23,  // 161: api.v1.ReplicationService.GetRecords:output_type -> api.v1.GetRecordsResponse
-	25,  // 162: api.v1.ReplicationService.Seal:output_type -> api.v1.SealResponse
-	27,  // 163: api.v1.ReplicationService.Heartbeat:output_type -> api.v1.HeartbeatResponse
-	30,  // 164: api.v1.ReplicationService.RequestVote:output_type -> api.v1.VoteResponse
-	32,  // 165: api.v1.ReplicationService.AnnounceLeader:output_type -> api.v1.AnnounceLeaderResponse
-	34,  // 166: api.v1.ReplicationService.ForwardAppend:output_type -> api.v1.ForwardAppendResponse
-	36,  // 167: api.v1.ReplicationService.AddMember:output_type -> api.v1.AddMemberResponse
-	38,  // 168: api.v1.ReplicationService.RemoveMember:output_type -> api.v1.RemoveMemberResponse
-	40,  // 169: api.v1.ReplicationService.TransferLeadership:output_type -> api.v1.TransferLeadershipResponse
-	123, // [123:170] is the sub-list for method output_type
-	76,  // [76:123] is the sub-list for method input_type
+	33,  // 120: api.v1.ReplicationService.ForwardAppendV2:input_type -> api.v1.ForwardAppendRequest
+	35,  // 121: api.v1.ReplicationService.AddMember:input_type -> api.v1.AddMemberRequest
+	37,  // 122: api.v1.ReplicationService.RemoveMember:input_type -> api.v1.RemoveMemberRequest
+	39,  // 123: api.v1.ReplicationService.TransferLeadership:input_type -> api.v1.TransferLeadershipRequest
+	3,   // 124: api.v1.EngineService.Append:output_type -> api.v1.AppendResponse
+	5,   // 125: api.v1.EngineService.AppendBatch:output_type -> api.v1.AppendBatchResponse
+	93,  // 126: api.v1.EngineService.Checkpoint:output_type -> api.v1.CheckpointResponse
+	95,  // 127: api.v1.EngineService.EventStream:output_type -> api.v1.EventStreamAck
+	97,  // 128: api.v1.EngineService.PollJobs:output_type -> api.v1.PollJobsResponse
+	100, // 129: api.v1.EngineService.RegisterWorkerSession:output_type -> api.v1.RegisterWorkerSessionResponse
+	102, // 130: api.v1.EngineService.PollJob:output_type -> api.v1.PollJobResponse
+	105, // 131: api.v1.EngineService.RenewJobLease:output_type -> api.v1.RenewJobLeaseResponse
+	107, // 132: api.v1.EngineService.ReportWorkerCapacity:output_type -> api.v1.ReportWorkerCapacityResponse
+	109, // 133: api.v1.EngineService.CompleteJob:output_type -> api.v1.CompleteJobResponse
+	7,   // 134: api.v1.EngineService.ReadByRunID:output_type -> api.v1.ReadByRunIDResponse
+	9,   // 135: api.v1.EngineService.FindByStepKey:output_type -> api.v1.FindByStepKeyResponse
+	11,  // 136: api.v1.EngineService.GetRun:output_type -> api.v1.GetRunResponse
+	13,  // 137: api.v1.EngineService.ListRoutingWorkers:output_type -> api.v1.ListRoutingWorkersResponse
+	17,  // 138: api.v1.EngineService.Tail:output_type -> api.v1.TailResponse
+	42,  // 139: api.v1.EngineService.GetEntityState:output_type -> api.v1.GetEntityStateResponse
+	44,  // 140: api.v1.EngineService.PutEntityState:output_type -> api.v1.PutEntityStateResponse
+	47,  // 141: api.v1.EngineService.GetApproval:output_type -> api.v1.GetApprovalResponse
+	49,  // 142: api.v1.EngineService.ListApprovals:output_type -> api.v1.EngineListApprovalsResponse
+	52,  // 143: api.v1.EngineService.GetSignal:output_type -> api.v1.GetSignalResponse
+	54,  // 144: api.v1.EngineService.LookupSignal:output_type -> api.v1.LookupSignalResponse
+	56,  // 145: api.v1.EngineService.ListSignals:output_type -> api.v1.ListSignalsResponse
+	59,  // 146: api.v1.EngineService.GetTimer:output_type -> api.v1.GetTimerResponse
+	61,  // 147: api.v1.EngineService.ListTimers:output_type -> api.v1.ListTimersResponse
+	63,  // 148: api.v1.EngineService.ListDueTimers:output_type -> api.v1.ListDueTimersResponse
+	66,  // 149: api.v1.EngineService.GetJob:output_type -> api.v1.GetJobResponse
+	68,  // 150: api.v1.EngineService.ListJobsByRun:output_type -> api.v1.ListJobsByRunResponse
+	70,  // 151: api.v1.EngineService.ListJobsByBatch:output_type -> api.v1.ListJobsByBatchResponse
+	73,  // 152: api.v1.EngineService.GetBatch:output_type -> api.v1.GetBatchResponse
+	76,  // 153: api.v1.EngineService.GetSession:output_type -> api.v1.GetSessionResponse
+	78,  // 154: api.v1.EngineService.ListSessions:output_type -> api.v1.ListSessionsResponse
+	81,  // 155: api.v1.EngineService.GetMessage:output_type -> api.v1.GetMessageResponse
+	83,  // 156: api.v1.EngineService.ListMessagesByCorrelation:output_type -> api.v1.ListMessagesByCorrelationResponse
+	85,  // 157: api.v1.EngineService.ListRuns:output_type -> api.v1.ListRunsResponse
+	90,  // 158: api.v1.EngineService.GetRunStats:output_type -> api.v1.GetRunStatsResponse
+	88,  // 159: api.v1.EngineService.ListEvents:output_type -> api.v1.ListEventsResponse
+	19,  // 160: api.v1.EngineService.GetStatus:output_type -> api.v1.GetStatusResponse
+	21,  // 161: api.v1.ReplicationService.Store:output_type -> api.v1.StoreResponse
+	23,  // 162: api.v1.ReplicationService.GetRecords:output_type -> api.v1.GetRecordsResponse
+	25,  // 163: api.v1.ReplicationService.Seal:output_type -> api.v1.SealResponse
+	27,  // 164: api.v1.ReplicationService.Heartbeat:output_type -> api.v1.HeartbeatResponse
+	30,  // 165: api.v1.ReplicationService.RequestVote:output_type -> api.v1.VoteResponse
+	32,  // 166: api.v1.ReplicationService.AnnounceLeader:output_type -> api.v1.AnnounceLeaderResponse
+	34,  // 167: api.v1.ReplicationService.ForwardAppend:output_type -> api.v1.ForwardAppendResponse
+	34,  // 168: api.v1.ReplicationService.ForwardAppendV2:output_type -> api.v1.ForwardAppendResponse
+	36,  // 169: api.v1.ReplicationService.AddMember:output_type -> api.v1.AddMemberResponse
+	38,  // 170: api.v1.ReplicationService.RemoveMember:output_type -> api.v1.RemoveMemberResponse
+	40,  // 171: api.v1.ReplicationService.TransferLeadership:output_type -> api.v1.TransferLeadershipResponse
+	124, // [124:172] is the sub-list for method output_type
+	76,  // [76:124] is the sub-list for method input_type
 	76,  // [76:76] is the sub-list for extension type_name
 	76,  // [76:76] is the sub-list for extension extendee
 	0,   // [0:76] is the sub-list for field type_name
@@ -9372,6 +9420,7 @@ func file_api_v1_engine_proto_init() {
 	file_api_v1_engine_proto_msgTypes[85].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[88].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[95].OneofWrappers = []any{}
+	file_api_v1_engine_proto_msgTypes[107].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

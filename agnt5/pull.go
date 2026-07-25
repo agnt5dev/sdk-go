@@ -2,14 +2,16 @@ package agnt5
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -19,6 +21,7 @@ const (
 	defaultLeaseRenewEvery     = 30 * time.Second
 	defaultPollErrorBackoff    = 250 * time.Millisecond
 	defaultPollErrorBackoffMax = 5 * time.Second
+	sessionRejectThreshold     = 3
 	defaultCompleteJobTimeout  = 3 * time.Second
 	defaultCompleteJobAttempts = 3
 	defaultCompleteJobBackoff  = 100 * time.Millisecond
@@ -70,20 +73,35 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 	// its permit before execution, allowing waiting slots to claim immediately
 	// and active execution to ramp independently toward maxSlots.
 	pollPermits := make(chan struct{}, pollConcurrencyLimit(config))
-	go w.reportPullCapacity(runCtx, client, sessionID, config, &openPollSlots, &activeSlots)
+	sessionFailures := make(chan error, 1)
+	var sessionTasks sync.WaitGroup
+	sessionTasks.Add(1)
+	go func() {
+		defer sessionTasks.Done()
+		w.reportPullCapacity(runCtx, client, sessionID, config, &openPollSlots, &activeSlots, defaultCapacityEvery, sessionFailures)
+	}()
 
+	sessionTasks.Add(1)
 	errCh := make(chan error, config.desiredSlots)
-	go w.launchPullSlots(runCtx, client, sessionID, config, pollPermits, &openPollSlots, &activeSlots, errCh)
+	go func() {
+		defer sessionTasks.Done()
+		w.launchPullSlots(runCtx, client, sessionID, config, pollPermits, &openPollSlots, &activeSlots, sessionFailures, errCh, &sessionTasks)
+	}()
 
+	var result error
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		result = ctx.Err()
+	case err := <-sessionFailures:
+		result = err
 	case err := <-errCh:
 		if err != nil {
-			return err
+			result = err
 		}
-		return nil
 	}
+	cancel()
+	sessionTasks.Wait()
+	return result
 }
 
 func (w *Worker) registerWorkerSessionRequest(config pullSlotConfig) *pb.RegisterWorkerSessionRequest {
@@ -137,7 +155,7 @@ func pollConcurrencyLimit(config pullSlotConfig) int {
 	return int(clampUint32(config.minSlots, 1, config.maxSlots))
 }
 
-func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32, errCh chan<- error) {
+func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32, sessionFailures chan<- error, errCh chan<- error, sessionTasks *sync.WaitGroup) {
 	desiredSlots := clampUint32(config.desiredSlots, config.minSlots, config.maxSlots)
 	for slot := uint32(0); slot < desiredSlots; slot++ {
 		if slot >= config.minSlots {
@@ -145,14 +163,17 @@ func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceCli
 				return
 			}
 		}
+		sessionTasks.Add(1)
 		go func(slot uint32) {
-			errCh <- w.runPullSlot(ctx, client, sessionID, config, slot, pollPermits, openPollSlots, activeSlots)
+			defer sessionTasks.Done()
+			errCh <- w.runPullSlot(ctx, client, sessionID, config, slot, pollPermits, openPollSlots, activeSlots, sessionFailures)
 		}(slot)
 	}
 }
 
-func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32) error {
+func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32, sessionFailures chan<- error) error {
 	pollBackoff := defaultPollErrorBackoff
+	consecutiveSessionRejects := 0
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -175,12 +196,25 @@ func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient,
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if code := status.Code(err); code == codes.PermissionDenied || code == codes.Unauthenticated {
+				consecutiveSessionRejects++
+				if consecutiveSessionRejects >= sessionRejectThreshold {
+					return fmt.Errorf("agnt5: pull worker session rejected: %w", err)
+				}
+				if sleepErr := sleepContext(ctx, pollBackoff); sleepErr != nil {
+					return sleepErr
+				}
+				pollBackoff = nextBackoff(pollBackoff, defaultPollErrorBackoffMax)
+				continue
+			}
+			consecutiveSessionRejects = 0
 			if sleepErr := sleepContext(ctx, pollBackoff); sleepErr != nil {
 				return sleepErr
 			}
 			pollBackoff = nextBackoff(pollBackoff, defaultPollErrorBackoffMax)
 			continue
 		}
+		consecutiveSessionRejects = 0
 		pollBackoff = defaultPollErrorBackoff
 		job := pollResp.GetJob()
 		if job == nil {
@@ -188,7 +222,7 @@ func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient,
 		}
 
 		activeSlots.Add(1)
-		err = w.executePolledJob(ctx, client, sessionID, config.claimTimeoutMS, job)
+		err = w.executePolledJob(ctx, client, sessionID, config.claimTimeoutMS, job, sessionFailures)
 		activeSlots.Add(^uint32(0))
 		if err != nil {
 			return err
@@ -196,9 +230,12 @@ func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient,
 	}
 }
 
-func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceClient, sessionID string, claimTimeoutMS int64, job *pb.JobAssignment) error {
+func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceClient, sessionID string, claimTimeoutMS int64, job *pb.JobAssignment, sessionFailures chan<- error) error {
+	if err := validatePolledJobAssignment(job); err != nil {
+		return err
+	}
 	req := dispatchRequestFromJob(job, w.serviceName)
-	stopRenewal := w.startLeaseRenewal(ctx, client, sessionID, job, claimTimeoutMS)
+	stopRenewal := w.startLeaseRenewal(ctx, client, sessionID, job, claimTimeoutMS, sessionFailures)
 	defer stopRenewal()
 
 	messages := w.dispatchServiceMessages(ctx, req)
@@ -229,9 +266,7 @@ func dispatchRequestFromJob(job *pb.JobAssignment, serviceName string) *pb.Dispa
 		invocationID = job.GetJobId()
 	}
 	metadata := cloneStringMap(job.GetMetadata())
-	if metadata["dispatch_mode"] == "" {
-		metadata["dispatch_mode"] = "pull"
-	}
+	metadata["dispatch_mode"] = "pull"
 	return &pb.DispatchComponentRequest{
 		InvocationId:  invocationID,
 		ServiceName:   serviceName,
@@ -254,11 +289,36 @@ func isTerminalPullResponse(resp *pb.DispatchComponentResponse) bool {
 		return false
 	}
 	switch resp.GetEventType() {
-	case "run.completed", "run.failed", "run.cancelled", "run.paused", "workflow.paused":
+	case "run.completed", "run.failed", "run.paused", "workflow.paused":
 		return true
+	case "run.cancelled":
+		return false
 	default:
 		return resp.GetErrorMessage() != ""
 	}
+}
+
+func validatePolledJobAssignment(job *pb.JobAssignment) error {
+	if job == nil {
+		return fmt.Errorf("agnt5: PollJob returned an empty assignment")
+	}
+	if job.GetJobId() == "" || job.GetRunId() == "" {
+		return fmt.Errorf("agnt5: PollJob assignment requires nonempty job_id and run_id")
+	}
+	if job.GetJobId() != job.GetRunId() {
+		return fmt.Errorf(
+			"agnt5: PollJob assignment job_id %q does not match run_id %q",
+			job.GetJobId(),
+			job.GetRunId(),
+		)
+	}
+	if job.GetLeaseId() == "" {
+		return fmt.Errorf("agnt5: PollJob assignment for job %s has no typed lease_id", job.GetJobId())
+	}
+	if job.GetAttempt() < 0 {
+		return fmt.Errorf("agnt5: PollJob assignment for job %s has invalid attempt %d", job.GetJobId(), job.GetAttempt())
+	}
+	return nil
 }
 
 func (w *Worker) completePolledJob(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse) error {
@@ -278,21 +338,19 @@ func (w *Worker) completePolledJobWithin(ctx context.Context, client pb.EngineSe
 }
 
 func (w *Worker) polledJobCompletionRequest(sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse) (*pb.CompleteJobRequest, error) {
-	leaseID := resp.GetLeaseId()
-	if leaseID == "" {
-		leaseID = job.GetLeaseId()
+	if err := validatePolledJobAssignment(job); err != nil {
+		return nil, err
 	}
-	if job.GetLeaseId() != "" && resp.GetLeaseId() != "" && resp.GetLeaseId() != job.GetLeaseId() {
+	leaseID := job.GetLeaseId()
+	if resp.GetLeaseId() != "" && resp.GetLeaseId() != leaseID {
 		return nil, fmt.Errorf("agnt5: refusing to complete pull job %s with stale lease %q, want %q", job.GetJobId(), resp.GetLeaseId(), job.GetLeaseId())
 	}
 	jobID := job.GetJobId()
-	if jobID == "" {
-		jobID = runIDFromInvocationID(resp.GetInvocationId())
-	}
 	metadata := cloneStringMap(resp.GetMetadata())
 	if eventType := resp.GetEventType(); eventType != "" {
 		metadata["completion_event_type"] = eventType
 	}
+	attempt := uint32(job.GetAttempt())
 	return &pb.CompleteJobRequest{
 		JobId:           jobID,
 		WorkerId:        w.workerID,
@@ -304,6 +362,7 @@ func (w *Worker) polledJobCompletionRequest(sessionID string, job *pb.JobAssignm
 		ProjectId:       w.projectID,
 		LeaseId:         leaseID,
 		WorkerSessionId: sessionID,
+		Attempt:         &attempt,
 	}, nil
 }
 
@@ -346,13 +405,13 @@ func (w *Worker) completePolledJobRequestWithin(ctx context.Context, client pb.E
 	return nil
 }
 
-func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, fallbackLeaseTimeoutMS int64) func() {
+func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, fallbackLeaseTimeoutMS int64, sessionFailures chan<- error) func() {
 	if job.GetLeaseId() == "" || job.GetRunId() == "" {
 		return func() {}
 	}
 	leaseTimeoutMS := fallbackLeaseTimeoutMS
-	if value := int64FromString(job.GetMetadata()["lease_timeout_ms"]); value > 0 {
-		leaseTimeoutMS = value
+	if leaseTimeoutMS <= 0 {
+		leaseTimeoutMS = defaultClaimTimeoutMS
 	}
 	interval := defaultLeaseRenewEvery
 	if leaseTimeoutMS > 0 {
@@ -367,6 +426,7 @@ func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceC
 		defer close(done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		consecutiveSessionRejects := 0
 		for {
 			select {
 			case <-renewCtx.Done():
@@ -379,12 +439,23 @@ func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceC
 					LeaseId:         job.GetLeaseId(),
 					LeaseTimeoutMs:  leaseTimeoutMS,
 				})
-				if err != nil && !errors.Is(renewCtx.Err(), context.Canceled) {
+				if err == nil {
+					consecutiveSessionRejects = 0
 					continue
 				}
+				if isSessionRegistrationRejection(err) {
+					consecutiveSessionRejects++
+					if consecutiveSessionRejects >= sessionRejectThreshold {
+						signalSessionFailure(sessionFailures, "renew pull lease", err)
+						return
+					}
+					continue
+				}
+				consecutiveSessionRejects = 0
 				if renewCtx.Err() != nil {
 					return
 				}
+				continue
 			}
 		}
 	}()
@@ -394,9 +465,10 @@ func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceC
 	}
 }
 
-func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots *atomic.Uint32) {
-	report := func() {
-		_, _ = client.ReportWorkerCapacity(ctx, &pb.ReportWorkerCapacityRequest{
+func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots *atomic.Uint32, reportEvery time.Duration, sessionFailures chan<- error) {
+	consecutiveSessionRejects := 0
+	report := func() bool {
+		_, err := client.ReportWorkerCapacity(ctx, &pb.ReportWorkerCapacityRequest{
 			WorkerId:          w.workerID,
 			WorkerSessionId:   sessionID,
 			OpenPollSlots:     openPollSlots.Load(),
@@ -405,17 +477,50 @@ func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineService
 			EffectiveMaxSlots: config.maxSlots,
 			ObservedAtMs:      time.Now().UnixMilli(),
 		})
+		if err == nil {
+			consecutiveSessionRejects = 0
+			return true
+		}
+		if isSessionRegistrationRejection(err) {
+			consecutiveSessionRejects++
+			if consecutiveSessionRejects >= sessionRejectThreshold {
+				signalSessionFailure(sessionFailures, "report pull capacity", err)
+				return false
+			}
+			return true
+		}
+		consecutiveSessionRejects = 0
+		return true
 	}
-	report()
-	ticker := time.NewTicker(defaultCapacityEvery)
+	if !report() {
+		return
+	}
+	ticker := time.NewTicker(reportEvery)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			report()
+			if !report() {
+				return
+			}
 		}
+	}
+}
+
+func isSessionRegistrationRejection(err error) bool {
+	code := status.Code(err)
+	return code == codes.PermissionDenied || code == codes.Unauthenticated
+}
+
+func signalSessionFailure(sessionFailures chan<- error, operation string, err error) {
+	if sessionFailures == nil {
+		return
+	}
+	select {
+	case sessionFailures <- fmt.Errorf("agnt5: %s: worker session rejected: %w", operation, err):
+	default:
 	}
 }
 

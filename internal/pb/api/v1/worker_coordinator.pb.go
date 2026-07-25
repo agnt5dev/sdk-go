@@ -7880,8 +7880,10 @@ type ReleaseActiveDispatchRequest struct {
 	EventType string `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
 	// Coordinator that observed the terminal event.
 	SourceCoordinatorId string `protobuf:"bytes,3,opt,name=source_coordinator_id,json=sourceCoordinatorId,proto3" json:"source_coordinator_id,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Durable lease fence captured by the terminal projection.
+	LeaseId       string `protobuf:"bytes,4,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReleaseActiveDispatchRequest) Reset() {
@@ -7931,6 +7933,13 @@ func (x *ReleaseActiveDispatchRequest) GetEventType() string {
 func (x *ReleaseActiveDispatchRequest) GetSourceCoordinatorId() string {
 	if x != nil {
 		return x.SourceCoordinatorId
+	}
+	return ""
+}
+
+func (x *ReleaseActiveDispatchRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
 	}
 	return ""
 }
@@ -9054,12 +9063,13 @@ const file_api_v1_worker_coordinator_proto_rawDesc = "" +
 	"\blease_id\x18\x03 \x01(\tR\aleaseId\x12&\n" +
 	"\x0flease_worker_id\x18\x04 \x01(\tR\rleaseWorkerId\x12-\n" +
 	"\x13lease_expires_at_ms\x18\x05 \x01(\x03R\x10leaseExpiresAtMs\x12(\n" +
-	"\x10lease_timeout_ms\x18\x06 \x01(\x03R\x0eleaseTimeoutMs\"\x96\x01\n" +
+	"\x10lease_timeout_ms\x18\x06 \x01(\x03R\x0eleaseTimeoutMs\"\xb1\x01\n" +
 	"\x1cReleaseActiveDispatchRequest\x12#\n" +
 	"\rinvocation_id\x18\x01 \x01(\tR\finvocationId\x12\x1d\n" +
 	"\n" +
 	"event_type\x18\x02 \x01(\tR\teventType\x122\n" +
-	"\x15source_coordinator_id\x18\x03 \x01(\tR\x13sourceCoordinatorId\"S\n" +
+	"\x15source_coordinator_id\x18\x03 \x01(\tR\x13sourceCoordinatorId\x12\x19\n" +
+	"\blease_id\x18\x04 \x01(\tR\aleaseId\"S\n" +
 	"\x18ReleaseActiveDispatchAck\x12\x1a\n" +
 	"\breleased\x18\x01 \x01(\bR\breleased\x12\x1b\n" +
 	"\tworker_id\x18\x02 \x01(\tR\bworkerId\"\xbf\x03\n" +

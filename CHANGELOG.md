@@ -7,9 +7,21 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-25
+
 ### Added
 
 - Standalone GitHub-hosted release validation for the Go SDK module.
 - Native release automation based on semantic GitHub Release tags.
+- Pull workers now use typed lease, session, and attempt authority for
+  completion, renewal, and session replacement.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/commits/main
+### Fixed
+
+- Reject multi-run append batches before mutation and require exact runtime
+  outcome cardinality.
+- Cancel and join every old pull-session task before reconnecting, preventing
+  session overlap and event-writer races.
+
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/agnt5dev/sdk-go/releases/tag/v0.2.0
