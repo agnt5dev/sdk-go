@@ -79,7 +79,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Test SDK
-        run: go test ./...
+        run: go test -race ./...
 
       - name: Create and push release tag
         if: github.event_name == 'workflow_dispatch' && inputs.skip-publish != true

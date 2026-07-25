@@ -68,7 +68,8 @@ const (
 type EngineServiceClient interface {
 	// Append a single record to the journal log.
 	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
-	// Append multiple records atomically.
+	// Append multiple records atomically when they route to one journal
+	// partition. A cross-partition request is rejected before mutation.
 	AppendBatch(ctx context.Context, in *AppendBatchRequest, opts ...grpc.CallOption) (*AppendBatchResponse, error)
 	// Checkpoint persists a durable step checkpoint and returns memoization status.
 	// On STEP_STARTED, looks up prior completion by step_key and returns cached output
@@ -537,7 +538,8 @@ func (c *engineServiceClient) GetStatus(ctx context.Context, in *GetStatusReques
 type EngineServiceServer interface {
 	// Append a single record to the journal log.
 	Append(context.Context, *AppendRequest) (*AppendResponse, error)
-	// Append multiple records atomically.
+	// Append multiple records atomically when they route to one journal
+	// partition. A cross-partition request is rejected before mutation.
 	AppendBatch(context.Context, *AppendBatchRequest) (*AppendBatchResponse, error)
 	// Checkpoint persists a durable step checkpoint and returns memoization status.
 	// On STEP_STARTED, looks up prior completion by step_key and returns cached output
@@ -1565,6 +1567,7 @@ const (
 	ReplicationService_RequestVote_FullMethodName        = "/api.v1.ReplicationService/RequestVote"
 	ReplicationService_AnnounceLeader_FullMethodName     = "/api.v1.ReplicationService/AnnounceLeader"
 	ReplicationService_ForwardAppend_FullMethodName      = "/api.v1.ReplicationService/ForwardAppend"
+	ReplicationService_ForwardAppendV2_FullMethodName    = "/api.v1.ReplicationService/ForwardAppendV2"
 	ReplicationService_AddMember_FullMethodName          = "/api.v1.ReplicationService/AddMember"
 	ReplicationService_RemoveMember_FullMethodName       = "/api.v1.ReplicationService/RemoveMember"
 	ReplicationService_TransferLeadership_FullMethodName = "/api.v1.ReplicationService/TransferLeadership"
@@ -1595,6 +1598,10 @@ type ReplicationServiceClient interface {
 	AnnounceLeader(ctx context.Context, in *AnnounceLeaderRequest, opts ...grpc.CallOption) (*AnnounceLeaderResponse, error)
 	// Forward a write from a follower to the sequencer.
 	ForwardAppend(ctx context.Context, in *ForwardAppendRequest, opts ...grpc.CallOption) (*ForwardAppendResponse, error)
+	// Forward a write while preserving the exact per-record append outcome.
+	// A distinct method makes mixed-version calls fail before an older server
+	// can mutate storage.
+	ForwardAppendV2(ctx context.Context, in *ForwardAppendRequest, opts ...grpc.CallOption) (*ForwardAppendResponse, error)
 	// Add a member to the cluster (leader only).
 	AddMember(ctx context.Context, in *AddMemberRequest, opts ...grpc.CallOption) (*AddMemberResponse, error)
 	// Remove a member from the cluster (leader only).
@@ -1690,6 +1697,16 @@ func (c *replicationServiceClient) ForwardAppend(ctx context.Context, in *Forwar
 	return out, nil
 }
 
+func (c *replicationServiceClient) ForwardAppendV2(ctx context.Context, in *ForwardAppendRequest, opts ...grpc.CallOption) (*ForwardAppendResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForwardAppendResponse)
+	err := c.cc.Invoke(ctx, ReplicationService_ForwardAppendV2_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *replicationServiceClient) AddMember(ctx context.Context, in *AddMemberRequest, opts ...grpc.CallOption) (*AddMemberResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddMemberResponse)
@@ -1745,6 +1762,10 @@ type ReplicationServiceServer interface {
 	AnnounceLeader(context.Context, *AnnounceLeaderRequest) (*AnnounceLeaderResponse, error)
 	// Forward a write from a follower to the sequencer.
 	ForwardAppend(context.Context, *ForwardAppendRequest) (*ForwardAppendResponse, error)
+	// Forward a write while preserving the exact per-record append outcome.
+	// A distinct method makes mixed-version calls fail before an older server
+	// can mutate storage.
+	ForwardAppendV2(context.Context, *ForwardAppendRequest) (*ForwardAppendResponse, error)
 	// Add a member to the cluster (leader only).
 	AddMember(context.Context, *AddMemberRequest) (*AddMemberResponse, error)
 	// Remove a member from the cluster (leader only).
@@ -1781,6 +1802,9 @@ func (UnimplementedReplicationServiceServer) AnnounceLeader(context.Context, *An
 }
 func (UnimplementedReplicationServiceServer) ForwardAppend(context.Context, *ForwardAppendRequest) (*ForwardAppendResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ForwardAppend not implemented")
+}
+func (UnimplementedReplicationServiceServer) ForwardAppendV2(context.Context, *ForwardAppendRequest) (*ForwardAppendResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ForwardAppendV2 not implemented")
 }
 func (UnimplementedReplicationServiceServer) AddMember(context.Context, *AddMemberRequest) (*AddMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AddMember not implemented")
@@ -1931,6 +1955,24 @@ func _ReplicationService_ForwardAppend_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReplicationService_ForwardAppendV2_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForwardAppendRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReplicationServiceServer).ForwardAppendV2(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReplicationService_ForwardAppendV2_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReplicationServiceServer).ForwardAppendV2(ctx, req.(*ForwardAppendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ReplicationService_AddMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AddMemberRequest)
 	if err := dec(in); err != nil {
@@ -2015,6 +2057,10 @@ var ReplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ForwardAppend",
 			Handler:    _ReplicationService_ForwardAppend_Handler,
+		},
+		{
+			MethodName: "ForwardAppendV2",
+			Handler:    _ReplicationService_ForwardAppendV2_Handler,
 		},
 		{
 			MethodName: "AddMember",
