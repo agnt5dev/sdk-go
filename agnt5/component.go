@@ -10,11 +10,13 @@ type rawInvoker func(*Context, []byte) ([]byte, error)
 
 // Component describes a registered Go handler.
 type Component struct {
-	Name     string
-	Type     ComponentType
-	Config   map[string]string
-	Metadata map[string]string
-	Triggers []TriggerSpec
+	Name         string
+	Type         ComponentType
+	InputSchema  map[string]any
+	OutputSchema map[string]any
+	Config       map[string]string
+	Metadata     map[string]string
+	Triggers     []TriggerSpec
 
 	invoke rawInvoker
 }
@@ -28,6 +30,22 @@ func WithComponentMetadata(metadata map[string]string) ComponentOption {
 		for key, value := range metadata {
 			c.Metadata[key] = value
 		}
+	}
+}
+
+// WithInputSchema overrides the JSON Schema derived for a typed component.
+// Use it to add descriptions, formats, or constraints that Go reflection
+// cannot infer from the handler signature alone.
+func WithInputSchema(schema map[string]any) ComponentOption {
+	return func(c *Component) {
+		c.InputSchema = cloneSchemaMap(schema)
+	}
+}
+
+// WithOutputSchema overrides the JSON Schema derived for a typed component.
+func WithOutputSchema(schema map[string]any) ComponentOption {
+	return func(c *Component) {
+		c.OutputSchema = cloneSchemaMap(schema)
 	}
 }
 
@@ -131,11 +149,13 @@ func newComponent(name string, componentType ComponentType, invoker rawInvoker, 
 // Info returns the registration descriptor for this component.
 func (c Component) Info() ComponentInfo {
 	return ComponentInfo{
-		Name:     c.Name,
-		Type:     c.Type,
-		Config:   cloneStringMap(c.Config),
-		Metadata: cloneStringMap(c.Metadata),
-		Triggers: cloneTriggers(c.Triggers),
+		Name:         c.Name,
+		Type:         c.Type,
+		InputSchema:  cloneSchemaMap(c.InputSchema),
+		OutputSchema: cloneSchemaMap(c.OutputSchema),
+		Config:       cloneStringMap(c.Config),
+		Metadata:     cloneStringMap(c.Metadata),
+		Triggers:     cloneTriggers(c.Triggers),
 	}
 }
 

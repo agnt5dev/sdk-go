@@ -359,4 +359,17 @@ func TestNewClientUsesEnvironmentDefaults(t *testing.T) {
 		client.deploymentID != "dep-env" {
 		t.Fatalf("client: %#v", client)
 	}
+	if client.httpClient.Timeout != 45*time.Second {
+		t.Fatalf("default timeout: %s", client.httpClient.Timeout)
+	}
+}
+
+func TestNewClientHonorsTimeoutOverride(t *testing.T) {
+	client, err := NewClient("http://localhost:34183", WithClientTimeout(12*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.httpClient.Timeout != 12*time.Second {
+		t.Fatalf("timeout override: %s", client.httpClient.Timeout)
+	}
 }

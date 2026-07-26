@@ -235,6 +235,8 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 		return err
 	}
 	req := dispatchRequestFromJob(job, w.serviceName)
+	req.Metadata["worker_id"] = w.workerID
+	req.Metadata["worker_session_id"] = sessionID
 	stopRenewal := w.startLeaseRenewal(ctx, client, sessionID, job, claimTimeoutMS, sessionFailures)
 	defer stopRenewal()
 

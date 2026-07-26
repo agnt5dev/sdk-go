@@ -28,6 +28,15 @@ type engineStateCacheEntry struct {
 	expires time.Time
 }
 
+type stateWriteAuthority struct {
+	runID           string
+	workerID        string
+	workerSessionID string
+	leaseID         string
+	attempt         uint32
+	operationID     string
+}
+
 const engineStateReadYourWriteTTL = 500 * time.Millisecond
 
 func newEngineStateStore(client pb.EngineServiceClient, projectID string) StateStore {
@@ -70,6 +79,10 @@ func (s *engineStateStore) List(ctx context.Context, scope StateScope, namespace
 }
 
 func (s *engineStateStore) update(ctx context.Context, scope StateScope, namespace string, mutate func(map[string]any)) error {
+	authority, err := stateWriteAuthorityFromContext(ctx, scope, namespace)
+	if err != nil {
+		return err
+	}
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		values, version, err := s.load(ctx, scope, namespace)
@@ -81,7 +94,7 @@ func (s *engineStateStore) update(ctx context.Context, scope StateScope, namespa
 		if err != nil {
 			return err
 		}
-		resp, err := s.client.PutEntityState(ctx, &pb.PutEntityStateRequest{
+		request := &pb.PutEntityStateRequest{
 			ProjectId:       s.projectID,
 			EntityType:      stateEntityType,
 			EntityKey:       stateEntityKey,
@@ -89,7 +102,16 @@ func (s *engineStateStore) update(ctx context.Context, scope StateScope, namespa
 			ScopeId:         namespace,
 			StateJson:       payload,
 			ExpectedVersion: version,
-		})
+		}
+		if authority.runID != "" {
+			request.RunId = authority.runID
+			request.WorkerId = authority.workerID
+			request.WorkerSessionId = authority.workerSessionID
+			request.LeaseId = authority.leaseID
+			request.Attempt = &authority.attempt
+			request.OperationId = authority.operationID
+		}
+		resp, err := s.client.PutEntityState(ctx, request)
 		if err == nil {
 			s.storeCached(scope, namespace, values, resp.GetNewVersion())
 			return nil
@@ -102,6 +124,35 @@ func (s *engineStateStore) update(ctx context.Context, scope StateScope, namespa
 		}
 	}
 	return lastErr
+}
+
+func stateWriteAuthorityFromContext(ctx context.Context, scope StateScope, namespace string) (stateWriteAuthority, error) {
+	if scope != StateScopeRun || ctx == nil {
+		return stateWriteAuthority{}, nil
+	}
+	runCtx, _ := ctx.Value(stateAuthorityContextKey).(*Context)
+	if runCtx == nil {
+		return stateWriteAuthority{}, nil
+	}
+	if namespace == "" || runCtx.RunID() != namespace {
+		return stateWriteAuthority{}, errors.New("agnt5: run-scoped state namespace does not match the active run")
+	}
+	workerID := runCtx.Metadata("worker_id")
+	workerSessionID := runCtx.Metadata("worker_session_id")
+	if workerID == "" || workerSessionID == "" || runCtx.LeaseID() == "" {
+		return stateWriteAuthority{}, errors.New("agnt5: run-scoped state write is missing parked-poll authority")
+	}
+	if runCtx.Attempt() < 0 {
+		return stateWriteAuthority{}, errors.New("agnt5: run-scoped state write has a negative attempt")
+	}
+	return stateWriteAuthority{
+		runID:           runCtx.RunID(),
+		workerID:        workerID,
+		workerSessionID: workerSessionID,
+		leaseID:         runCtx.LeaseID(),
+		attempt:         uint32(runCtx.Attempt()),
+		operationID:     newCorrelationID("state"),
+	}, nil
 }
 
 func (s *engineStateStore) load(ctx context.Context, scope StateScope, namespace string) (map[string]any, int64, error) {

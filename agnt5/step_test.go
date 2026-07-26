@@ -3,6 +3,9 @@ package agnt5
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -180,6 +183,98 @@ func TestStepWritesFailedCheckpoint(t *testing.T) {
 	failed := writer.requests[1].GetCheckpoint()
 	if failed.GetErrorMessage() != "boom" || failed.GetStepKey() != "step:load:0" {
 		t.Fatalf("failed checkpoint: %#v", failed)
+	}
+}
+
+func TestTaskEmitsNestedFunctionLifecycle(t *testing.T) {
+	ctx := newContext(context.Background(), Invocation{
+		ID:            "run-task",
+		RunID:         "run-task",
+		ComponentName: "workflow",
+		ComponentType: ComponentTypeWorkflow,
+	}, nil, "")
+	ctx.setParentCorrelationID("workflow-cid")
+
+	got, err := Task(ctx, "ks_analyze_text", "one", func(_ *Context, input string) (string, error) {
+		return strings.ToUpper(input), nil
+	})
+	if err != nil {
+		t.Fatalf("task: %v", err)
+	}
+	if got != "ONE" {
+		t.Fatalf("task output = %q", got)
+	}
+	events := ctx.Events()
+	if gotTypes := eventTypes(events); !slices.Equal(gotTypes, []string{
+		"workflow.step.started",
+		"function.started",
+		"function.completed",
+		"workflow.step.completed",
+	}) {
+		t.Fatalf("events = %#v", gotTypes)
+	}
+	stepCID := events[0].CorrelationID
+	functionCID := events[1].CorrelationID
+	if stepCID == "" || functionCID == "" ||
+		events[0].ParentCorrelationID != "workflow-cid" ||
+		events[1].ParentCorrelationID != stepCID ||
+		events[2].CorrelationID != functionCID ||
+		events[2].ParentCorrelationID != stepCID ||
+		events[3].CorrelationID != stepCID ||
+		events[3].ParentCorrelationID != "workflow-cid" {
+		t.Fatalf("lifecycle correlation: %#v", events)
+	}
+	for _, event := range events[1:3] {
+		data, ok := event.Data.(map[string]any)
+		if !ok || data["name"] != "ks_analyze_text" {
+			t.Fatalf("function data: %#v", event.Data)
+		}
+	}
+}
+
+func TestTaskCorrelationIsExplicitUnderConcurrency(t *testing.T) {
+	ctx := newContext(context.Background(), Invocation{
+		ID:            "run-task",
+		RunID:         "run-task",
+		ComponentName: "workflow",
+		ComponentType: ComponentTypeWorkflow,
+	}, nil, "")
+	ctx.setParentCorrelationID("workflow-cid")
+
+	var wg sync.WaitGroup
+	for index := 0; index < 3; index++ {
+		index := index
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := Task(ctx, "ks_analyze_text", index, func(_ *Context, input int) (int, error) {
+				return input, nil
+			}); err != nil {
+				t.Errorf("task %d: %v", index, err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	steps := make(map[string]struct{})
+	for _, event := range ctx.Events() {
+		if event.Type == "workflow.step.started" {
+			if event.ParentCorrelationID != "workflow-cid" {
+				t.Fatalf("step parent = %q", event.ParentCorrelationID)
+			}
+			steps[event.CorrelationID] = struct{}{}
+		}
+	}
+	if len(steps) != 3 {
+		t.Fatalf("step correlations = %#v", steps)
+	}
+	for _, event := range ctx.Events() {
+		if !strings.HasPrefix(event.Type, "function.") {
+			continue
+		}
+		if _, ok := steps[event.ParentCorrelationID]; !ok {
+			t.Fatalf("%s has unknown parent %q", event.Type, event.ParentCorrelationID)
+		}
 	}
 }
 

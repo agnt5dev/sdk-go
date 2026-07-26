@@ -38,6 +38,8 @@ type testEngine struct {
 	streamed     chan *pb.EventStreamMessage
 	streamClosed chan int64
 	capacity     chan *pb.ReportWorkerCapacityRequest
+	statePuts    chan *pb.PutEntityStateRequest
+	statePutErrs []error
 	completeWait bool
 	registerIDs  []string
 	registerCall int
@@ -156,6 +158,26 @@ func (s *testEngine) RenewJobLease(_ context.Context, req *pb.RenewJobLeaseReque
 	}
 	s.mu.Unlock()
 	return &pb.RenewJobLeaseResponse{Renewed: true, LeaseExpiresAtMs: time.Now().Add(time.Minute).UnixMilli()}, nil
+}
+
+func (s *testEngine) GetEntityState(_ context.Context, _ *pb.GetEntityStateRequest) (*pb.GetEntityStateResponse, error) {
+	return &pb.GetEntityStateResponse{Found: false}, nil
+}
+
+func (s *testEngine) PutEntityState(_ context.Context, req *pb.PutEntityStateRequest) (*pb.PutEntityStateResponse, error) {
+	if s.statePuts != nil {
+		s.statePuts <- req
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.statePutErrs) > 0 {
+		err := s.statePutErrs[0]
+		s.statePutErrs = s.statePutErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &pb.PutEntityStateResponse{NewVersion: req.GetExpectedVersion() + 1}, nil
 }
 
 func (s *testEngine) ReportWorkerCapacity(_ context.Context, req *pb.ReportWorkerCapacityRequest) (*pb.ReportWorkerCapacityResponse, error) {

@@ -5,6 +5,10 @@ import (
 	"sync"
 )
 
+type contextKey uint8
+
+const stateAuthorityContextKey contextKey = iota
+
 // Context is passed to Go component handlers.
 type Context struct {
 	context.Context
@@ -17,6 +21,7 @@ type Context struct {
 	managedAgent   string
 	logger         *Logger
 	projectID      string
+	parentCID      string
 
 	stateMu    sync.Mutex
 	stateStore StateStore
@@ -83,6 +88,16 @@ func (c *Context) ComponentType() ComponentType {
 // Attempt returns the zero-based retry attempt number.
 func (c *Context) Attempt() int {
 	return c.invocation.Attempt
+}
+
+// Value preserves the embedded context chain while making active dispatch
+// authority available to runtime-backed state stores, including through
+// context.WithCancel/WithTimeout wrappers derived from this Context.
+func (c *Context) Value(key any) any {
+	if key == stateAuthorityContextKey {
+		return c
+	}
+	return c.Context.Value(key)
 }
 
 // Metadata returns a single metadata value.
@@ -184,6 +199,14 @@ func (c *Context) setCheckpointEmitter(emitter func(Event) error) {
 
 func (c *Context) setManagedAgent(name string) {
 	c.managedAgent = name
+}
+
+func (c *Context) setParentCorrelationID(correlationID string) {
+	c.parentCID = correlationID
+}
+
+func (c *Context) parentCorrelationID() string {
+	return c.parentCID
 }
 
 func (c *Context) managesAgent(name string) bool {

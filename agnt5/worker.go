@@ -410,6 +410,9 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 		return InvocationResult{}, ErrComponentNotFound
 	}
 	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(w.invocationMetadata(inv)), w.stateStore)
+	if len(streamParentCorrelationID) > 0 {
+		runCtx.setParentCorrelationID(streamParentCorrelationID[0])
+	}
 	if inv.IsStreaming {
 		parentCorrelationID := ""
 		if len(streamParentCorrelationID) > 0 {
