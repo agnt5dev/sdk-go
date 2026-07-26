@@ -47,6 +47,12 @@ func protoComponentInfo(info ComponentInfo) *pb.ComponentInfo {
 		Metadata:      cloneStringMap(info.Metadata),
 		Triggers:      protoTriggerSpecs(info.Triggers),
 	}
+	if info.InputSchema != nil {
+		out.InputSchema = protoComponentSchema(info.InputSchema)
+	}
+	if info.OutputSchema != nil {
+		out.OutputSchema = protoComponentSchema(info.OutputSchema)
+	}
 	if value, ok := int32Config(info.Config, "max_attempts"); ok {
 		out.MaxAttempts = &value
 	}
@@ -63,6 +69,58 @@ func protoComponentInfo(info ComponentInfo) *pb.ComponentInfo {
 		out.BackoffMultiplier = &value
 	}
 	return out
+}
+
+func protoComponentSchema(schema map[string]any) *pb.ComponentSchema {
+	out := &pb.ComponentSchema{
+		Type:        schemaString(schema["type"]),
+		Description: optionalSchemaString(schema["description"]),
+		Format:      optionalSchemaString(schema["format"]),
+		Properties:  make(map[string]*pb.ComponentSchema),
+	}
+	if properties, ok := schema["properties"].(map[string]any); ok {
+		for name, property := range properties {
+			if propertySchema, ok := property.(map[string]any); ok {
+				out.Properties[name] = protoComponentSchema(propertySchema)
+			}
+		}
+	}
+	out.Required = schemaStrings(schema["required"])
+	out.EnumValues = schemaStrings(schema["enum"])
+	if items, ok := schema["items"].(map[string]any); ok {
+		out.Items = protoComponentSchema(items)
+	}
+	return out
+}
+
+func schemaString(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+func optionalSchemaString(value any) *string {
+	text := schemaString(value)
+	if text == "" {
+		return nil
+	}
+	return &text
+}
+
+func schemaStrings(value any) []string {
+	switch values := value.(type) {
+	case []string:
+		return append([]string(nil), values...)
+	case []any:
+		result := make([]string, 0, len(values))
+		for _, item := range values {
+			if text, ok := item.(string); ok {
+				result = append(result, text)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
 }
 
 func protoTriggerSpecs(in []TriggerSpec) []*pb.TriggerSpec {

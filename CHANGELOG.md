@@ -7,6 +7,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-26
+
+### Added
+
+- Add schema-driven agent state support and parallel execution coverage.
+
+### Fixed
+
+- Preserve fenced pull completion and deterministic trace ordering across
+  concurrent agent and tool execution.
+
 ## [0.2.0] - 2026-07-25
 
 ### Added
@@ -23,5 +34,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/agnt5dev/sdk-go/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/agnt5dev/sdk-go/releases/tag/v0.2.0

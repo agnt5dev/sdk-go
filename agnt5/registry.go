@@ -1,6 +1,7 @@
 package agnt5
 
 import (
+	"reflect"
 	"sort"
 	"sync"
 )
@@ -28,6 +29,12 @@ func RegisterFunction[In any, Out any](w *Worker, name string, handler func(*Con
 	if err != nil {
 		return err
 	}
+	if component.InputSchema == nil {
+		component.InputSchema = jsonSchemaForType(reflect.TypeFor[In]())
+	}
+	if component.OutputSchema == nil {
+		component.OutputSchema = jsonSchemaForType(reflect.TypeFor[Out]())
+	}
 	return w.registry.Register(component)
 }
 
@@ -42,6 +49,12 @@ func RegisterWorkflow[In any, Out any](w *Worker, name string, handler func(*Con
 	component, err := newComponent(name, ComponentTypeWorkflow, typedInvoker(handler), opts...)
 	if err != nil {
 		return err
+	}
+	if component.InputSchema == nil {
+		component.InputSchema = jsonSchemaForType(reflect.TypeFor[In]())
+	}
+	if component.OutputSchema == nil {
+		component.OutputSchema = jsonSchemaForType(reflect.TypeFor[Out]())
 	}
 	return w.registry.Register(component)
 }
@@ -88,6 +101,8 @@ func (r *Registry) Get(name string) (Component, bool) {
 	}
 	component.Config = cloneStringMap(component.Config)
 	component.Metadata = cloneStringMap(component.Metadata)
+	component.InputSchema = cloneSchemaMap(component.InputSchema)
+	component.OutputSchema = cloneSchemaMap(component.OutputSchema)
 	component.Triggers = cloneTriggers(component.Triggers)
 	return component, true
 }
@@ -100,6 +115,8 @@ func (r *Registry) List() []Component {
 	for _, component := range r.components {
 		component.Config = cloneStringMap(component.Config)
 		component.Metadata = cloneStringMap(component.Metadata)
+		component.InputSchema = cloneSchemaMap(component.InputSchema)
+		component.OutputSchema = cloneSchemaMap(component.OutputSchema)
 		component.Triggers = cloneTriggers(component.Triggers)
 		components = append(components, component)
 	}

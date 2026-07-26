@@ -9,7 +9,7 @@ import (
 )
 
 type greetInput struct {
-	Name string `json:"name"`
+	Name string `json:"name" description:"Person to greet"`
 }
 
 type greetOutput struct {
@@ -135,9 +135,76 @@ func TestComponentInfosAreSortedAndCopied(t *testing.T) {
 	if infos[1].Name != "zeta" || infos[1].Config["max_attempts"] != "3" {
 		t.Fatalf("second info should be zeta with retry config, got %#v", infos[1])
 	}
+	inputProperties, ok := infos[1].InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("function input schema properties missing: %#v", infos[1].InputSchema)
+	}
+	nameSchema, ok := inputProperties["name"].(map[string]any)
+	if !ok || nameSchema["type"] != "string" || nameSchema["description"] != "Person to greet" {
+		t.Fatalf("unexpected name schema: %#v", inputProperties["name"])
+	}
 	infos[0].Metadata["owner"] = "mutated"
 	if worker.Components()[0].Metadata["owner"] != "sdk" {
 		t.Fatal("component info metadata was not defensively copied")
+	}
+	inputProperties["name"].(map[string]any)["type"] = "mutated"
+	freshProperties := worker.Components()[1].InputSchema["properties"].(map[string]any)
+	if freshProperties["name"].(map[string]any)["type"] != "string" {
+		t.Fatal("component info input schema was not defensively copied")
+	}
+}
+
+func TestTypedRegistrationIncludesProtoSchemas(t *testing.T) {
+	worker := NewWorker("test-worker")
+	if err := RegisterFunction(worker, "greet", func(*Context, greetInput) (greetOutput, error) {
+		return greetOutput{}, nil
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	proto := protoComponentInfo(worker.Components()[0])
+	if proto.InputSchema == nil || proto.OutputSchema == nil {
+		t.Fatalf("typed schemas missing from proto: %#v", proto)
+	}
+	name := proto.InputSchema.Properties["name"]
+	if name == nil || name.Type != "string" {
+		t.Fatalf("input name schema missing: %#v", proto.InputSchema)
+	}
+	if name.GetDescription() != "Person to greet" {
+		t.Fatalf("input description = %q", name.GetDescription())
+	}
+	if got := proto.InputSchema.Required; len(got) != 1 || got[0] != "name" {
+		t.Fatalf("required fields = %#v", got)
+	}
+}
+
+func TestToolRegistrationIncludesExplicitInputSchema(t *testing.T) {
+	worker := NewWorker("test-worker")
+	tool, err := NewTool(
+		"schema-tool",
+		func(context.Context, map[string]any) (any, error) { return nil, nil },
+		WithToolSchema(map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"location": map[string]any{
+					"type":        "string",
+					"description": "City and state to search",
+				},
+			},
+			"required": []string{"location"},
+		}),
+	)
+	if err != nil {
+		t.Fatalf("new tool: %v", err)
+	}
+	if err := RegisterTool(worker, tool); err != nil {
+		t.Fatalf("register tool: %v", err)
+	}
+
+	proto := protoComponentInfo(worker.Components()[0])
+	location := proto.InputSchema.GetProperties()["location"]
+	if location.GetDescription() != "City and state to search" {
+		t.Fatalf("tool input schema missing: %#v", proto.InputSchema)
 	}
 }
 

@@ -139,6 +139,11 @@ func RegisterTool(w *Worker, tool Tool, opts ...ComponentOption) error {
 	if err := DefaultToolRegistry().Register(tool); err != nil {
 		return err
 	}
+	componentOpts := make([]ComponentOption, 0, len(opts)+1)
+	if len(tool.Schema) > 0 {
+		componentOpts = append(componentOpts, WithInputSchema(tool.Schema))
+	}
+	componentOpts = append(componentOpts, opts...)
 	return RegisterRaw(w, tool.Name, ComponentTypeTool, func(ctx *Context, input []byte) ([]byte, error) {
 		var args map[string]any
 		if len(input) > 0 {
@@ -151,7 +156,7 @@ func RegisterTool(w *Worker, tool Tool, opts ...ComponentOption) error {
 			return nil, err
 		}
 		return json.Marshal(out)
-	}, opts...)
+	}, componentOpts...)
 }
 
 func cloneAnyMap(in map[string]any) map[string]any {

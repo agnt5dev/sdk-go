@@ -3001,7 +3001,16 @@ type PutEntityStateRequest struct {
 	// Use 0 for initial creation.
 	ExpectedVersion int64 `protobuf:"varint,7,opt,name=expected_version,json=expectedVersion,proto3" json:"expected_version,omitempty"`
 	// Run ID to associate the journal event with.
-	RunId         string `protobuf:"bytes,8,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	RunId string `protobuf:"bytes,8,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// Pull-worker authority. When run_id is set, every field below is required
+	// and must match the active parked-poll assignment.
+	WorkerId        string  `protobuf:"bytes,9,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	WorkerSessionId string  `protobuf:"bytes,10,opt,name=worker_session_id,json=workerSessionId,proto3" json:"worker_session_id,omitempty"`
+	LeaseId         string  `protobuf:"bytes,11,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	Attempt         *uint32 `protobuf:"varint,12,opt,name=attempt,proto3,oneof" json:"attempt,omitempty"`
+	// Stable across retries of one logical write. The journal uses this to
+	// collapse a lost-response retry without collapsing distinct state updates.
+	OperationId   string `protobuf:"bytes,13,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3088,6 +3097,41 @@ func (x *PutEntityStateRequest) GetExpectedVersion() int64 {
 func (x *PutEntityStateRequest) GetRunId() string {
 	if x != nil {
 		return x.RunId
+	}
+	return ""
+}
+
+func (x *PutEntityStateRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+func (x *PutEntityStateRequest) GetWorkerSessionId() string {
+	if x != nil {
+		return x.WorkerSessionId
+	}
+	return ""
+}
+
+func (x *PutEntityStateRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *PutEntityStateRequest) GetAttempt() uint32 {
+	if x != nil && x.Attempt != nil {
+		return *x.Attempt
+	}
+	return 0
+}
+
+func (x *PutEntityStateRequest) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
 	}
 	return ""
 }
@@ -6132,7 +6176,7 @@ type ListRunsResponse struct {
 	// Empty when `has_more` is false. Today encodes
 	// `(submitted_at_ms, run_id)` per Decision 15; treat as opaque.
 	NextCursor string `protobuf:"bytes,7,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
-	// replication lag at the receiving node when this
+	// Phase 3 task 3.8: replication lag at the receiving node when this
 	// response was assembled, in milliseconds. Computed as
 	// `now_ms - last_applied_record_ts_ms` for the local processor's
 	// last-applied record. Exposes the eventually-consistent contract
@@ -8478,7 +8522,7 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x05found\x18\x01 \x01(\bR\x05found\x12\x1d\n" +
 	"\n" +
 	"state_json\x18\x02 \x01(\fR\tstateJson\x12\x18\n" +
-	"\aversion\x18\x03 \x01(\x03R\aversion\"\x88\x02\n" +
+	"\aversion\x18\x03 \x01(\x03R\aversion\"\xba\x03\n" +
 	"\x15PutEntityStateRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x1f\n" +
@@ -8491,7 +8535,15 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\n" +
 	"state_json\x18\x06 \x01(\fR\tstateJson\x12)\n" +
 	"\x10expected_version\x18\a \x01(\x03R\x0fexpectedVersion\x12\x15\n" +
-	"\x06run_id\x18\b \x01(\tR\x05runId\"9\n" +
+	"\x06run_id\x18\b \x01(\tR\x05runId\x12\x1b\n" +
+	"\tworker_id\x18\t \x01(\tR\bworkerId\x12*\n" +
+	"\x11worker_session_id\x18\n" +
+	" \x01(\tR\x0fworkerSessionId\x12\x19\n" +
+	"\blease_id\x18\v \x01(\tR\aleaseId\x12\x1d\n" +
+	"\aattempt\x18\f \x01(\rH\x00R\aattempt\x88\x01\x01\x12!\n" +
+	"\foperation_id\x18\r \x01(\tR\voperationIdB\n" +
+	"\n" +
+	"\b_attempt\"9\n" +
 	"\x16PutEntityStateResponse\x12\x1f\n" +
 	"\vnew_version\x18\x01 \x01(\x03R\n" +
 	"newVersion\"\xbc\x04\n" +
@@ -9415,6 +9467,7 @@ func file_api_v1_engine_proto_init() {
 	}
 	file_api_v1_common_proto_init()
 	file_api_v1_worker_coordinator_proto_init()
+	file_api_v1_engine_proto_msgTypes[42].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[83].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[84].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[85].OneofWrappers = []any{}

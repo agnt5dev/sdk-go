@@ -108,6 +108,9 @@ const (
 	ModelStreamMessageStart  ModelStreamChunkType = "message_start"
 	ModelStreamMessageDelta  ModelStreamChunkType = "message_delta"
 	ModelStreamMessageStop   ModelStreamChunkType = "message_stop"
+	ModelStreamThinkingStart ModelStreamChunkType = "thinking_start"
+	ModelStreamThinkingDelta ModelStreamChunkType = "thinking_delta"
+	ModelStreamThinkingStop  ModelStreamChunkType = "thinking_stop"
 	ModelStreamToolCallStart ModelStreamChunkType = "tool_call_start"
 	ModelStreamToolCallDelta ModelStreamChunkType = "tool_call_delta"
 	ModelStreamToolCallStop  ModelStreamChunkType = "tool_call_stop"
@@ -714,6 +717,13 @@ func modelStreamEvent(chunk ModelStreamChunk) Event {
 		data["content"] = chunk.Content
 	case ModelStreamMessageStop:
 		eventType = "lm.message.stop"
+	case ModelStreamThinkingStart:
+		eventType = "lm.thinking.start"
+	case ModelStreamThinkingDelta:
+		eventType = "lm.thinking.delta"
+		data["content"] = chunk.Content
+	case ModelStreamThinkingStop:
+		eventType = "lm.thinking.stop"
 	case ModelStreamToolCallStart:
 		eventType = "lm.tool_call.start"
 		data["id"] = chunk.ToolCallID

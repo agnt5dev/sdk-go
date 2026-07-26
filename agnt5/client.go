@@ -85,7 +85,7 @@ func WithClientTimeout(timeout time.Duration) ClientOption {
 // NewClient constructs a gateway client. Empty gatewayURL falls back to
 // AGNT5_GATEWAY_URL, then https://gw.agnt5.com.
 func NewClient(gatewayURL string, opts ...ClientOption) (*Client, error) {
-	config := clientConfig{timeout: 30 * time.Second}
+	config := clientConfig{timeout: 45 * time.Second}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&config)

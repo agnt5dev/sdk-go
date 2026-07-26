@@ -59,9 +59,11 @@ type TriggerSpec struct {
 // ComponentInfo is the SDK-local registration descriptor. Transport adapters
 // convert this shape to the runtime protobuf ComponentInfo.
 type ComponentInfo struct {
-	Name     string
-	Type     ComponentType
-	Config   map[string]string
-	Metadata map[string]string
-	Triggers []TriggerSpec
+	Name         string
+	Type         ComponentType
+	InputSchema  map[string]any
+	OutputSchema map[string]any
+	Config       map[string]string
+	Metadata     map[string]string
+	Triggers     []TriggerSpec
 }
