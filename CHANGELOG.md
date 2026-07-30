@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-29
+
+### Fixed
+
+- Emit agent, iteration, model, and tool lifecycle events with stable
+  correlation IDs, explicit parent relationships, and canonical component
+  metadata so durable traces retain their execution hierarchy.
+- Isolate derived execution correlation while preserving shared event, state,
+  checkpoint, and human-in-the-loop context across nested and parallel work.
+
 ## [0.2.1] - 2026-07-26
 
 ### Added
@@ -34,6 +44,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/agnt5dev/sdk-go/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/agnt5dev/sdk-go/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/agnt5dev/sdk-go/releases/tag/v0.2.0

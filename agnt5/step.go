@@ -54,7 +54,7 @@ func Task[TInput any, TOutput any](
 				"timestamp_ns":          startedAt.UnixNano(),
 			},
 		})
-		out, err := fn(ctx, input)
+		out, err := fn(ctx.withParentCorrelationID(functionCorrelationID), input)
 		durationMS := time.Since(startedAt).Milliseconds()
 		timestampNS := time.Now().UnixNano()
 		if err != nil {

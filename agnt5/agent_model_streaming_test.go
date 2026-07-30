@@ -2,6 +2,7 @@ package agnt5
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -199,20 +200,20 @@ func TestStreamingAgentEmitsDurableBoundariesInModelStreamOrder(t *testing.T) {
 		ComponentType: ComponentTypeAgent,
 		IsStreaming:   true,
 	}, nil, "")
-	var emitted []string
+	var emitted []Event
 	ctx.setStreamEmitter(func(event Event) error {
-		emitted = append(emitted, event.Type)
+		emitted = append(emitted, event)
 		return nil
 	})
 	ctx.setCheckpointEmitter(func(event Event) error {
-		emitted = append(emitted, event.Type)
+		emitted = append(emitted, event)
 		return nil
 	})
 
 	if _, err := agent.Run(ctx, AgentInput{Message: "hello"}); err != nil {
 		t.Fatal(err)
 	}
-	if !equalStrings(emitted, []string{
+	if !equalStrings(eventTypes(emitted), []string{
 		"agent.started",
 		"agent.iteration.started",
 		"lm.started",
@@ -227,7 +228,25 @@ func TestStreamingAgentEmitsDurableBoundariesInModelStreamOrder(t *testing.T) {
 		"agent.iteration.completed",
 		"agent.completed",
 	}) {
-		t.Fatalf("emitted events = %#v", emitted)
+		t.Fatalf("emitted events = %#v", eventTypes(emitted))
+	}
+	agentStarted := requireSingleEvent(t, emitted, "agent.started")
+	agentCompleted := requireSingleEvent(t, emitted, "agent.completed")
+	iterationStarted := requireSingleEvent(t, emitted, "agent.iteration.started")
+	iterationCompleted := requireSingleEvent(t, emitted, "agent.iteration.completed")
+	lmStarted := requireSingleEvent(t, emitted, "lm.started")
+	lmCompleted := requireSingleEvent(t, emitted, "lm.completed")
+	assertLifecyclePair(t, agentStarted, agentCompleted, "")
+	assertLifecyclePair(t, iterationStarted, iterationCompleted, agentStarted.CorrelationID)
+	assertLifecyclePair(t, lmStarted, lmCompleted, iterationStarted.CorrelationID)
+	for _, event := range emitted {
+		if strings.HasPrefix(event.Type, "lm.thinking.") || strings.HasPrefix(event.Type, "lm.message.") {
+			if event.CorrelationID != lmStarted.CorrelationID ||
+				event.ParentCorrelationID != iterationStarted.CorrelationID {
+				t.Fatalf("%s stream correlation = %#v", event.Type, event)
+			}
+			assertCanonicalLifecycleFields(t, event, "language_model", "lm")
+		}
 	}
 }
 
@@ -246,6 +265,7 @@ func TestWorkerManagedAgentSuppressesDuplicateComponentLifecycle(t *testing.T) {
 		ComponentType: ComponentTypeAgent,
 	}, nil, "")
 	ctx.setManagedAgent("assistant")
+	ctx.setParentCorrelationID("agent-component-cid")
 
 	if _, err := agent.Run(ctx, AgentInput{Message: "hello"}); err != nil {
 		t.Fatal(err)
@@ -262,6 +282,12 @@ func TestWorkerManagedAgentSuppressesDuplicateComponentLifecycle(t *testing.T) {
 	}) {
 		t.Fatalf("agent internals were not emitted: %#v", types)
 	}
+	iterationStarted := requireSingleEvent(t, ctx.Events(), "agent.iteration.started")
+	iterationCompleted := requireSingleEvent(t, ctx.Events(), "agent.iteration.completed")
+	lmStarted := requireSingleEvent(t, ctx.Events(), "lm.started")
+	lmCompleted := requireSingleEvent(t, ctx.Events(), "lm.completed")
+	assertLifecyclePair(t, iterationStarted, iterationCompleted, "agent-component-cid")
+	assertLifecyclePair(t, lmStarted, lmCompleted, iterationStarted.CorrelationID)
 }
 
 func equalStrings(left, right []string) bool {

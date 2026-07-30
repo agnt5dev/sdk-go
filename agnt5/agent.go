@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // AgentInput is the default dispatch input for an Agent component.
@@ -181,7 +182,6 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 	if ctx == nil {
 		ctx = newContext(context.Background(), Invocation{ID: a.Name, RunID: a.Name, ComponentName: a.Name, ComponentType: ComponentTypeAgent}, nil, "")
 	}
-	a.emitLifecycle(ctx, Event{Type: "agent.started", Data: map[string]any{"agent_name": a.Name}})
 
 	messages := a.initialMessages(input)
 	tools := append([]Tool{}, a.Tools...)
@@ -204,20 +204,73 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 		maxTurns = 1
 	}
 
+	agentParentCorrelationID := ctx.parentCorrelationID()
+	agentCorrelationID := agentParentCorrelationID
+	if !ctx.managesAgent(a.Name) {
+		agentCorrelationID = newCorrelationID("agent")
+	}
+	if agentCorrelationID == "" {
+		agentCorrelationID = newCorrelationID("agent")
+	}
+	agentModel, _ := languageModelIdentity(a.Model, GenerateRequest{})
+	toolNames := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	a.emitLifecycle(ctx, lifecycleEvent(
+		"agent.started",
+		a.Name,
+		"agent",
+		agentCorrelationID,
+		agentParentCorrelationID,
+		map[string]any{
+			"agent_name":     a.Name,
+			"agent_model":    agentModel,
+			"tool_names":     toolNames,
+			"max_iterations": maxTurns,
+			"input_data":     input,
+		},
+	))
+	agentContext := ctx.withParentCorrelationID(agentCorrelationID)
+
 	var toolCalls []AgentToolCall
 	for iteration := 1; iteration <= maxTurns; iteration++ {
-		_ = ctx.Emit(Event{Type: "agent.iteration.started", Data: map[string]any{
-			"agent_name": a.Name,
-			"iteration":  iteration,
-		}})
+		iterationCorrelationID := newCorrelationID("iteration")
+		iterationStartedAt := time.Now()
+		_ = agentContext.Emit(lifecycleEvent(
+			"agent.iteration.started",
+			a.Name,
+			"agent",
+			iterationCorrelationID,
+			agentCorrelationID,
+			map[string]any{
+				"agent_name":     a.Name,
+				"operation":      "iteration",
+				"iteration":      iteration,
+				"max_iterations": maxTurns,
+				"input_data":     map[string]any{"iteration": iteration, "max_iterations": maxTurns},
+			},
+		))
+		iterationContext := agentContext.withParentCorrelationID(iterationCorrelationID)
 
-		resp, err := ctx.Generate(a.Model, GenerateRequest{
+		resp, err := iterationContext.Generate(a.Model, GenerateRequest{
 			Messages: messages,
 			Tools:    tools,
 			Cache:    a.Cache,
 		})
 		if err != nil {
-			a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+			a.emitLifecycle(ctx, lifecycleEvent(
+				"agent.failed",
+				a.Name,
+				"agent",
+				agentCorrelationID,
+				agentParentCorrelationID,
+				map[string]any{
+					"agent_name": a.Name,
+					"iterations": iteration - 1,
+					"error":      err.Error(),
+				},
+			))
 			return AgentResult{}, err
 		}
 
@@ -228,10 +281,21 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 		}
 		messages = append(messages, assistantMessage)
 		if len(resp.ToolCalls) == 0 {
-			_ = ctx.Emit(Event{Type: "agent.iteration.completed", Data: map[string]any{
-				"agent_name": a.Name,
-				"iteration":  iteration,
-			}})
+			_ = agentContext.Emit(lifecycleEvent(
+				"agent.iteration.completed",
+				a.Name,
+				"agent",
+				iterationCorrelationID,
+				agentCorrelationID,
+				map[string]any{
+					"agent_name":       a.Name,
+					"operation":        "iteration",
+					"iteration":        iteration,
+					"has_tool_calls":   false,
+					"tool_calls_count": 0,
+					"duration_ms":      time.Since(iterationStartedAt).Milliseconds(),
+				},
+			))
 			result := AgentResult{
 				AgentName:       a.Name,
 				Response:        resp.Content,
@@ -239,7 +303,14 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				ToolCalls:       len(toolCalls),
 				ToolCallDetails: cloneAgentToolCalls(toolCalls),
 			}
-			a.emitLifecycle(ctx, Event{Type: "agent.completed", Data: result})
+			a.emitLifecycle(ctx, lifecycleEvent(
+				"agent.completed",
+				a.Name,
+				"agent",
+				agentCorrelationID,
+				agentParentCorrelationID,
+				agentResultEventData(result, iteration),
+			))
 			return result, nil
 		}
 
@@ -253,14 +324,41 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				Arguments: cloneAnyMap(call.Arguments),
 				Iteration: iteration,
 			}
-			_ = ctx.Emit(Event{Type: "tool_call.started", Data: map[string]any{
-				"agent_name": a.Name,
-				"tool_name":  call.Name,
-				"tool_call":  record,
-			}})
+			toolCorrelationID := newCorrelationID("tool")
+			toolStartedAt := time.Now()
+			_ = iterationContext.Emit(lifecycleEvent(
+				"tool_call.started",
+				call.Name,
+				"agent",
+				toolCorrelationID,
+				iterationCorrelationID,
+				map[string]any{
+					"agent_name":   a.Name,
+					"operation":    "tool_call",
+					"tool_name":    call.Name,
+					"tool_call_id": call.ID,
+					"input_data":   cloneAnyMap(call.Arguments),
+					"tool_call":    record,
+				},
+			))
 
 			if handoff, ok := handoffsByTool[call.Name]; ok {
-				result, err := a.runHandoff(ctx, handoff, input, messages, call, record, toolCalls, iteration)
+				result, err := a.runHandoff(
+					iterationContext,
+					handoff,
+					input,
+					messages,
+					call,
+					record,
+					toolCalls,
+					iteration,
+					agentCorrelationID,
+					agentParentCorrelationID,
+					iterationCorrelationID,
+					toolCorrelationID,
+					toolStartedAt,
+					iterationStartedAt,
+				)
 				if err != nil {
 					return AgentResult{}, err
 				}
@@ -272,27 +370,61 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				err := errors.New("agnt5: tool not found: " + call.Name)
 				record.Error = err.Error()
 				toolCalls = append(toolCalls, record)
-				_ = ctx.Emit(Event{Type: "tool_call.failed", Data: map[string]any{
-					"agent_name": a.Name,
-					"tool_name":  call.Name,
-					"error":      err.Error(),
-					"tool_call":  record,
-				}})
-				a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+				_ = iterationContext.Emit(lifecycleEvent(
+					"tool_call.failed",
+					call.Name,
+					"agent",
+					toolCorrelationID,
+					iterationCorrelationID,
+					map[string]any{
+						"agent_name":   a.Name,
+						"operation":    "tool_call",
+						"tool_name":    call.Name,
+						"tool_call_id": call.ID,
+						"error":        err.Error(),
+						"tool_call":    record,
+						"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+					},
+				))
+				a.emitLifecycle(ctx, lifecycleEvent(
+					"agent.failed",
+					a.Name,
+					"agent",
+					agentCorrelationID,
+					agentParentCorrelationID,
+					map[string]any{"agent_name": a.Name, "iterations": iteration - 1, "error": err.Error()},
+				))
 				return AgentResult{}, err
 			}
 
-			output, err := tool.Handler(ctx, cloneAnyMap(call.Arguments))
+			output, err := tool.Handler(iterationContext, cloneAnyMap(call.Arguments))
 			if err != nil {
 				record.Error = err.Error()
 				toolCalls = append(toolCalls, record)
-				_ = ctx.Emit(Event{Type: "tool_call.failed", Data: map[string]any{
-					"agent_name": a.Name,
-					"tool_name":  call.Name,
-					"error":      err.Error(),
-					"tool_call":  record,
-				}})
-				a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+				_ = iterationContext.Emit(lifecycleEvent(
+					"tool_call.failed",
+					call.Name,
+					"agent",
+					toolCorrelationID,
+					iterationCorrelationID,
+					map[string]any{
+						"agent_name":   a.Name,
+						"operation":    "tool_call",
+						"tool_name":    call.Name,
+						"tool_call_id": call.ID,
+						"error":        err.Error(),
+						"tool_call":    record,
+						"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+					},
+				))
+				a.emitLifecycle(ctx, lifecycleEvent(
+					"agent.failed",
+					a.Name,
+					"agent",
+					agentCorrelationID,
+					agentParentCorrelationID,
+					map[string]any{"agent_name": a.Name, "iterations": iteration - 1, "error": err.Error()},
+				))
 				return AgentResult{}, err
 			}
 
@@ -304,21 +436,50 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				ToolCallID: call.ID,
 				Content:    serializeAgentValue(output),
 			})
-			_ = ctx.Emit(Event{Type: "tool_call.completed", Data: map[string]any{
-				"agent_name": a.Name,
-				"tool_name":  call.Name,
-				"tool_call":  record,
-			}})
+			_ = iterationContext.Emit(lifecycleEvent(
+				"tool_call.completed",
+				call.Name,
+				"agent",
+				toolCorrelationID,
+				iterationCorrelationID,
+				map[string]any{
+					"agent_name":   a.Name,
+					"operation":    "tool_call",
+					"tool_name":    call.Name,
+					"tool_call_id": call.ID,
+					"output_data":  output,
+					"tool_call":    record,
+					"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+				},
+			))
 		}
 
-		_ = ctx.Emit(Event{Type: "agent.iteration.completed", Data: map[string]any{
-			"agent_name": a.Name,
-			"iteration":  iteration,
-		}})
+		_ = agentContext.Emit(lifecycleEvent(
+			"agent.iteration.completed",
+			a.Name,
+			"agent",
+			iterationCorrelationID,
+			agentCorrelationID,
+			map[string]any{
+				"agent_name":       a.Name,
+				"operation":        "iteration",
+				"iteration":        iteration,
+				"has_tool_calls":   true,
+				"tool_calls_count": len(resp.ToolCalls),
+				"duration_ms":      time.Since(iterationStartedAt).Milliseconds(),
+			},
+		))
 	}
 
 	err := errors.New("agnt5: agent max turns exceeded")
-	a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{"agent_name": a.Name, "error": err.Error()}})
+	a.emitLifecycle(ctx, lifecycleEvent(
+		"agent.failed",
+		a.Name,
+		"agent",
+		agentCorrelationID,
+		agentParentCorrelationID,
+		map[string]any{"agent_name": a.Name, "iterations": maxTurns, "error": err.Error()},
+	))
 	return AgentResult{}, err
 }
 
@@ -512,7 +673,22 @@ func (h Handoff) tool() Tool {
 	}
 }
 
-func (a *Agent) runHandoff(ctx *Context, handoff Handoff, input AgentInput, messages []Message, call ToolCall, record AgentToolCall, previousCalls []AgentToolCall, iteration int) (AgentResult, error) {
+func (a *Agent) runHandoff(
+	ctx *Context,
+	handoff Handoff,
+	input AgentInput,
+	messages []Message,
+	call ToolCall,
+	record AgentToolCall,
+	previousCalls []AgentToolCall,
+	iteration int,
+	agentCorrelationID string,
+	agentParentCorrelationID string,
+	iterationCorrelationID string,
+	toolCorrelationID string,
+	toolStartedAt time.Time,
+	iterationStartedAt time.Time,
+) (AgentResult, error) {
 	message := firstHandoffMessage(call.Arguments)
 	if message == "" {
 		message = input.Message
@@ -525,33 +701,73 @@ func (a *Agent) runHandoff(ctx *Context, handoff Handoff, input AgentInput, mess
 	if err != nil {
 		record.Error = err.Error()
 		toolCalls := append(cloneAgentToolCalls(previousCalls), record)
-		_ = ctx.Emit(Event{Type: "tool_call.failed", Data: map[string]any{
-			"agent_name": a.Name,
-			"tool_name":  call.Name,
-			"error":      err.Error(),
-			"tool_call":  record,
-		}})
-		a.emitLifecycle(ctx, Event{Type: "agent.failed", Data: map[string]any{
-			"agent_name": a.Name,
-			"error":      err.Error(),
-			"tool_calls": toolCalls,
-		}})
+		_ = ctx.Emit(lifecycleEvent(
+			"tool_call.failed",
+			call.Name,
+			"agent",
+			toolCorrelationID,
+			iterationCorrelationID,
+			map[string]any{
+				"agent_name":   a.Name,
+				"operation":    "tool_call",
+				"tool_name":    call.Name,
+				"tool_call_id": call.ID,
+				"error":        err.Error(),
+				"tool_call":    record,
+				"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+			},
+		))
+		a.emitLifecycle(ctx, lifecycleEvent(
+			"agent.failed",
+			a.Name,
+			"agent",
+			agentCorrelationID,
+			agentParentCorrelationID,
+			map[string]any{
+				"agent_name": a.Name,
+				"iterations": iteration - 1,
+				"error":      err.Error(),
+				"tool_calls": toolCalls,
+			},
+		))
 		return AgentResult{}, err
 	}
 
 	record.Result = map[string]any{"agent_name": result.AgentName, "response": result.Response}
 	record.Handoff = handoff.Agent.Name
 	toolCalls := append(cloneAgentToolCalls(previousCalls), record)
-	_ = ctx.Emit(Event{Type: "tool_call.completed", Data: map[string]any{
-		"agent_name": a.Name,
-		"tool_name":  call.Name,
-		"tool_call":  record,
-	}})
-	_ = ctx.Emit(Event{Type: "agent.iteration.completed", Data: map[string]any{
-		"agent_name": a.Name,
-		"iteration":  iteration,
-		"handoff_to": handoff.Agent.Name,
-	}})
+	_ = ctx.Emit(lifecycleEvent(
+		"tool_call.completed",
+		call.Name,
+		"agent",
+		toolCorrelationID,
+		iterationCorrelationID,
+		map[string]any{
+			"agent_name":   a.Name,
+			"operation":    "tool_call",
+			"tool_name":    call.Name,
+			"tool_call_id": call.ID,
+			"output_data":  record.Result,
+			"tool_call":    record,
+			"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+		},
+	))
+	_ = ctx.Emit(lifecycleEvent(
+		"agent.iteration.completed",
+		a.Name,
+		"agent",
+		iterationCorrelationID,
+		agentCorrelationID,
+		map[string]any{
+			"agent_name":       a.Name,
+			"operation":        "iteration",
+			"iteration":        iteration,
+			"has_tool_calls":   true,
+			"tool_calls_count": 1,
+			"handoff_to":       handoff.Agent.Name,
+			"duration_ms":      time.Since(iterationStartedAt).Milliseconds(),
+		},
+	))
 
 	final := AgentResult{
 		AgentName:       a.Name,
@@ -565,8 +781,26 @@ func (a *Agent) runHandoff(ctx *Context, handoff Handoff, input AgentInput, mess
 			"handoff_result": result,
 		},
 	}
-	a.emitLifecycle(ctx, Event{Type: "agent.completed", Data: final})
+	a.emitLifecycle(ctx, lifecycleEvent(
+		"agent.completed",
+		a.Name,
+		"agent",
+		agentCorrelationID,
+		agentParentCorrelationID,
+		agentResultEventData(final, iteration),
+	))
 	return final, nil
+}
+
+func agentResultEventData(result AgentResult, iterations int) map[string]any {
+	data := map[string]any{}
+	if payload, err := json.Marshal(result); err == nil {
+		_ = json.Unmarshal(payload, &data)
+	}
+	data["iterations"] = iterations
+	data["tool_calls_count"] = result.ToolCalls
+	data["output_length"] = len(result.Response)
+	return data
 }
 
 func firstHandoffMessage(args map[string]any) string {

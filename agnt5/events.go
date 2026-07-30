@@ -1,6 +1,9 @@
 package agnt5
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	EventTypeOutputDelta = "output.delta"
@@ -21,6 +24,48 @@ type Event struct {
 	ContentIndex        int
 	Sequence            int64
 	SourceTimestampNS   int64
+}
+
+func lifecycleEvent(
+	eventType string,
+	name string,
+	componentType string,
+	correlationID string,
+	parentCorrelationID string,
+	fields map[string]any,
+) Event {
+	timestampNS := time.Now().UnixNano()
+	eventID := newEventID()
+	data := make(map[string]any, len(fields)+6)
+	for key, value := range fields {
+		data[key] = value
+	}
+	data["event_id"] = eventID
+	data["name"] = name
+	data["component_type"] = componentType
+	data["correlation_id"] = correlationID
+	data["parent_correlation_id"] = parentCorrelationID
+	data["timestamp_ns"] = timestampNS
+
+	metadata := map[string]string{
+		"name":           name,
+		"component_type": componentType,
+		"cid":            correlationID,
+		"correlation_id": correlationID,
+	}
+	if parentCorrelationID != "" {
+		metadata["pcid"] = parentCorrelationID
+		metadata["parent_correlation_id"] = parentCorrelationID
+	}
+
+	return Event{
+		Type:                eventType,
+		Data:                data,
+		Metadata:            metadata,
+		CorrelationID:       correlationID,
+		ParentCorrelationID: parentCorrelationID,
+		SourceTimestampNS:   timestampNS,
+	}
 }
 
 // IsSSEOnlyEventType mirrors the SDK event-classification contract.
