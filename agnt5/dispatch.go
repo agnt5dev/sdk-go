@@ -15,18 +15,27 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 	invocation := invocationFromDispatch(req)
 	startedAt := time.Now()
 	startedAtNS := startedAt.UnixNano()
-	runCorrelationID := newCorrelationID("run")
+	runCorrelationID := runCorrelationIDFromRunID(invocation.RunID)
 	componentCorrelationID := newCorrelationID(string(invocation.ComponentType))
 	metadata := w.invocationMetadata(invocation)
-
-	if err := w.writeRunStarted(ctx, invocation, metadata, runCorrelationID, startedAtNS); err != nil {
-		return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+	resumedWorkflowCorrelationID, isHITLResume := "", false
+	if invocation.ComponentType == ComponentTypeWorkflow {
+		resumedWorkflowCorrelationID, isHITLResume = hitlResumeWorkflowCorrelationID(invocation.Metadata)
 	}
-	if err := w.writeComponentStarted(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, startedAtNS); err != nil {
-		return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+	if isHITLResume {
+		componentCorrelationID = resumedWorkflowCorrelationID
 	}
 
-	result, invokeErr := w.invoke(ctx, invocation, componentCorrelationID)
+	if !isHITLResume {
+		if err := w.writeRunStarted(ctx, invocation, metadata, runCorrelationID, startedAtNS); err != nil {
+			return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+		}
+		if err := w.writeComponentStarted(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, startedAtNS); err != nil {
+			return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+		}
+	}
+
+	result, invokeErr := w.invoke(ctx, invocation, componentCorrelationID, runCorrelationID)
 	durationMS := time.Since(startedAt).Milliseconds()
 	messages, eventsErr := w.flushInvocationEvents(ctx, invocation, result.Events, metadata, componentCorrelationID)
 	if invokeErr == nil && eventsErr != nil {
@@ -47,6 +56,28 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 	}
 	messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, nil)))
 	return messages
+}
+
+func runCorrelationIDFromRunID(runID string) string {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return newCorrelationID("run")
+	}
+	if len(runID) > 8 {
+		return runID[:8]
+	}
+	return runID
+}
+
+func hitlResumeWorkflowCorrelationID(metadata map[string]string) (string, bool) {
+	if metadata["pause_reason"] != "user_input_required" {
+		return "", false
+	}
+	if _, ok := metadata["user_response"]; !ok {
+		return "", false
+	}
+	correlationID := strings.TrimSpace(metadata["workflow_correlation_id"])
+	return correlationID, correlationID != ""
 }
 
 func (w *Worker) dispatchServiceMessageFromResponse(response *pb.DispatchComponentResponse) *pb.ServiceMessage {

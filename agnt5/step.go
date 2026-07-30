@@ -110,6 +110,13 @@ func runStep[T any](ctx *Context, name string, fn func(context.Context, string) 
 	if stepType == "" {
 		stepType = "function"
 	}
+	if payload, ok := ctx.completedStepPayload(stepKey); ok && ctx.isHITLReplay() {
+		var cached T
+		if err := json.Unmarshal(payload, &cached); err != nil {
+			return zero, fmt.Errorf("agnt5: decode replayed step %q: %w", name, err)
+		}
+		return cached, nil
+	}
 	stepCorrelationID := newCorrelationID("step")
 	parentCorrelationID := ctx.parentCorrelationID()
 	startedTimestampNS := time.Now().UnixNano()
