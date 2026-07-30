@@ -13,26 +13,31 @@ const stateAuthorityContextKey contextKey = iota
 type Context struct {
 	context.Context
 
-	invocation     Invocation
+	invocation Invocation
+	shared     *contextShared
+	logger     *Logger
+	projectID  string
+	parentCID  string
+
+	stateStore       StateStore
+	checkpointWriter stepCheckpointWriter
+}
+
+type contextShared struct {
 	eventsMu       sync.Mutex
 	events         []Event
 	streamEmit     func(Event) error
 	checkpointEmit func(Event) error
 	managedAgent   string
-	logger         *Logger
-	projectID      string
-	parentCID      string
 
-	stateMu    sync.Mutex
-	stateStore StateStore
-	state      *StateManager
-	memory     *MemoryAccessor
-	sandbox    SandboxRunner
+	stateMu sync.Mutex
+	state   *StateManager
+	memory  *MemoryAccessor
+	sandbox SandboxRunner
 
-	stepMu           sync.Mutex
-	stepCounts       map[string]int
-	completedSteps   map[string][]byte
-	checkpointWriter stepCheckpointWriter
+	stepMu         sync.Mutex
+	stepCounts     map[string]int
+	completedSteps map[string][]byte
 
 	hitlMu        sync.Mutex
 	pauseIndex    int
@@ -48,13 +53,15 @@ func newContext(parent context.Context, inv Invocation, checkpointWriter stepChe
 		stateStore = stores[0]
 	}
 	ctx := &Context{
-		Context:          parent,
-		invocation:       inv,
+		Context:    parent,
+		invocation: inv,
+		shared: &contextShared{
+			stepCounts:     make(map[string]int),
+			completedSteps: make(map[string][]byte),
+			userResponses:  make(map[int]*string),
+		},
 		projectID:        projectID,
 		stateStore:       stateStore,
-		stepCounts:       make(map[string]int),
-		completedSteps:   make(map[string][]byte),
-		userResponses:    make(map[int]*string),
 		checkpointWriter: checkpointWriter,
 	}
 	ctx.loadReplayMetadata(inv.Metadata)
@@ -129,40 +136,40 @@ func (c *Context) Logger() *Logger {
 // in-memory adapter so handlers can use the API before a runtime-backed adapter
 // is configured.
 func (c *Context) State() *StateManager {
-	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
-	if c.state == nil {
-		c.state = NewStateManager(c.stateStore, StateScopeRun, c.RunID())
+	c.shared.stateMu.Lock()
+	defer c.shared.stateMu.Unlock()
+	if c.shared.state == nil {
+		c.shared.state = NewStateManager(c.stateStore, StateScopeRun, c.RunID())
 	}
-	return c.state
+	return c.shared.state
 }
 
 // Memory returns a session/user-aware memory accessor backed by State.
 func (c *Context) Memory() *MemoryAccessor {
-	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
-	if c.memory == nil {
-		c.memory = NewMemoryAccessor(c.stateStore, MemoryContext{
+	c.shared.stateMu.Lock()
+	defer c.shared.stateMu.Unlock()
+	if c.shared.memory == nil {
+		c.shared.memory = NewMemoryAccessor(c.stateStore, MemoryContext{
 			RunID:     c.RunID(),
 			SessionID: c.Metadata("session_id"),
 			UserID:    c.Metadata("user_id"),
 		})
 	}
-	return c.memory
+	return c.shared.memory
 }
 
 // SetSandbox attaches a sandbox runner to the context.
 func (c *Context) SetSandbox(sandbox SandboxRunner) {
-	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
-	c.sandbox = sandbox
+	c.shared.stateMu.Lock()
+	defer c.shared.stateMu.Unlock()
+	c.shared.sandbox = sandbox
 }
 
 // Sandbox returns the context sandbox runner, if one was attached.
 func (c *Context) Sandbox() SandboxRunner {
-	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
-	return c.sandbox
+	c.shared.stateMu.Lock()
+	defer c.shared.stateMu.Unlock()
+	return c.shared.sandbox
 }
 
 // Emit delivers streaming events immediately when transport emitters are
@@ -171,34 +178,40 @@ func (c *Context) Emit(event Event) error {
 	if event.RunID == "" {
 		event.RunID = c.RunID()
 	}
+	if event.CorrelationID == "" {
+		event.CorrelationID = newCorrelationID("event")
+	}
+	if event.ParentCorrelationID == "" {
+		event.ParentCorrelationID = c.parentCorrelationID()
+	}
 	if c.IsStreaming() {
-		if IsSSEOnlyEventType(event.Type) && c.streamEmit != nil {
-			if err := c.streamEmit(event); err == nil {
+		if IsSSEOnlyEventType(event.Type) && c.shared.streamEmit != nil {
+			if err := c.shared.streamEmit(event); err == nil {
 				return nil
 			}
 		}
-		if !IsSSEOnlyEventType(event.Type) && c.checkpointEmit != nil {
-			if err := c.checkpointEmit(event); err == nil {
+		if !IsSSEOnlyEventType(event.Type) && c.shared.checkpointEmit != nil {
+			if err := c.shared.checkpointEmit(event); err == nil {
 				return nil
 			}
 		}
 	}
-	c.eventsMu.Lock()
-	defer c.eventsMu.Unlock()
-	c.events = append(c.events, event)
+	c.shared.eventsMu.Lock()
+	defer c.shared.eventsMu.Unlock()
+	c.shared.events = append(c.shared.events, event)
 	return nil
 }
 
 func (c *Context) setStreamEmitter(emitter func(Event) error) {
-	c.streamEmit = emitter
+	c.shared.streamEmit = emitter
 }
 
 func (c *Context) setCheckpointEmitter(emitter func(Event) error) {
-	c.checkpointEmit = emitter
+	c.shared.checkpointEmit = emitter
 }
 
 func (c *Context) setManagedAgent(name string) {
-	c.managedAgent = name
+	c.shared.managedAgent = name
 }
 
 func (c *Context) setParentCorrelationID(correlationID string) {
@@ -209,8 +222,22 @@ func (c *Context) parentCorrelationID() string {
 	return c.parentCID
 }
 
+func (c *Context) withParentCorrelationID(correlationID string) *Context {
+	child := &Context{
+		Context:          c.Context,
+		invocation:       c.invocation,
+		shared:           c.shared,
+		projectID:        c.projectID,
+		parentCID:        correlationID,
+		stateStore:       c.stateStore,
+		checkpointWriter: c.checkpointWriter,
+	}
+	child.logger = &Logger{ctx: child}
+	return child
+}
+
 func (c *Context) managesAgent(name string) bool {
-	return c.managedAgent != "" && c.managedAgent == name
+	return c.shared.managedAgent != "" && c.shared.managedAgent == name
 }
 
 // Output emits an output.delta event.
@@ -223,17 +250,17 @@ func (c *Context) Output(delta string) {
 
 // Events returns a defensive copy of events emitted during invocation.
 func (c *Context) Events() []Event {
-	c.eventsMu.Lock()
-	defer c.eventsMu.Unlock()
-	out := make([]Event, len(c.events))
-	copy(out, c.events)
+	c.shared.eventsMu.Lock()
+	defer c.shared.eventsMu.Unlock()
+	out := make([]Event, len(c.shared.events))
+	copy(out, c.shared.events)
 	return out
 }
 
 func (c *Context) nextStepKey(name string) string {
-	c.stepMu.Lock()
-	defer c.stepMu.Unlock()
-	idx := c.stepCounts[name]
-	c.stepCounts[name] = idx + 1
+	c.shared.stepMu.Lock()
+	defer c.shared.stepMu.Unlock()
+	idx := c.shared.stepCounts[name]
+	c.shared.stepCounts[name] = idx + 1
 	return "step:" + name + ":" + intString(idx)
 }

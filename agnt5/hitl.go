@@ -107,17 +107,17 @@ func (c *Context) RequestApproval(prompt string, metadata map[string]any) (bool,
 }
 
 func (c *Context) nextPauseIndex() int {
-	c.hitlMu.Lock()
-	defer c.hitlMu.Unlock()
-	idx := c.pauseIndex
-	c.pauseIndex++
+	c.shared.hitlMu.Lock()
+	defer c.shared.hitlMu.Unlock()
+	idx := c.shared.pauseIndex
+	c.shared.pauseIndex++
 	return idx
 }
 
 func (c *Context) userResponse(pauseIndex int) (string, bool) {
-	c.hitlMu.Lock()
-	defer c.hitlMu.Unlock()
-	response, ok := c.userResponses[pauseIndex]
+	c.shared.hitlMu.Lock()
+	defer c.shared.hitlMu.Unlock()
+	response, ok := c.shared.userResponses[pauseIndex]
 	if !ok {
 		return "", false
 	}
@@ -138,7 +138,7 @@ func (c *Context) loadReplayMetadata(metadata map[string]string) {
 		if parsed, err := strconv.Atoi(metadata["pause_index"]); err == nil && parsed >= 0 {
 			pauseIndex = parsed
 		}
-		c.userResponses[pauseIndex] = decodeUserResponse(raw)
+		c.shared.userResponses[pauseIndex] = decodeUserResponse(raw)
 	}
 }
 
@@ -151,7 +151,7 @@ func (c *Context) loadStepEvents(raw string) {
 		for key, value := range responses {
 			idx, err := strconv.Atoi(key)
 			if err == nil && idx >= 0 {
-				c.userResponses[idx] = value
+				c.shared.userResponses[idx] = value
 			}
 		}
 		return
@@ -169,12 +169,12 @@ func (c *Context) loadStepEvents(raw string) {
 				continue
 			}
 			text := fmt.Sprint(result)
-			c.userResponses[idx] = &text
+			c.shared.userResponses[idx] = &text
 			continue
 		}
 		if stepName != "" && result != nil {
 			if payload, err := json.Marshal(result); err == nil {
-				c.completedSteps[stepName] = payload
+				c.shared.completedSteps[stepName] = payload
 			}
 		}
 	}
@@ -189,7 +189,7 @@ func (c *Context) loadCompletedSteps(raw string) {
 		return
 	}
 	for key, value := range completed {
-		c.completedSteps[key] = append([]byte(nil), value...)
+		c.shared.completedSteps[key] = append([]byte(nil), value...)
 	}
 }
 
@@ -236,13 +236,13 @@ func (c *Context) pauseMetadata(request UserInputRequest, pauseIndex int, stepNa
 }
 
 func (c *Context) userResponsesJSON() string {
-	c.hitlMu.Lock()
-	defer c.hitlMu.Unlock()
-	if len(c.userResponses) == 0 {
+	c.shared.hitlMu.Lock()
+	defer c.shared.hitlMu.Unlock()
+	if len(c.shared.userResponses) == 0 {
 		return ""
 	}
-	out := make(map[string]*string, len(c.userResponses))
-	for idx, response := range c.userResponses {
+	out := make(map[string]*string, len(c.shared.userResponses))
+	for idx, response := range c.shared.userResponses {
 		out[strconv.Itoa(idx)] = response
 	}
 	payload, err := json.Marshal(out)
@@ -253,26 +253,26 @@ func (c *Context) userResponsesJSON() string {
 }
 
 func (c *Context) completedStepPayload(stepKey string) ([]byte, bool) {
-	c.stepMu.Lock()
-	defer c.stepMu.Unlock()
-	payload, ok := c.completedSteps[stepKey]
+	c.shared.stepMu.Lock()
+	defer c.shared.stepMu.Unlock()
+	payload, ok := c.shared.completedSteps[stepKey]
 	return append([]byte(nil), payload...), ok
 }
 
 func (c *Context) recordCompletedStep(stepKey string, payload []byte) {
-	c.stepMu.Lock()
-	defer c.stepMu.Unlock()
-	c.completedSteps[stepKey] = append([]byte(nil), payload...)
+	c.shared.stepMu.Lock()
+	defer c.shared.stepMu.Unlock()
+	c.shared.completedSteps[stepKey] = append([]byte(nil), payload...)
 }
 
 func (c *Context) completedStepsJSON() string {
-	c.stepMu.Lock()
-	defer c.stepMu.Unlock()
-	if len(c.completedSteps) == 0 {
+	c.shared.stepMu.Lock()
+	defer c.shared.stepMu.Unlock()
+	if len(c.shared.completedSteps) == 0 {
 		return ""
 	}
-	out := make(map[string]json.RawMessage, len(c.completedSteps))
-	for key, payload := range c.completedSteps {
+	out := make(map[string]json.RawMessage, len(c.shared.completedSteps))
+	for key, payload := range c.shared.completedSteps {
 		out[key] = append([]byte(nil), payload...)
 	}
 	payload, err := json.Marshal(out)

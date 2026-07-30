@@ -686,27 +686,78 @@ func (c *Context) Generate(model LanguageModel, request GenerateRequest) (Genera
 	if model == nil {
 		return GenerateResponse{}, errors.New("agnt5: nil language model")
 	}
-	_ = c.Emit(Event{Type: "lm.started", Data: map[string]any{"model": request.Model}})
+	modelName, provider := languageModelIdentity(model, request)
+	lmCorrelationID := newCorrelationID("lm")
+	parentCorrelationID := c.parentCorrelationID()
+	startedAt := time.Now()
+	_ = c.Emit(lifecycleEvent(
+		"lm.started",
+		modelName,
+		"lm",
+		lmCorrelationID,
+		parentCorrelationID,
+		map[string]any{
+			"model":      modelName,
+			"provider":   provider,
+			"input_data": map[string]any{"messages": request.Messages, "tools_count": len(request.Tools)},
+		},
+	))
 	var (
 		resp GenerateResponse
 		err  error
 	)
 	if streamingModel, ok := model.(StreamingLanguageModel); ok && c.IsStreaming() {
 		resp, err = streamingModel.Stream(c, request, func(chunk ModelStreamChunk) error {
-			return c.Emit(modelStreamEvent(chunk))
+			return c.Emit(modelStreamEvent(chunk, lmCorrelationID, parentCorrelationID, modelName))
 		})
 	} else {
 		resp, err = model.Generate(c, request)
 	}
 	if err != nil {
-		_ = c.Emit(Event{Type: "lm.failed", Data: map[string]any{"model": request.Model, "error": err.Error()}})
+		_ = c.Emit(lifecycleEvent(
+			"lm.failed",
+			modelName,
+			"lm",
+			lmCorrelationID,
+			parentCorrelationID,
+			map[string]any{
+				"model":         modelName,
+				"provider":      provider,
+				"error":         err.Error(),
+				"duration_ms":   time.Since(startedAt).Milliseconds(),
+				"error_message": err.Error(),
+			},
+		))
 		return GenerateResponse{}, err
 	}
-	_ = c.Emit(Event{Type: "lm.completed", Data: map[string]any{"model": resp.Model, "usage": resp.Usage}})
+	_ = c.Emit(lifecycleEvent(
+		"lm.completed",
+		modelName,
+		"lm",
+		lmCorrelationID,
+		parentCorrelationID,
+		map[string]any{
+			"model":          modelName,
+			"provider":       provider,
+			"response_model": resp.Model,
+			"usage":          resp.Usage,
+			"input_tokens":   resp.Usage.InputTokens,
+			"output_tokens":  resp.Usage.OutputTokens,
+			"total_tokens":   resp.Usage.TotalTokens,
+			"cached_tokens":  resp.Usage.CachedTokens,
+			"duration_ms":    time.Since(startedAt).Milliseconds(),
+			"output_data":    map[string]any{"output": resp.Content, "tool_calls": resp.ToolCalls},
+		},
+	))
 	return resp, nil
 }
 
-func modelStreamEvent(chunk ModelStreamChunk) Event {
+func modelStreamEvent(
+	chunk ModelStreamChunk,
+	correlationID string,
+	parentCorrelationID string,
+	modelName string,
+) Event {
 	data := map[string]any{"index": chunk.Index}
 	eventType := ""
 	switch chunk.Type {
@@ -737,10 +788,81 @@ func modelStreamEvent(chunk ModelStreamChunk) Event {
 		data["name"] = chunk.ToolName
 		data["input"] = cloneAnyMap(chunk.Arguments)
 	}
-	return Event{
-		Type:         eventType,
-		Data:         data,
-		ContentIndex: chunk.Index,
+	event := lifecycleEvent(eventType, modelName, "lm", correlationID, parentCorrelationID, data)
+	event.ContentIndex = chunk.Index
+	return event
+}
+
+func languageModelIdentity(model LanguageModel, request GenerateRequest) (string, string) {
+	name := strings.TrimSpace(request.Model)
+	provider := ""
+	switch typed := model.(type) {
+	case StaticModel:
+		if name == "" {
+			name = strings.TrimSpace(typed.Model)
+		}
+		provider = "static"
+	case *StaticModel:
+		if typed != nil && name == "" {
+			name = strings.TrimSpace(typed.Model)
+		}
+		provider = "static"
+	case *ScriptedModel:
+		provider = "scripted"
+	case *OpenAIModel:
+		if typed != nil {
+			if name == "" {
+				name = strings.TrimSpace(typed.config.Model)
+			}
+			provider = openAIProvider(typed.config.BaseURL)
+		}
+	case *AnthropicModel:
+		if typed != nil {
+			if name == "" {
+				name = strings.TrimSpace(typed.config.Model)
+			}
+			provider = "anthropic"
+		}
+	case *GoogleModel:
+		if typed != nil {
+			if name == "" {
+				name = strings.TrimSpace(typed.config.Model)
+			}
+			provider = "google"
+		}
+	}
+	if name == "" {
+		name = "language_model"
+	}
+	if provider != "" && provider != "static" && provider != "scripted" && !strings.Contains(name, "/") {
+		name = provider + "/" + name
+	}
+	return name, provider
+}
+
+func openAIProvider(baseURL string) string {
+	normalized := strings.ToLower(baseURL)
+	switch {
+	case strings.Contains(normalized, "azure.com"):
+		return "azure-openai"
+	case strings.Contains(normalized, "openrouter.ai"):
+		return "openrouter"
+	case strings.Contains(normalized, "groq.com"):
+		return "groq"
+	case strings.Contains(normalized, "deepseek.com"):
+		return "deepseek"
+	case strings.Contains(normalized, "mistral.ai"):
+		return "mistral"
+	case strings.Contains(normalized, "together.xyz"):
+		return "together"
+	case strings.Contains(normalized, "api.x.ai"):
+		return "xai"
+	case strings.Contains(normalized, "moonshot.ai"):
+		return "moonshot"
+	case strings.Contains(normalized, "localhost:11434"):
+		return "ollama"
+	default:
+		return "openai"
 	}
 }
 
