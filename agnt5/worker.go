@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	defaultServiceVersion      = "0.2.2"
+	defaultServiceVersion      = "0.2.3"
 	defaultServiceType         = "go"
 	defaultCoordinatorEndpoint = "http://localhost:34186"
 	defaultMaxReconnects       = uint32(5)
@@ -410,9 +410,16 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 		return InvocationResult{}, ErrComponentNotFound
 	}
 	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(w.invocationMetadata(inv)), w.stateStore)
-	if len(streamParentCorrelationID) > 0 {
-		runCtx.setParentCorrelationID(streamParentCorrelationID[0])
+	runCorrelationID := runCorrelationIDFromRunID(inv.RunID)
+	if len(streamParentCorrelationID) > 1 && streamParentCorrelationID[1] != "" {
+		runCorrelationID = streamParentCorrelationID[1]
 	}
+	componentCorrelationID := ""
+	if len(streamParentCorrelationID) > 0 {
+		componentCorrelationID = streamParentCorrelationID[0]
+		runCtx.setParentCorrelationID(componentCorrelationID)
+	}
+	runCtx.setLifecycleCorrelationIDs(runCorrelationID, componentCorrelationID)
 	if inv.IsStreaming {
 		parentCorrelationID := ""
 		if len(streamParentCorrelationID) > 0 {

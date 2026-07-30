@@ -64,29 +64,178 @@ func (c *Context) AskUser(request UserInputRequest) (string, error) {
 	}
 	pauseIndex := c.nextPauseIndex()
 	if response, ok := c.userResponse(pauseIndex); ok {
+		c.emitHITLResume(pauseIndex, response)
 		return response, nil
 	}
 	stepName := fmt.Sprintf("wait_for_user_%d", pauseIndex)
-	metadata := c.pauseMetadata(request, pauseIndex, stepName)
-	_ = c.Emit(Event{Type: "approval.requested", Data: request, Metadata: cloneStringMap(metadata)})
-	_ = c.Emit(Event{
-		Type: "workflow.paused",
-		Data: map[string]any{
-			"reason": "user_input_required",
-			"pause_data": map[string]any{
-				"question":     request.Prompt,
-				"input_type":   request.Type,
-				"options":      request.Options,
-				"pause_index":  pauseIndex,
+	stepCorrelationID := newCorrelationID("step")
+	stepParentCorrelationID := c.parentCorrelationID()
+	workflowCorrelationID := c.componentCorrelationID()
+	metadata := c.pauseMetadata(
+		request,
+		pauseIndex,
+		stepName,
+		stepCorrelationID,
+		stepParentCorrelationID,
+	)
+	pauseData := map[string]any{
+		"question":     request.Prompt,
+		"input_type":   request.Type,
+		"options":      request.Options,
+		"pause_index":  pauseIndex,
+		"step_name":    stepName,
+		"allow_custom": request.AllowCustom,
+		"skippable":    request.Skippable,
+	}
+
+	_ = c.Emit(withHITLMetadata(lifecycleEvent(
+		"workflow.step.started",
+		stepName,
+		string(ComponentTypeWorkflow),
+		stepCorrelationID,
+		stepParentCorrelationID,
+		map[string]any{
+			"operation": "step",
+			"input_data": map[string]any{
 				"step_name":    stepName,
-				"allow_custom": request.AllowCustom,
-				"skippable":    request.Skippable,
+				"handler_name": "wait_for_user",
+				"input": map[string]any{
+					"question":   request.Prompt,
+					"input_type": request.Type,
+					"options":    request.Options,
+				},
 			},
-			"metadata": metadata,
 		},
-		Metadata: cloneStringMap(metadata),
-	})
+	), metadata))
+	_ = c.Emit(withHITLMetadata(lifecycleEvent(
+		"approval.requested",
+		stepName,
+		string(ComponentTypeWorkflow),
+		stepCorrelationID,
+		stepParentCorrelationID,
+		map[string]any{
+			"question":     request.Prompt,
+			"input_type":   request.Type,
+			"options":      request.Options,
+			"step_key":     stepName,
+			"allow_custom": request.AllowCustom,
+			"skippable":    request.Skippable,
+		},
+	), metadata))
+	_ = c.Emit(withHITLMetadata(lifecycleEvent(
+		"workflow.step.paused",
+		stepName,
+		string(ComponentTypeWorkflow),
+		stepCorrelationID,
+		stepParentCorrelationID,
+		map[string]any{
+			"reason":     "user_input_required",
+			"operation":  "step",
+			"pause_data": pauseData,
+		},
+	), metadata))
+	workflowPaused := lifecycleEvent(
+		"workflow.paused",
+		hitlWorkflowName(c),
+		string(ComponentTypeWorkflow),
+		workflowCorrelationID,
+		c.runCorrelationID(),
+		map[string]any{
+			"reason":     "user_input_required",
+			"pause_data": pauseData,
+			"metadata":   metadata,
+		},
+	)
+	// Checkpoint metadata is copied verbatim into the next dispatch. Keep
+	// event-local cid/pcid/name fields out of that continuation envelope so
+	// they cannot overwrite the correlation metadata of post-resume children.
+	workflowPaused.Metadata = cloneStringMap(metadata)
+	_ = c.Emit(workflowPaused)
 	return "", &WaitingForUserInputError{Request: request}
+}
+
+func (c *Context) emitHITLResume(pauseIndex int, response string) {
+	metadata := c.invocation.Metadata
+	if metadata["pause_reason"] != "user_input_required" {
+		return
+	}
+	if _, ok := metadata["user_response"]; !ok {
+		return
+	}
+	resumedPauseIndex, err := strconv.Atoi(metadata["pause_index"])
+	if err != nil || resumedPauseIndex != pauseIndex {
+		return
+	}
+	workflowCorrelationID := strings.TrimSpace(metadata["workflow_correlation_id"])
+	if workflowCorrelationID == "" {
+		return
+	}
+	stepName := strings.TrimSpace(metadata["step_name"])
+	if stepName == "" {
+		stepName = fmt.Sprintf("wait_for_user_%d", pauseIndex)
+	}
+	stepCorrelationID := strings.TrimSpace(metadata["step_correlation_id"])
+	if stepCorrelationID == "" {
+		stepCorrelationID = newCorrelationID("step")
+	}
+	stepParentCorrelationID := strings.TrimSpace(metadata["step_parent_correlation_id"])
+	if stepParentCorrelationID == "" {
+		stepParentCorrelationID = workflowCorrelationID
+	}
+
+	_ = c.Emit(lifecycleEvent(
+		"workflow.resumed",
+		hitlWorkflowName(c),
+		string(ComponentTypeWorkflow),
+		workflowCorrelationID,
+		c.runCorrelationID(),
+		map[string]any{
+			"resume_data": map[string]any{
+				"response":    response,
+				"pause_index": pauseIndex,
+			},
+		},
+	))
+	_ = c.Emit(lifecycleEvent(
+		"workflow.step.completed",
+		stepName,
+		string(ComponentTypeWorkflow),
+		stepCorrelationID,
+		stepParentCorrelationID,
+		map[string]any{
+			"operation": "step",
+			"output_data": map[string]any{
+				"step_name":    stepName,
+				"handler_name": "wait_for_user",
+				"result":       response,
+			},
+		},
+	))
+}
+
+func (c *Context) isHITLReplay() bool {
+	if c == nil || c.invocation.Metadata["pause_reason"] != "user_input_required" {
+		return false
+	}
+	_, ok := c.invocation.Metadata["user_response"]
+	return ok && strings.TrimSpace(c.invocation.Metadata["workflow_correlation_id"]) != ""
+}
+
+func hitlWorkflowName(c *Context) string {
+	if name := strings.TrimSpace(c.ComponentName()); name != "" {
+		return name
+	}
+	return "workflow"
+}
+
+func withHITLMetadata(event Event, metadata map[string]string) Event {
+	if event.Metadata == nil {
+		event.Metadata = make(map[string]string, len(metadata))
+	}
+	for key, value := range metadata {
+		event.Metadata[key] = value
+	}
+	return event
 }
 
 // RequestApproval asks for a yes/no approval.
@@ -205,12 +354,21 @@ func decodeUserResponse(raw string) *string {
 	}
 }
 
-func (c *Context) pauseMetadata(request UserInputRequest, pauseIndex int, stepName string) map[string]string {
+func (c *Context) pauseMetadata(
+	request UserInputRequest,
+	pauseIndex int,
+	stepName string,
+	stepCorrelationID string,
+	stepParentCorrelationID string,
+) map[string]string {
 	metadata := map[string]string{
-		"pause_reason": "user_input_required",
-		"pause_index":  strconv.Itoa(pauseIndex),
-		"step_name":    stepName,
-		"question":     request.Prompt,
+		"pause_reason":               "user_input_required",
+		"pause_index":                strconv.Itoa(pauseIndex),
+		"step_name":                  stepName,
+		"step_correlation_id":        stepCorrelationID,
+		"step_parent_correlation_id": stepParentCorrelationID,
+		"workflow_correlation_id":    c.componentCorrelationID(),
+		"question":                   request.Prompt,
 	}
 	if request.Type != "" {
 		metadata["input_type"] = string(request.Type)

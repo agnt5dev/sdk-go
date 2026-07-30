@@ -13,11 +13,13 @@ const stateAuthorityContextKey contextKey = iota
 type Context struct {
 	context.Context
 
-	invocation Invocation
-	shared     *contextShared
-	logger     *Logger
-	projectID  string
-	parentCID  string
+	invocation   Invocation
+	shared       *contextShared
+	logger       *Logger
+	projectID    string
+	parentCID    string
+	runCID       string
+	componentCID string
 
 	stateStore       StateStore
 	checkpointWriter stepCheckpointWriter
@@ -61,6 +63,7 @@ func newContext(parent context.Context, inv Invocation, checkpointWriter stepChe
 			userResponses:  make(map[int]*string),
 		},
 		projectID:        projectID,
+		runCID:           runCorrelationIDFromRunID(inv.RunID),
 		stateStore:       stateStore,
 		checkpointWriter: checkpointWriter,
 	}
@@ -218,6 +221,29 @@ func (c *Context) setParentCorrelationID(correlationID string) {
 	c.parentCID = correlationID
 }
 
+func (c *Context) setLifecycleCorrelationIDs(runCorrelationID, componentCorrelationID string) {
+	if runCorrelationID != "" {
+		c.runCID = runCorrelationID
+	}
+	if componentCorrelationID != "" {
+		c.componentCID = componentCorrelationID
+	}
+}
+
+func (c *Context) runCorrelationID() string {
+	if c.runCID != "" {
+		return c.runCID
+	}
+	return runCorrelationIDFromRunID(c.RunID())
+}
+
+func (c *Context) componentCorrelationID() string {
+	if c.componentCID != "" {
+		return c.componentCID
+	}
+	return c.parentCID
+}
+
 func (c *Context) parentCorrelationID() string {
 	return c.parentCID
 }
@@ -229,6 +255,8 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 		shared:           c.shared,
 		projectID:        c.projectID,
 		parentCID:        correlationID,
+		runCID:           c.runCID,
+		componentCID:     c.componentCID,
 		stateStore:       c.stateStore,
 		checkpointWriter: c.checkpointWriter,
 	}
