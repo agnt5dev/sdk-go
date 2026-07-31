@@ -402,6 +402,9 @@ func nextBackoff(current, max time.Duration) time.Duration {
 }
 
 func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrelationID ...string) (result InvocationResult, err error) {
+	if builtinResult, handled, builtinErr := w.invokeBuiltInScorer(ctx, inv); handled {
+		return builtinResult, builtinErr
+	}
 	component, ok := w.registry.Get(inv.ComponentName)
 	if !ok {
 		return InvocationResult{}, ErrComponentNotFound

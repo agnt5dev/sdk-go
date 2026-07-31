@@ -98,6 +98,45 @@ if err := response.DecodeOutput(&output); err != nil {
 The client also supports submission and polling, SSE streams, batches,
 cancellation, workflow resume, chat, and evaluation.
 
+## Evaluate components
+
+Single and concurrent batch evaluation use the same scorer specs as the Python
+and TypeScript SDKs:
+
+```go
+result, err := client.Eval(context.Background(), agnt5.EvalRequest{
+	Component: "greet",
+	Input: map[string]any{"name": "Ada"},
+	Expected: "Hello, Ada!",
+	Scorers: agnt5.NormalizeEvalScorers(
+		"exact_match",
+		agnt5.Correctness{},
+	),
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+score, ok := result.GetScore("exact_match")
+```
+
+The SDK includes all AGNT5 deterministic and judge built-ins, versioned judge
+presets, trace assertions, tool-trajectory helpers, typed scorer errors, and
+`Client.BatchEval`. Pull workers advertise locally executable built-ins, and
+all workers intercept built-in scorer dispatch before custom component lookup.
+
+Custom scorer names cannot shadow AGNT5 built-ins:
+
+```go
+err := agnt5.RegisterScorer(worker, agnt5.ScorerConfig{
+	Name: "quality_check",
+	Scope: agnt5.ScorerScopeItem,
+	Handler: func(ctx context.Context, request agnt5.ScorerRequest) (agnt5.ScorerResult, error) {
+		return agnt5.PassingScorerResult("quality checks passed"), nil
+	},
+})
+```
+
 ## Worker configuration
 
 | Variable | Purpose |

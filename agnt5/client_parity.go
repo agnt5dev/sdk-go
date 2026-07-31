@@ -90,16 +90,60 @@ type EvalScore struct {
 	Score       float64        `json:"score"`
 	Passed      bool           `json:"passed"`
 	Explanation string         `json:"explanation,omitempty"`
+	Label       string         `json:"label,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
+}
+
+type ScorerResultSummary = EvalScore
+
+// EvalError describes a component or scorer failure embedded in an eval response.
+type EvalError struct {
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // EvalResponse is returned by Client.Eval.
 type EvalResponse struct {
-	Output json.RawMessage `json:"output,omitempty"`
-	Scores []EvalScore     `json:"scores,omitempty"`
-	Passed bool            `json:"passed"`
-	RunID  string          `json:"run_id,omitempty"`
-	Raw    map[string]any  `json:"-"`
+	Output     json.RawMessage `json:"output,omitempty"`
+	Scores     []EvalScore     `json:"scores,omitempty"`
+	Passed     bool            `json:"passed"`
+	RunID      string          `json:"run_id,omitempty"`
+	TraceID    string          `json:"trace_id,omitempty"`
+	DurationMS int64           `json:"duration_ms,omitempty"`
+	Error      *EvalError      `json:"error,omitempty"`
+	Raw        map[string]any  `json:"-"`
+}
+
+func (r *EvalResponse) IsSuccess() bool { return r != nil && r.Error == nil }
+func (r *EvalResponse) IsError() bool   { return r != nil && r.Error != nil }
+
+func (r *EvalResponse) GetScore(name string) (EvalScore, bool) {
+	if r == nil {
+		return EvalScore{}, false
+	}
+	for _, score := range r.Scores {
+		if score.Scorer == name {
+			return score, true
+		}
+	}
+	return EvalScore{}, false
+}
+
+// DecodeOutput unmarshals the component output into target.
+func (r *EvalResponse) DecodeOutput(target any) error {
+	if r == nil || len(r.Output) == 0 {
+		return nil
+	}
+	return json.Unmarshal(r.Output, target)
+}
+
+// RaiseForStatus returns a typed error when the eval response embeds a failure.
+func (r *EvalResponse) RaiseForStatus() error {
+	if r == nil || r.Error == nil {
+		return nil
+	}
+	return &ScorerError{Code: r.Error.Code, Message: r.Error.Message, Details: cloneAnyMap(r.Error.Details)}
 }
 
 // ResumeWorkflowResponse is returned after asking the gateway to resume a paused workflow.
@@ -120,6 +164,12 @@ type CancelRunResponse struct {
 
 // Eval evaluates a component output using gateway scorers.
 func (c *Client) Eval(ctx context.Context, request EvalRequest, opts ...RunOption) (*EvalResponse, error) {
+	if request.ComponentType == "" {
+		request.ComponentType = ComponentTypeFunction
+	}
+	if request.Expected != nil && len(request.Scorers) == 0 {
+		request.Scorers = []EvalScorerSpec{{Name: "exact_match"}}
+	}
 	config := newRunConfig(opts...)
 	headers := c.requestHeaders(config.sessionID, config.userID, config.tenant, config.headers)
 	statusCode, body, endpoint, err := c.doJSON(ctx, http.MethodPost, []string{"v1", "eval"}, request, headers, config.timeout)
@@ -135,14 +185,58 @@ func (c *Client) Eval(ctx context.Context, request EvalRequest, opts ...RunOptio
 	}
 	raw, _ := json.Marshal(decoded["output"])
 	var scores []EvalScore
-	scoreRaw, _ := json.Marshal(decoded["scores"])
+	scoreValue := decoded["scores"]
+	if scoreValue == nil {
+		scoreValue = decoded["scorer_results"]
+	}
+	scoreRaw, _ := json.Marshal(scoreValue)
 	_ = json.Unmarshal(scoreRaw, &scores)
+	for index := range scores {
+		if rawScores, ok := scoreValue.([]any); ok && index < len(rawScores) {
+			if rawScore, ok := rawScores[index].(map[string]any); ok {
+				if scores[index].Scorer == "" {
+					scores[index].Scorer = firstString(rawScore, "name")
+				}
+				if _, hasPassed := rawScore["passed"]; !hasPassed {
+					scores[index].Passed = scores[index].Score >= 0.5
+				}
+			}
+		}
+	}
+	var evalError *EvalError
+	if rawError, ok := decoded["error"]; ok && rawError != nil {
+		switch typed := rawError.(type) {
+		case string:
+			evalError = &EvalError{Code: "EVAL_FAILED", Message: typed}
+		case map[string]any:
+			evalError = &EvalError{Code: firstString(typed, "code"), Message: firstString(typed, "message")}
+			if evalError.Code == "" {
+				evalError.Code = "EVAL_FAILED"
+			}
+			if details, ok := typed["details"].(map[string]any); ok {
+				evalError.Details = cloneAnyMap(details)
+			}
+		}
+	}
+	passed, hasPassed := boolFieldPresent(decoded, "passed")
+	if !hasPassed {
+		passed = evalError == nil
+		for _, score := range scores {
+			if !score.Passed {
+				passed = false
+				break
+			}
+		}
+	}
 	return &EvalResponse{
-		Output: raw,
-		Scores: scores,
-		Passed: fieldBool(decoded, "passed"),
-		RunID:  firstString(decoded, "run_id", "runId"),
-		Raw:    decoded,
+		Output:     raw,
+		Scores:     scores,
+		Passed:     passed,
+		RunID:      firstString(decoded, "run_id", "runId"),
+		TraceID:    firstString(decoded, "trace_id", "traceId"),
+		DurationMS: fieldInt64(decoded, "duration_ms", "durationMs"),
+		Error:      evalError,
+		Raw:        decoded,
 	}, nil
 }
 
@@ -216,6 +310,11 @@ func (c *Client) CancelRun(ctx context.Context, runID string, reason string, opt
 }
 
 func fieldBool(data map[string]any, keys ...string) bool {
+	value, _ := boolFieldPresent(data, keys...)
+	return value
+}
+
+func boolFieldPresent(data map[string]any, keys ...string) (bool, bool) {
 	for _, key := range keys {
 		value, ok := data[key]
 		if !ok {
@@ -223,10 +322,10 @@ func fieldBool(data map[string]any, keys ...string) bool {
 		}
 		switch typed := value.(type) {
 		case bool:
-			return typed
+			return typed, true
 		case string:
-			return typed == "true"
+			return typed == "true", true
 		}
 	}
-	return false
+	return false, false
 }

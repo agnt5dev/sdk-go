@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -105,7 +106,8 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 }
 
 func (w *Worker) registerWorkerSessionRequest(config pullSlotConfig) *pb.RegisterWorkerSessionRequest {
-	components := w.Components()
+	components := append(w.Components(), builtInScorerComponentInfos()...)
+	sort.Slice(components, func(i, j int) bool { return components[i].Name < components[j].Name })
 	return &pb.RegisterWorkerSessionRequest{
 		WorkerId:     w.workerID,
 		ProjectId:    w.projectID,

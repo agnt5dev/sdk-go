@@ -239,9 +239,14 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 		registration.GetMaxSlots() != 2 {
 		t.Fatalf("registration: %#v", registration)
 	}
-	if len(registration.GetComponents()) != 1 ||
-		registration.GetComponents()[0].GetName() != "greet" {
-		t.Fatalf("components: %#v", registration.GetComponents())
+	componentNames := make(map[string]pb.ComponentType)
+	for _, component := range registration.GetComponents() {
+		componentNames[component.GetName()] = component.GetComponentType()
+	}
+	if componentNames["greet"] != pb.ComponentType_COMPONENT_TYPE_FUNCTION ||
+		componentNames["exact_match"] != pb.ComponentType_COMPONENT_TYPE_SCORER ||
+		componentNames["llm_judge"] != pb.ComponentType_COMPONENT_TYPE_SCORER {
+		t.Fatalf("components: %#v", componentNames)
 	}
 
 	completion := <-server.completed

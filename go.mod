@@ -3,6 +3,7 @@ module github.com/agnt5dev/sdk-go
 go 1.26.5
 
 require (
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	google.golang.org/grpc v1.75.0
 	google.golang.org/protobuf v1.36.10
 )
