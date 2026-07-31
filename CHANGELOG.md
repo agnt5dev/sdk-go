@@ -7,6 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-31
+
+### Fixed
+
+- Return distinct workerless authentication errors for missing signature
+  headers, unsupported signature versions, malformed or expired timestamps,
+  and invalid HMAC values.
+- Require the workerless signature version header for signed invocations.
+
 ## [0.3.0] - 2026-07-31
 
 ### Added
@@ -67,7 +76,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/agnt5dev/sdk-go/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/agnt5dev/sdk-go/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/agnt5dev/sdk-go/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/agnt5dev/sdk-go/compare/v0.2.1...v0.2.2
