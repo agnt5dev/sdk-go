@@ -34,10 +34,17 @@ type Message struct {
 
 // ToolCall is a provider-neutral request to execute a tool.
 type ToolCall struct {
-	ID        string         `json:"id,omitempty"`
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments,omitempty"`
-	Raw       map[string]any `json:"raw,omitempty"`
+	ID          string         `json:"id,omitempty"`
+	Name        string         `json:"name"`
+	Arguments   map[string]any `json:"arguments,omitempty"`
+	Raw         map[string]any `json:"raw,omitempty"`
+	CallID      string         `json:"call_id,omitempty"`
+	SpanID      string         `json:"span_id,omitempty"`
+	TimestampNS int64          `json:"timestamp_ns,omitempty"`
+	StartedAt   int64          `json:"started_at,omitempty"`
+	EndedAt     int64          `json:"ended_at,omitempty"`
+	Status      string         `json:"status,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 // GenerateRequest is a provider-neutral model request.
@@ -1174,6 +1181,7 @@ func cloneToolCalls(in []ToolCall) []ToolCall {
 	for i, call := range in {
 		call.Arguments = cloneAnyMap(call.Arguments)
 		call.Raw = cloneAnyMap(call.Raw)
+		call.Metadata = cloneAnyMap(call.Metadata)
 		out[i] = call
 	}
 	return out

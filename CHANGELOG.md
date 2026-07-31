@@ -7,6 +7,21 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-31
+
+### Added
+
+- Add concurrent batch evaluation, response helpers, typed scorer specs, and
+  versioned evaluator presets matching the Python and TypeScript SDKs.
+- Add the complete AGNT5 built-in scorer catalog: 25 deterministic scorers and
+  five LLM-as-judge scorers.
+- Add trace assertions, tool-trajectory helpers, typed trace/session artifacts,
+  scorer field bindings, and typed scorer errors.
+- Advertise built-in scorers from pull workers and execute them before custom
+  component lookup, while reserving built-in names from custom registration.
+- Validate deterministic scorer behavior against the shared cross-language
+  golden fixture.
+
 ## [0.2.3] - 2026-07-30
 
 ### Fixed
@@ -52,7 +67,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/agnt5dev/sdk-go/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/agnt5dev/sdk-go/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/agnt5dev/sdk-go/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/agnt5dev/sdk-go/compare/v0.2.0...v0.2.1

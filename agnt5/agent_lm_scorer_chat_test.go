@@ -168,15 +168,15 @@ func TestAgentManagerRunsRegisteredAgent(t *testing.T) {
 
 func TestScorerRegistry(t *testing.T) {
 	registry := NewScorerRegistry()
-	if err := registry.Register(ExactMatchScorer()); err != nil {
-		t.Fatal(err)
-	}
 	result, err := registry.Run(context.Background(), "exact_match", ScorerRequest{Output: "x", Expected: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.Passed || result.Score != 1 {
 		t.Fatalf("result = %#v", result)
+	}
+	if err := registry.Register(ExactMatchScorer()); err == nil {
+		t.Fatal("expected built-in scorer name collision")
 	}
 }
 
