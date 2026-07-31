@@ -256,8 +256,8 @@ func (h *Handler) serveInvoke(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, http.StatusBadRequest, "WORKERLESS_INVALID_REQUEST", "request body could not be read")
 		return
 	}
-	if err := h.verifySignature(r, body); err != nil {
-		writeFailure(w, http.StatusUnauthorized, "WORKERLESS_SIGNATURE_INVALID", err.Error())
+	if signatureErr := h.verifySignature(r, body); signatureErr != nil {
+		writeFailure(w, signatureErr.Status, signatureErr.Code, signatureErr.Message)
 		return
 	}
 	var payload invokePayload
@@ -333,7 +333,7 @@ func (h *Handler) serveInvoke(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, completion)
 }
 
-func (h *Handler) verifySignature(r *http.Request, body []byte) error {
+func (h *Handler) verifySignature(r *http.Request, body []byte) *protocolError {
 	if h.opts.SigningSecret == nil {
 		return nil
 	}
@@ -344,21 +344,24 @@ func (h *Handler) verifySignature(r *http.Request, body []byte) error {
 	timestamp, attemptID := r.Header.Get("X-AGNT5-Timestamp"), r.Header.Get("X-AGNT5-Attempt-ID")
 	signature := r.Header.Get("X-AGNT5-Signature")
 	if timestamp == "" || attemptID == "" || signature == "" {
-		return errors.New("workerless invoke signature headers are required")
+		return perr(http.StatusUnauthorized, "WORKERLESS_SIGNATURE_MISSING", "workerless invoke signature headers are required")
 	}
-	if version := r.Header.Get("X-AGNT5-Signature-Version"); version != "" && version != SignatureVersion {
-		return errors.New("workerless invoke signature version is unsupported")
+	if version := r.Header.Get("X-AGNT5-Signature-Version"); version != SignatureVersion {
+		return perr(http.StatusUnauthorized, "WORKERLESS_SIGNATURE_VERSION_UNSUPPORTED", "workerless invoke signature version is unsupported")
 	}
 	timestampMS, err := strconv.ParseInt(timestamp, 10, 64)
-	if err != nil || time.Since(time.UnixMilli(timestampMS)).Abs() > maxSignatureSkew {
-		return errors.New("workerless invoke signature timestamp is invalid or expired")
+	if err != nil {
+		return perr(http.StatusUnauthorized, "WORKERLESS_SIGNATURE_TIMESTAMP_INVALID", "workerless invoke signature timestamp is invalid")
+	}
+	if time.Since(time.UnixMilli(timestampMS)).Abs() > maxSignatureSkew {
+		return perr(http.StatusUnauthorized, "WORKERLESS_SIGNATURE_EXPIRED", "workerless invoke signature timestamp is outside the allowed window")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write([]byte(timestamp + "." + attemptID + "."))
 	_, _ = mac.Write(body)
 	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 	if !hmac.Equal([]byte(signature), []byte(expected)) {
-		return errors.New("workerless invoke signature is invalid")
+		return perr(http.StatusUnauthorized, "WORKERLESS_SIGNATURE_INVALID", "workerless invoke signature is invalid")
 	}
 	return nil
 }
