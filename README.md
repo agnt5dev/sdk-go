@@ -137,6 +137,24 @@ err := agnt5.RegisterScorer(worker, agnt5.ScorerConfig{
 })
 ```
 
+## Agents and chat
+
+`NewAgent` requires an explicit `LanguageModel`; the Go SDK does not silently
+select or emulate a provider. Agents default to 10 model turns, and
+`WithAgentMaxTurns` can lower or raise that limit. Ordinary tool failures are
+recorded in `ToolCallDetails` and returned to the model as tool messages so it
+can recover. HITL pause errors still stop the loop for runtime resumption.
+
+`RegisterChatBot` advertises the bot as an `agent` component because that is the
+runtime chat routing contract. `Client.Chat` sends the gateway's `message`
+request shape and decodes the returned run envelope. Chat metadata values must
+be strings, matching the gateway contract.
+
+Live MCP clients perform the initialize handshake lazily, correlate concurrent
+JSON-RPC responses through a single reader, discard late canceled responses,
+and propagate connection shutdown to pending calls. HTTP/SSE connections retain
+the negotiated `MCP-Session-Id`.
+
 ## Worker configuration
 
 | Variable | Purpose |
