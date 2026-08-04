@@ -2,6 +2,8 @@ package agnt5
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -150,8 +152,11 @@ func (m *ConversationMemory) Append(ctx context.Context, message MemoryMessage) 
 		message.CreatedAt = time.Now().UTC()
 	}
 	value, err := m.kv.Get(ctx, "conversation")
-	messages, _ := value.([]MemoryMessage)
-	if err != nil && err != ErrStateNotFound {
+	if err != nil && !errors.Is(err, ErrStateNotFound) {
+		return err
+	}
+	messages, err := decodeMemoryMessages(value)
+	if err != nil {
 		return err
 	}
 	messages = append(messages, message)
@@ -160,17 +165,26 @@ func (m *ConversationMemory) Append(ctx context.Context, message MemoryMessage) 
 
 func (m *ConversationMemory) Messages(ctx context.Context) ([]MemoryMessage, error) {
 	value, err := m.kv.Get(ctx, "conversation")
-	if err == ErrStateNotFound {
+	if errors.Is(err, ErrStateNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	messages, ok := value.([]MemoryMessage)
-	if !ok {
+	return decodeMemoryMessages(value)
+}
+
+func decodeMemoryMessages(value any) ([]MemoryMessage, error) {
+	if value == nil {
 		return nil, nil
 	}
-	out := make([]MemoryMessage, len(messages))
-	copy(out, messages)
-	return out, nil
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var messages []MemoryMessage
+	if err := json.Unmarshal(payload, &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
 }

@@ -2,6 +2,9 @@ package agnt5
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -75,7 +78,7 @@ func TestAgentRunsToolLoop(t *testing.T) {
 		{ToolCalls: []ToolCall{{ID: "call-1", Name: "lookup", Arguments: map[string]any{"key": "user_123"}}}},
 		{Content: "Alice is user_123"},
 	}}
-	agent, err := NewAgent("assistant", WithAgentModel(model), WithAgentTools(lookup), WithAgentMaxTurns(3))
+	agent, err := NewAgent("assistant", WithAgentModel(model), WithAgentTools(lookup))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,6 +105,96 @@ func TestAgentRunsToolLoop(t *testing.T) {
 	types := eventTypes(ctx.Events())
 	if !containsEventType(types, "tool_call.started") || !containsEventType(types, "tool_call.completed") {
 		t.Fatalf("events = %#v", types)
+	}
+}
+
+func TestNewAgentRequiresModel(t *testing.T) {
+	_, err := NewAgent("assistant")
+	if !errors.Is(err, ErrAgentModelRequired) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestAgentReturnsToolErrorsToModel(t *testing.T) {
+	broken, err := NewTool("broken", func(_ context.Context, _ map[string]any) (any, error) {
+		return nil, errors.New("boom")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &ScriptedModel{Responses: []GenerateResponse{
+		{ToolCalls: []ToolCall{{ID: "call-1", Name: "broken"}}},
+		{Content: "recovered"},
+	}}
+	agent, err := NewAgent("assistant", WithAgentModel(model), WithAgentTools(broken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentType: ComponentTypeAgent}, nil, "")
+	result, err := agent.Run(ctx, AgentInput{Message: "use the tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Response != "recovered" || result.ToolCalls != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(result.ToolCallDetails) != 1 || !strings.Contains(result.ToolCallDetails[0].Error, "boom") {
+		t.Fatalf("tool call details = %#v", result.ToolCallDetails)
+	}
+	var sawToolError bool
+	for _, message := range result.Messages {
+		if message.Role == MessageRoleTool && message.ToolCallID == "call-1" && strings.Contains(message.Content, "boom") {
+			sawToolError = true
+		}
+	}
+	if !sawToolError {
+		t.Fatalf("messages missing tool error: %#v", result.Messages)
+	}
+	if !containsEventType(eventTypes(ctx.Events()), "tool_call.failed") {
+		t.Fatalf("events = %#v", ctx.Events())
+	}
+}
+
+func TestAgentReturnsMissingToolErrorsToModel(t *testing.T) {
+	model := &ScriptedModel{Responses: []GenerateResponse{
+		{ToolCalls: []ToolCall{{ID: "call-1", Name: "missing"}}},
+		{Content: "recovered"},
+	}}
+	agent, err := NewAgent("assistant", WithAgentModel(model))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := agent.Run(nil, AgentInput{Message: "use the tool"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Response != "recovered" || len(result.ToolCallDetails) != 1 ||
+		!strings.Contains(result.ToolCallDetails[0].Error, ErrToolNotFound.Error()) {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestAgentPreservesHITLPause(t *testing.T) {
+	pause, err := NewTool("confirm", func(ctx context.Context, _ map[string]any) (any, error) {
+		agentCtx, ok := ctx.(*Context)
+		if !ok {
+			return nil, errors.New("missing agent context")
+		}
+		return agentCtx.AskUser(UserInputRequest{Prompt: "Continue?", Type: HITLApproval})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &ScriptedModel{Responses: []GenerateResponse{{
+		ToolCalls: []ToolCall{{ID: "call-1", Name: "confirm"}},
+	}}}
+	agent, err := NewAgent("assistant", WithAgentModel(model), WithAgentTools(pause))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = agent.Run(nil, AgentInput{Message: "ask me"})
+	if !IsWaitingForUserInput(err) {
+		t.Fatalf("err = %v", err)
 	}
 }
 
@@ -189,7 +282,7 @@ func TestChatBotStoresConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", Metadata: map[string]string{"session_id": "s1"}}, nil, "")
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", Metadata: map[string]string{"session_id": "s1"}}, nil, "", NewInMemoryStateStore())
 	resp, err := bot.Handle(ctx, ChatMessage{SessionID: "s1", Role: MessageRoleUser, Content: "hello"})
 	if err != nil {
 		t.Fatal(err)
@@ -203,6 +296,69 @@ func TestChatBotStoresConversation(t *testing.T) {
 	}
 	if len(messages) != 2 {
 		t.Fatalf("messages = %#v", messages)
+	}
+}
+
+func TestChatBotPassesConversationHistoryToAgent(t *testing.T) {
+	model := &recordingModel{response: GenerateResponse{Content: "first reply"}}
+	agent, err := NewAgent("assistant", WithAgentModel(model))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bot, err := NewChatBot("chat", agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", Metadata: map[string]string{"session_id": "s1"}}, nil, "", NewInMemoryStateStore())
+	if _, err := bot.Handle(ctx, ChatMessage{SessionID: "s1", Role: MessageRoleUser, Content: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	model.response = GenerateResponse{Content: "second reply"}
+	if _, err := bot.Handle(ctx, ChatMessage{SessionID: "s1", Role: MessageRoleUser, Content: "and now?"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(model.request.Messages) != 3 ||
+		model.request.Messages[0].Content != "hello" ||
+		model.request.Messages[1].Content != "first reply" ||
+		model.request.Messages[2].Content != "and now?" {
+		t.Fatalf("model request = %#v", model.request)
+	}
+}
+
+func TestRegisterChatBotUsesAgentRoutingAndRuntimeInput(t *testing.T) {
+	agent, err := NewAgent("assistant", WithAgentModel(StaticModel{Content: "reply"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bot, err := NewChatBot("chat", agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker := NewWorker("test", WithStateStore(NewInMemoryStateStore()))
+	if err := RegisterChatBot(worker, bot); err != nil {
+		t.Fatal(err)
+	}
+	components := worker.Components()
+	if len(components) != 1 || components[0].Type != ComponentTypeAgent {
+		t.Fatalf("components = %#v", components)
+	}
+	result, err := worker.invoke(context.Background(), Invocation{
+		ID:            "run-1",
+		RunID:         "run-1",
+		ComponentName: "chat",
+		ComponentType: ComponentTypeAgent,
+		Input:         []byte(`{"message":"hello","session_id":"s1"}`),
+		Metadata:      map[string]string{"session_id": "s1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response ChatResponse
+	if err := json.Unmarshal(result.Output, &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.SessionID != "s1" || response.Message.Content != "reply" {
+		t.Fatalf("response = %#v", response)
 	}
 }
 

@@ -34,14 +34,22 @@ func NewChatBot(name string, agent *Agent) (*ChatBot, error) {
 }
 
 func (b *ChatBot) Handle(ctx *Context, message ChatMessage) (ChatResponse, error) {
-	if err := ctx.Memory().Conversation().Append(ctx, MemoryMessage{
+	conversation := ctx.Memory().Conversation()
+	history, err := conversation.Messages(ctx)
+	if err != nil {
+		return ChatResponse{}, err
+	}
+	if err := conversation.Append(ctx, MemoryMessage{
 		Role:     string(message.Role),
 		Content:  message.Content,
 		Metadata: message.Metadata,
 	}); err != nil {
 		return ChatResponse{}, err
 	}
-	result, err := b.Agent.Run(ctx, AgentInput{Message: message.Content})
+	result, err := b.Agent.Run(ctx, AgentInput{
+		Message:  message.Content,
+		Messages: chatHistoryMessages(history),
+	})
 	if err != nil {
 		return ChatResponse{}, err
 	}
@@ -51,7 +59,7 @@ func (b *ChatBot) Handle(ctx *Context, message ChatMessage) (ChatResponse, error
 		Role:      MessageRoleAssistant,
 		Content:   result.Response,
 	}
-	if err := ctx.Memory().Conversation().Append(ctx, MemoryMessage{
+	if err := conversation.Append(ctx, MemoryMessage{
 		Role:    string(reply.Role),
 		Content: reply.Content,
 	}); err != nil {
@@ -60,17 +68,51 @@ func (b *ChatBot) Handle(ctx *Context, message ChatMessage) (ChatResponse, error
 	return ChatResponse{SessionID: message.SessionID, Message: reply}, nil
 }
 
+func chatHistoryMessages(history []MemoryMessage) []Message {
+	if len(history) == 0 {
+		return nil
+	}
+	messages := make([]Message, 0, len(history))
+	for _, item := range history {
+		messages = append(messages, Message{
+			Role:    MessageRole(item.Role),
+			Content: item.Content,
+		})
+	}
+	return messages
+}
+
 // RegisterChatBot registers a ChatBot as an agent-routed component.
 func RegisterChatBot(w *Worker, bot *ChatBot, opts ...ComponentOption) error {
 	if bot == nil {
 		return ErrNilHandler
 	}
-	return RegisterRaw(w, bot.Name, ComponentTypeChat, func(ctx *Context, input []byte) ([]byte, error) {
-		var message ChatMessage
+	return RegisterRaw(w, bot.Name, ComponentTypeAgent, func(ctx *Context, input []byte) ([]byte, error) {
+		var request struct {
+			Message   string         `json:"message"`
+			Content   string         `json:"content"`
+			SessionID string         `json:"session_id"`
+			UserID    string         `json:"user_id"`
+			Role      MessageRole    `json:"role"`
+			Metadata  map[string]any `json:"metadata"`
+		}
 		if len(input) > 0 {
-			if err := json.Unmarshal(input, &message); err != nil {
+			if err := json.Unmarshal(input, &request); err != nil {
 				return nil, err
 			}
+		}
+		if request.Message == "" {
+			request.Message = request.Content
+		}
+		if request.Role == "" {
+			request.Role = MessageRoleUser
+		}
+		message := ChatMessage{
+			SessionID: request.SessionID,
+			UserID:    request.UserID,
+			Role:      request.Role,
+			Content:   request.Message,
+			Metadata:  request.Metadata,
 		}
 		out, err := bot.Handle(ctx, message)
 		if err != nil {

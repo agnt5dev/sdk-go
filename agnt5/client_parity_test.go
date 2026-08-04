@@ -64,13 +64,36 @@ func TestClientChat(t *testing.T) {
 		if r.URL.Path != "/v1/agents/assistant/chat" {
 			t.Fatalf("path: %s", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(`{"session_id":"s1","message":{"role":"assistant","content":"hello"}}`))
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["message"] != "hi" || body["session_id"] != "s1" {
+			t.Fatalf("body = %#v", body)
+		}
+		if _, ok := body["content"]; ok {
+			t.Fatalf("legacy content field in body = %#v", body)
+		}
+		_, _ = w.Write([]byte(`{"run_id":"run-1","session_id":"s1","status":"completed","output":{"session_id":"s1","message":{"role":"assistant","content":"hello"}}}`))
 	})
 	resp, err := client.Chat(context.Background(), "assistant", ChatMessage{SessionID: "s1", Role: MessageRoleUser, Content: "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resp.Message.Content != "hello" {
+		t.Fatalf("resp = %#v", resp)
+	}
+}
+
+func TestClientChatAcceptsDirectResponse(t *testing.T) {
+	client := newHTTPTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"session_id":"s1","message":{"role":"assistant","content":"hello"}}`))
+	})
+	resp, err := client.Chat(context.Background(), "assistant", ChatMessage{Content: "hi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.SessionID != "s1" || resp.Message.Content != "hello" {
 		t.Fatalf("resp = %#v", resp)
 	}
 }
