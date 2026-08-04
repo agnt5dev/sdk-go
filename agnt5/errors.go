@@ -15,4 +15,8 @@ var (
 	ErrUnexpectedRuntimeMessage = errors.New("agnt5: unexpected runtime message")
 	ErrWorkerReplaced           = errors.New("agnt5: worker replaced")
 	ErrCoordinatorDraining      = errors.New("agnt5: coordinator draining")
+	ErrAgentModelRequired       = errors.New("agnt5: agent model is required")
+	ErrAgentMaxTurnsExceeded    = errors.New("agnt5: agent max turns exceeded")
+	ErrToolNotFound             = errors.New("agnt5: tool not found")
+	ErrMCPTransportClosed       = errors.New("agnt5: MCP transport closed")
 )

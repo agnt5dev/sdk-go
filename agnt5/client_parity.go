@@ -3,6 +3,7 @@ package agnt5
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -244,16 +245,46 @@ func (c *Client) Eval(ctx context.Context, request EvalRequest, opts ...RunOptio
 func (c *Client) Chat(ctx context.Context, agent string, message ChatMessage, opts ...RunOption) (*ChatResponse, error) {
 	config := newRunConfig(opts...)
 	headers := c.requestHeaders(config.sessionID, config.userID, config.tenant, config.headers)
-	statusCode, body, endpoint, err := c.doJSON(ctx, http.MethodPost, []string{"v1", "agents", agent, "chat"}, message, headers, config.timeout)
+	metadata := make(map[string]string, len(message.Metadata))
+	for key, value := range message.Metadata {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("agnt5: chat metadata %q must be a string, got %T", key, value)
+		}
+		metadata[key] = text
+	}
+	payload := map[string]any{
+		"message": message.Content,
+	}
+	if message.SessionID != "" {
+		payload["session_id"] = message.SessionID
+	}
+	if message.UserID != "" {
+		payload["user_id"] = message.UserID
+	}
+	if len(metadata) > 0 {
+		payload["metadata"] = metadata
+	}
+	statusCode, body, endpoint, err := c.doJSON(ctx, http.MethodPost, []string{"v1", "agents", agent, "chat"}, payload, headers, config.timeout)
 	if err != nil {
 		return nil, err
 	}
 	if statusCode >= http.StatusBadRequest {
 		return nil, &ClientError{Method: http.MethodPost, URL: endpoint, StatusCode: statusCode, Body: string(body)}
 	}
-	var out ChatResponse
-	if err := json.Unmarshal(body, &out); err != nil {
+	runResponse, err := parseRunResponse(body, statusCode)
+	if err != nil {
 		return nil, err
+	}
+	if err := runResponse.RaiseForStatus(); err != nil {
+		return nil, err
+	}
+	var out ChatResponse
+	if err := runResponse.DecodeOutput(&out); err != nil {
+		return nil, fmt.Errorf("agnt5: decode chat response: %w", err)
+	}
+	if out.SessionID == "" {
+		out.SessionID = runResponse.SessionID
 	}
 	return &out, nil
 }

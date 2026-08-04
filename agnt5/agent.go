@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const defaultAgentMaxTurns = 10
+
 // AgentInput is the default dispatch input for an Agent component.
 type AgentInput struct {
 	Message  string    `json:"message"`
@@ -159,14 +161,17 @@ func NewHandoff(agent *Agent, opts ...HandoffOption) (Handoff, error) {
 
 // NewAgent constructs an Agent.
 func NewAgent(name string, opts ...AgentOption) (*Agent, error) {
-	if name == "" {
+	if strings.TrimSpace(name) == "" {
 		return nil, ErrInvalidComponentName
 	}
-	agent := &Agent{Name: name, Model: StaticModel{}, MaxTurns: 1}
+	agent := &Agent{Name: name, MaxTurns: defaultAgentMaxTurns}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(agent)
 		}
+	}
+	if agent.Model == nil {
+		return nil, ErrAgentModelRequired
 	}
 	return agent, nil
 }
@@ -177,7 +182,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 		return AgentResult{}, errors.New("agnt5: nil agent")
 	}
 	if a.Model == nil {
-		return AgentResult{}, errors.New("agnt5: agent model is required")
+		return AgentResult{}, ErrAgentModelRequired
 	}
 	if ctx == nil {
 		ctx = newContext(context.Background(), Invocation{ID: a.Name, RunID: a.Name, ComponentName: a.Name, ComponentType: ComponentTypeAgent}, nil, "")
@@ -201,7 +206,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 
 	maxTurns := a.MaxTurns
 	if maxTurns <= 0 {
-		maxTurns = 1
+		maxTurns = defaultAgentMaxTurns
 	}
 
 	agentParentCorrelationID := ctx.parentCorrelationID()
@@ -367,7 +372,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 
 			tool, ok := a.lookupTool(call.Name)
 			if !ok || tool.Handler == nil {
-				err := errors.New("agnt5: tool not found: " + call.Name)
+				err := fmt.Errorf("%w: %s", ErrToolNotFound, call.Name)
 				record.Error = err.Error()
 				toolCalls = append(toolCalls, record)
 				_ = iterationContext.Emit(lifecycleEvent(
@@ -386,15 +391,13 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 						"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
 					},
 				))
-				a.emitLifecycle(ctx, lifecycleEvent(
-					"agent.failed",
-					a.Name,
-					"agent",
-					agentCorrelationID,
-					agentParentCorrelationID,
-					map[string]any{"agent_name": a.Name, "iterations": iteration - 1, "error": err.Error()},
-				))
-				return AgentResult{}, err
+				messages = append(messages, Message{
+					Role:       MessageRoleTool,
+					Name:       call.Name,
+					ToolCallID: call.ID,
+					Content:    "Error: " + err.Error(),
+				})
+				continue
 			}
 
 			output, err := tool.Handler(iterationContext, cloneAnyMap(call.Arguments))
@@ -417,15 +420,16 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 						"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
 					},
 				))
-				a.emitLifecycle(ctx, lifecycleEvent(
-					"agent.failed",
-					a.Name,
-					"agent",
-					agentCorrelationID,
-					agentParentCorrelationID,
-					map[string]any{"agent_name": a.Name, "iterations": iteration - 1, "error": err.Error()},
-				))
-				return AgentResult{}, err
+				if IsWaitingForUserInput(err) {
+					return AgentResult{}, err
+				}
+				messages = append(messages, Message{
+					Role:       MessageRoleTool,
+					Name:       call.Name,
+					ToolCallID: call.ID,
+					Content:    "Error: " + err.Error(),
+				})
+				continue
 			}
 
 			record.Result = output
@@ -471,7 +475,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 		))
 	}
 
-	err := errors.New("agnt5: agent max turns exceeded")
+	err := ErrAgentMaxTurnsExceeded
 	a.emitLifecycle(ctx, lifecycleEvent(
 		"agent.failed",
 		a.Name,

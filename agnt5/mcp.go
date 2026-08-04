@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,9 +62,44 @@ type MCPTransport interface {
 	Close() error
 }
 
+// MCPNotificationTransport is optionally implemented by transports that can
+// send JSON-RPC notifications. MCPClient uses it for the initialize lifecycle.
+type MCPNotificationTransport interface {
+	Notify(ctx context.Context, method string, params any) error
+}
+
+// MCPRequestError is a JSON-RPC error returned by an MCP server.
+type MCPRequestError struct {
+	Code    int
+	Message string
+	Data    any
+}
+
+func (e *MCPRequestError) Error() string {
+	if e == nil {
+		return "agnt5: MCP request failed"
+	}
+	if e.Code == 0 {
+		return "agnt5: MCP error: " + e.Message
+	}
+	return fmt.Sprintf("agnt5: MCP error %d: %s", e.Code, e.Message)
+}
+
+type mcpInitializeAttempt struct {
+	done chan struct{}
+	err  error
+}
+
 // MCPClient is a small MCP JSON-RPC client.
 type MCPClient struct {
 	transport MCPTransport
+
+	mu           sync.Mutex
+	initialized  bool
+	initializing *mcpInitializeAttempt
+	closed       bool
+	closeOnce    sync.Once
+	closeErr     error
 }
 
 func NewMCPClient(transport MCPTransport) (*MCPClient, error) {
@@ -72,7 +109,79 @@ func NewMCPClient(transport MCPTransport) (*MCPClient, error) {
 	return &MCPClient{transport: transport}, nil
 }
 
+// Initialize performs the MCP initialize/initialized handshake. It is
+// idempotent and safe for concurrent callers. Legacy transports that do not
+// implement MCPNotificationTransport retain their request-only behavior.
+func (c *MCPClient) Initialize(ctx context.Context) error {
+	if c == nil || c.transport == nil {
+		return ErrMCPTransportClosed
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	notifier, supportsNotifications := c.transport.(MCPNotificationTransport)
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return ErrMCPTransportClosed
+	}
+	if !supportsNotifications {
+		c.mu.Unlock()
+		return nil
+	}
+	if c.initialized {
+		c.mu.Unlock()
+		return nil
+	}
+	if attempt := c.initializing; attempt != nil {
+		c.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-attempt.done:
+			return attempt.err
+		}
+	}
+	attempt := &mcpInitializeAttempt{done: make(chan struct{})}
+	c.initializing = attempt
+	c.mu.Unlock()
+
+	initializeResult, err := c.transport.Request(ctx, "initialize", map[string]any{
+		"protocolVersion": "2025-11-25",
+		"capabilities":    map[string]any{},
+		"clientInfo": map[string]any{
+			"name":    "agnt5-sdk",
+			"version": defaultServiceVersion,
+		},
+	})
+	if err == nil {
+		protocolVersion, _ := initializeResult["protocolVersion"].(string)
+		if strings.TrimSpace(protocolVersion) == "" {
+			err = errors.New("agnt5: MCP initialize response is missing protocolVersion")
+		}
+	}
+	if err == nil {
+		err = notifier.Notify(ctx, "notifications/initialized", nil)
+	}
+
+	c.mu.Lock()
+	if err == nil && c.closed {
+		err = ErrMCPTransportClosed
+	}
+	if err == nil {
+		c.initialized = true
+	}
+	attempt.err = err
+	c.initializing = nil
+	close(attempt.done)
+	c.mu.Unlock()
+	return err
+}
+
 func (c *MCPClient) ListTools(ctx context.Context) ([]MCPTool, error) {
+	if err := c.Initialize(ctx); err != nil {
+		return nil, err
+	}
 	resp, err := c.transport.Request(ctx, "tools/list", map[string]any{})
 	if err != nil {
 		return nil, err
@@ -86,6 +195,9 @@ func (c *MCPClient) ListTools(ctx context.Context) ([]MCPTool, error) {
 }
 
 func (c *MCPClient) CallTool(ctx context.Context, name string, arguments map[string]any) (MCPCallToolResult, error) {
+	if err := c.Initialize(ctx); err != nil {
+		return MCPCallToolResult{}, err
+	}
 	resp, err := c.transport.Request(ctx, "tools/call", map[string]any{"name": name, "arguments": arguments})
 	if err != nil {
 		return MCPCallToolResult{}, err
@@ -103,74 +215,318 @@ func (c *MCPClient) Close() error {
 	if c == nil || c.transport == nil {
 		return nil
 	}
-	return c.transport.Close()
+	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		c.closed = true
+		c.mu.Unlock()
+		c.closeErr = c.transport.Close()
+	})
+	return c.closeErr
 }
 
-// StreamMCPTransport sends newline-delimited JSON-RPC messages over an io pair.
-type StreamMCPTransport struct {
-	mu     sync.Mutex
-	nextID int
-	rw     io.ReadWriter
+type mcpResponseEnvelope struct {
+	ID     json.RawMessage `json:"id"`
+	Method string          `json:"method"`
+	Result json.RawMessage `json:"result"`
+	Error  json.RawMessage `json:"error"`
 }
 
-func NewStreamMCPTransport(rw io.ReadWriter) *StreamMCPTransport {
-	return &StreamMCPTransport{rw: rw}
+type mcpResponseResult struct {
+	result map[string]any
+	err    error
 }
 
-func (t *StreamMCPTransport) Request(ctx context.Context, method string, params any) (map[string]any, error) {
-	if t == nil || t.rw == nil {
+// mcpStreamSession owns exactly one decoder goroutine for a bidirectional MCP
+// connection and correlates responses to concurrent callers by JSON-RPC ID.
+type mcpStreamSession struct {
+	writer  io.Writer
+	decoder *json.Decoder
+	closeFn func() error
+
+	writeMu sync.Mutex
+	stateMu sync.Mutex
+	nextID  uint64
+	pending map[string]chan mcpResponseResult
+	done    chan struct{}
+
+	shutdownOnce sync.Once
+	terminalErr  error
+	closeErr     error
+}
+
+func newMCPStreamSession(reader io.Reader, writer io.Writer, closeFn func() error) *mcpStreamSession {
+	session := &mcpStreamSession{
+		writer:  writer,
+		decoder: json.NewDecoder(reader),
+		closeFn: closeFn,
+		pending: make(map[string]chan mcpResponseResult),
+		done:    make(chan struct{}),
+	}
+	go session.readLoop()
+	return session
+}
+
+func (s *mcpStreamSession) Request(ctx context.Context, method string, params any) (map[string]any, error) {
+	if s == nil || s.writer == nil || s.decoder == nil {
 		return nil, errors.New("agnt5: nil MCP stream")
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.nextID++
-	id := t.nextID
-	request := map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}
-	encoded, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if _, err := t.rw.Write(append(encoded, '\n')); err != nil {
-		return nil, err
-	}
-	done := make(chan struct{})
-	var response map[string]any
-	var decodeErr error
-	go func() {
-		defer close(done)
-		decoder := json.NewDecoder(t.rw)
-		decodeErr = decoder.Decode(&response)
-	}()
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-done:
+	default:
 	}
-	if decodeErr != nil {
-		return nil, decodeErr
+
+	id, key, responseCh, err := s.reserveRequest()
+	if err != nil {
+		return nil, err
 	}
-	if errValue, ok := response["error"]; ok {
-		return nil, errors.New("agnt5: MCP error: " + stringify(errValue))
+	request := map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		s.removePending(key, responseCh)
+		return nil, err
 	}
-	result, _ := response["result"].(map[string]any)
-	return result, nil
+	if err := s.writeMessage(encoded); err != nil {
+		s.removePending(key, responseCh)
+		terminalErr := fmt.Errorf("%w: write request: %w", ErrMCPTransportClosed, err)
+		s.shutdown(terminalErr)
+		return nil, terminalErr
+	}
+
+	select {
+	case <-ctx.Done():
+		s.removePending(key, responseCh)
+		return nil, ctx.Err()
+	case response := <-responseCh:
+		return response.result, response.err
+	}
 }
 
-func (t *StreamMCPTransport) Close() error {
-	if closer, ok := t.rw.(io.Closer); ok {
-		return closer.Close()
+func (s *mcpStreamSession) Notify(ctx context.Context, method string, params any) error {
+	if s == nil || s.writer == nil || s.decoder == nil {
+		return errors.New("agnt5: nil MCP stream")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	if err := s.connectionError(); err != nil {
+		return err
+	}
+	request := map[string]any{"jsonrpc": "2.0", "method": method}
+	if params != nil {
+		request["params"] = params
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	if err := s.writeMessage(encoded); err != nil {
+		terminalErr := fmt.Errorf("%w: write notification: %w", ErrMCPTransportClosed, err)
+		s.shutdown(terminalErr)
+		return terminalErr
 	}
 	return nil
 }
 
+func (s *mcpStreamSession) reserveRequest() (uint64, string, chan mcpResponseResult, error) {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	if s.terminalErr != nil {
+		return 0, "", nil, s.terminalErr
+	}
+	s.nextID++
+	id := s.nextID
+	key := strconv.FormatUint(id, 10)
+	responseCh := make(chan mcpResponseResult, 1)
+	s.pending[key] = responseCh
+	return id, key, responseCh, nil
+}
+
+func (s *mcpStreamSession) removePending(key string, responseCh chan mcpResponseResult) {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	if current, ok := s.pending[key]; ok && current == responseCh {
+		delete(s.pending, key)
+	}
+}
+
+func (s *mcpStreamSession) writeMessage(encoded []byte) error {
+	encoded = append(encoded, '\n')
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if err := s.connectionError(); err != nil {
+		return err
+	}
+	for len(encoded) > 0 {
+		written, err := s.writer.Write(encoded)
+		if err != nil {
+			return err
+		}
+		if written == 0 {
+			return io.ErrShortWrite
+		}
+		encoded = encoded[written:]
+	}
+	return nil
+}
+
+func (s *mcpStreamSession) readLoop() {
+	for {
+		var envelope mcpResponseEnvelope
+		if err := s.decoder.Decode(&envelope); err != nil {
+			if errors.Is(err, io.EOF) {
+				s.shutdown(ErrMCPTransportClosed)
+			} else {
+				s.shutdown(fmt.Errorf("%w: decode response: %w", ErrMCPTransportClosed, err))
+			}
+			return
+		}
+		// Notifications and server-initiated requests do not satisfy a pending
+		// client request. Client capabilities currently advertise neither roots
+		// nor sampling, so server requests are intentionally ignored.
+		if envelope.Method != "" || len(bytes.TrimSpace(envelope.ID)) == 0 || bytes.Equal(bytes.TrimSpace(envelope.ID), []byte("null")) {
+			continue
+		}
+		key := string(bytes.TrimSpace(envelope.ID))
+		s.stateMu.Lock()
+		responseCh := s.pending[key]
+		if responseCh != nil {
+			delete(s.pending, key)
+		}
+		s.stateMu.Unlock()
+		if responseCh == nil {
+			// A late response for a canceled request or an unknown ID is safe to
+			// discard; the single reader remains available for later responses.
+			continue
+		}
+		result, err := decodeMCPResponse(envelope)
+		responseCh <- mcpResponseResult{result: result, err: err}
+	}
+}
+
+func decodeMCPResponse(envelope mcpResponseEnvelope) (map[string]any, error) {
+	errorPayload := bytes.TrimSpace(envelope.Error)
+	if len(errorPayload) > 0 && !bytes.Equal(errorPayload, []byte("null")) {
+		var rpcError struct {
+			Code    int             `json:"code"`
+			Message string          `json:"message"`
+			Data    json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(errorPayload, &rpcError); err == nil && rpcError.Message != "" {
+			var data any
+			if len(bytes.TrimSpace(rpcError.Data)) > 0 && !bytes.Equal(bytes.TrimSpace(rpcError.Data), []byte("null")) {
+				_ = json.Unmarshal(rpcError.Data, &data)
+			}
+			return nil, &MCPRequestError{Code: rpcError.Code, Message: rpcError.Message, Data: data}
+		}
+		var value any
+		if err := json.Unmarshal(errorPayload, &value); err != nil {
+			return nil, fmt.Errorf("agnt5: decode MCP error: %w", err)
+		}
+		return nil, &MCPRequestError{Message: stringify(value)}
+	}
+	resultPayload := bytes.TrimSpace(envelope.Result)
+	if len(resultPayload) == 0 {
+		return nil, errors.New("agnt5: MCP response has neither result nor error")
+	}
+	if bytes.Equal(resultPayload, []byte("null")) {
+		return nil, nil
+	}
+	var result map[string]any
+	if err := json.Unmarshal(resultPayload, &result); err != nil {
+		return nil, fmt.Errorf("agnt5: MCP result must be an object: %w", err)
+	}
+	return result, nil
+}
+
+func (s *mcpStreamSession) connectionError() error {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	return s.terminalErr
+}
+
+func (s *mcpStreamSession) shutdown(err error) {
+	if err == nil {
+		err = ErrMCPTransportClosed
+	}
+	s.shutdownOnce.Do(func() {
+		s.stateMu.Lock()
+		s.terminalErr = err
+		pending := s.pending
+		s.pending = make(map[string]chan mcpResponseResult)
+		s.stateMu.Unlock()
+		for _, responseCh := range pending {
+			responseCh <- mcpResponseResult{err: err}
+		}
+		if s.closeFn != nil {
+			s.closeErr = s.closeFn()
+		}
+		close(s.done)
+	})
+}
+
+func (s *mcpStreamSession) Close() error {
+	if s == nil {
+		return nil
+	}
+	s.shutdown(ErrMCPTransportClosed)
+	<-s.done
+	return s.closeErr
+}
+
+// StreamMCPTransport sends newline-delimited JSON-RPC messages over an io pair.
+type StreamMCPTransport struct {
+	session *mcpStreamSession
+}
+
+func NewStreamMCPTransport(rw io.ReadWriter) *StreamMCPTransport {
+	if rw == nil {
+		return &StreamMCPTransport{}
+	}
+	var closeFn func() error
+	if closer, ok := rw.(io.Closer); ok {
+		closeFn = closer.Close
+	}
+	return &StreamMCPTransport{session: newMCPStreamSession(rw, rw, closeFn)}
+}
+
+func (t *StreamMCPTransport) Request(ctx context.Context, method string, params any) (map[string]any, error) {
+	if t == nil || t.session == nil {
+		return nil, errors.New("agnt5: nil MCP stream")
+	}
+	return t.session.Request(ctx, method, params)
+}
+
+func (t *StreamMCPTransport) Notify(ctx context.Context, method string, params any) error {
+	if t == nil || t.session == nil {
+		return errors.New("agnt5: nil MCP stream")
+	}
+	return t.session.Notify(ctx, method, params)
+}
+
+func (t *StreamMCPTransport) Close() error {
+	if t == nil || t.session == nil {
+		return nil
+	}
+	return t.session.Close()
+}
+
 // StdioMCPTransport manages an MCP server process over newline-delimited JSON-RPC.
 type StdioMCPTransport struct {
-	mu      sync.Mutex
-	nextID  int
 	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
-	decoder *json.Decoder
+	session *mcpStreamSession
+
+	processDone chan struct{}
+	closeOnce   sync.Once
+	closeErr    error
 }
 
 func NewStdioMCPTransport(ctx context.Context, command string, args ...string) (*StdioMCPTransport, error) {
@@ -197,79 +553,71 @@ func NewStdioMCPTransportConfig(ctx context.Context, config ServerConfig) (*Stdi
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = stdin.Close()
 		return nil, err
 	}
 	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
 		return nil, err
 	}
-	return &StdioMCPTransport{cmd: cmd, stdin: stdin, stdout: stdout, decoder: json.NewDecoder(stdout)}, nil
+	transport := &StdioMCPTransport{
+		cmd:         cmd,
+		processDone: make(chan struct{}),
+	}
+	transport.session = newMCPStreamSession(stdout, stdin, func() error {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		return nil
+	})
+	go func() {
+		processErr := cmd.Wait()
+		close(transport.processDone)
+		if processErr != nil {
+			transport.session.shutdown(fmt.Errorf("%w: MCP process exited: %w", ErrMCPTransportClosed, processErr))
+			return
+		}
+		transport.session.shutdown(ErrMCPTransportClosed)
+	}()
+	return transport, nil
 }
 
 func (t *StdioMCPTransport) Request(ctx context.Context, method string, params any) (map[string]any, error) {
-	if t == nil || t.stdin == nil || t.decoder == nil {
+	if t == nil || t.session == nil {
 		return nil, errors.New("agnt5: nil MCP stdio transport")
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.nextID++
-	id := t.nextID
-	request := map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params}
-	encoded, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
+	return t.session.Request(ctx, method, params)
+}
+
+func (t *StdioMCPTransport) Notify(ctx context.Context, method string, params any) error {
+	if t == nil || t.session == nil {
+		return errors.New("agnt5: nil MCP stdio transport")
 	}
-	if _, err := t.stdin.Write(append(encoded, '\n')); err != nil {
-		return nil, err
-	}
-	type responseEnvelope struct {
-		ID     any            `json:"id"`
-		Result map[string]any `json:"result"`
-		Error  any            `json:"error"`
-	}
-	done := make(chan responseEnvelope, 1)
-	errCh := make(chan error, 1)
-	go func() {
-		for {
-			var response responseEnvelope
-			if err := t.decoder.Decode(&response); err != nil {
-				errCh <- err
-				return
-			}
-			if response.ID == nil {
-				continue
-			}
-			done <- response
-			return
-		}
-	}()
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case err := <-errCh:
-		return nil, err
-	case response := <-done:
-		if response.Error != nil {
-			return nil, errors.New("agnt5: MCP error: " + stringify(response.Error))
-		}
-		return response.Result, nil
-	}
+	return t.session.Notify(ctx, method, params)
 }
 
 func (t *StdioMCPTransport) Close() error {
 	if t == nil {
 		return nil
 	}
-	if t.stdin != nil {
-		_ = t.stdin.Close()
-	}
-	if t.stdout != nil {
-		_ = t.stdout.Close()
-	}
-	if t.cmd != nil && t.cmd.Process != nil {
-		_ = t.cmd.Process.Kill()
-		_ = t.cmd.Wait()
-	}
-	return nil
+	t.closeOnce.Do(func() {
+		var sessionErr error
+		if t.session != nil {
+			sessionErr = t.session.Close()
+		}
+		if t.cmd != nil && t.cmd.Process != nil {
+			select {
+			case <-t.processDone:
+			default:
+				if err := t.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+					t.closeErr = err
+				}
+				<-t.processDone
+			}
+		}
+		t.closeErr = errors.Join(t.closeErr, sessionErr)
+	})
+	return t.closeErr
 }
 
 // SSEMCPTransport sends MCP JSON-RPC requests to an HTTP/SSE MCP endpoint.
@@ -279,6 +627,11 @@ type SSEMCPTransport struct {
 	Endpoint   string
 	Headers    map[string]string
 	HTTPClient *http.Client
+
+	mu        sync.Mutex
+	nextID    uint64
+	sessionID string
+	closed    bool
 }
 
 func NewSSEMCPTransport(endpoint string, headers map[string]string) *SSEMCPTransport {
@@ -293,18 +646,20 @@ func (t *SSEMCPTransport) Request(ctx context.Context, method string, params any
 	if t == nil || t.Endpoint == "" {
 		return nil, errors.New("agnt5: MCP SSE endpoint is required")
 	}
-	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	id, sessionID, err := t.requestState()
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.Endpoint, bytes.NewReader(body))
+	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params})
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	for key, value := range t.Headers {
-		req.Header.Set(key, value)
+	req, err := t.newRequest(ctx, body, sessionID)
+	if err != nil {
+		return nil, err
 	}
 	client := t.HTTPClient
 	if client == nil {
@@ -318,14 +673,106 @@ func (t *SSEMCPTransport) Request(ctx context.Context, method string, params any
 	if resp.StatusCode >= 400 {
 		return nil, errors.New("agnt5: MCP SSE returned HTTP " + intString(resp.StatusCode))
 	}
+	t.captureSessionID(resp)
 	payload, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	return parseMCPHTTPResponse(payload)
+	return parseMCPHTTPResponse(payload, strconv.FormatUint(id, 10))
 }
 
-func (t *SSEMCPTransport) Close() error { return nil }
+func (t *SSEMCPTransport) Notify(ctx context.Context, method string, params any) error {
+	if t == nil || t.Endpoint == "" {
+		return errors.New("agnt5: MCP SSE endpoint is required")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return ErrMCPTransportClosed
+	}
+	sessionID := t.sessionID
+	t.mu.Unlock()
+	payload := map[string]any{"jsonrpc": "2.0", "method": method}
+	if params != nil {
+		payload["params"] = params
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	req, err := t.newRequest(ctx, body, sessionID)
+	if err != nil {
+		return err
+	}
+	client := t.HTTPClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return errors.New("agnt5: MCP SSE returned HTTP " + intString(resp.StatusCode))
+	}
+	t.captureSessionID(resp)
+	_, err = io.Copy(io.Discard, resp.Body)
+	return err
+}
+
+func (t *SSEMCPTransport) requestState() (uint64, string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed {
+		return 0, "", ErrMCPTransportClosed
+	}
+	t.nextID++
+	return t.nextID, t.sessionID, nil
+}
+
+func (t *SSEMCPTransport) newRequest(ctx context.Context, body []byte, sessionID string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.Endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("MCP-Protocol-Version", "2025-11-25")
+	if sessionID != "" {
+		req.Header.Set("MCP-Session-Id", sessionID)
+	}
+	for key, value := range t.Headers {
+		req.Header.Set(key, value)
+	}
+	return req, nil
+}
+
+func (t *SSEMCPTransport) captureSessionID(resp *http.Response) {
+	if resp == nil {
+		return
+	}
+	sessionID := resp.Header.Get("MCP-Session-Id")
+	if sessionID == "" {
+		return
+	}
+	t.mu.Lock()
+	t.sessionID = sessionID
+	t.mu.Unlock()
+}
+
+func (t *SSEMCPTransport) Close() error {
+	if t == nil {
+		return nil
+	}
+	t.mu.Lock()
+	t.closed = true
+	t.mu.Unlock()
+	return nil
+}
 
 // StaticMCPTransport is a deterministic in-memory transport for tests.
 type StaticMCPTransport struct {
@@ -341,10 +788,12 @@ func (t StaticMCPTransport) Request(_ context.Context, method string, _ any) (ma
 
 func (t StaticMCPTransport) Close() error { return nil }
 
-func parseMCPHTTPResponse(payload []byte) (map[string]any, error) {
+func parseMCPHTTPResponse(payload []byte, targetID string) (map[string]any, error) {
 	raw := bytes.TrimSpace(payload)
 	if bytes.HasPrefix(raw, []byte("data:")) || bytes.Contains(raw, []byte("\ndata:")) {
 		lines := bytes.Split(raw, []byte("\n"))
+		found := false
+		var legacyResponse []byte
 		for _, line := range lines {
 			line = bytes.TrimSpace(line)
 			if !bytes.HasPrefix(line, []byte("data:")) {
@@ -354,22 +803,46 @@ func parseMCPHTTPResponse(payload []byte) (map[string]any, error) {
 			if bytes.Equal(data, []byte("[DONE]")) || len(data) == 0 {
 				continue
 			}
+			var envelope mcpResponseEnvelope
+			if err := json.Unmarshal(data, &envelope); err != nil {
+				continue
+			}
+			if envelope.Method != "" {
+				continue
+			}
+			if len(bytes.TrimSpace(envelope.ID)) == 0 {
+				if len(bytes.TrimSpace(envelope.Result)) > 0 || len(bytes.TrimSpace(envelope.Error)) > 0 {
+					legacyResponse = data
+				}
+				continue
+			}
+			if string(bytes.TrimSpace(envelope.ID)) != targetID {
+				continue
+			}
 			raw = data
+			found = true
 			break
 		}
+		if !found && legacyResponse != nil {
+			raw = legacyResponse
+			found = true
+		}
+		if !found {
+			return nil, fmt.Errorf("agnt5: MCP SSE response did not contain request id %s", targetID)
+		}
 	}
-	var envelope struct {
-		Result map[string]any `json:"result"`
-		Error  any            `json:"error"`
-	}
+	var envelope mcpResponseEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, err
 	}
-	if envelope.Error != nil {
-		return nil, errors.New("agnt5: MCP error: " + stringify(envelope.Error))
+	if len(bytes.TrimSpace(envelope.ID)) > 0 {
+		if string(bytes.TrimSpace(envelope.ID)) != targetID {
+			return nil, fmt.Errorf("agnt5: MCP response id %s does not match request id %s", bytes.TrimSpace(envelope.ID), targetID)
+		}
+		return decodeMCPResponse(envelope)
 	}
-	if envelope.Result != nil {
-		return envelope.Result, nil
+	if len(bytes.TrimSpace(envelope.Result)) > 0 || len(bytes.TrimSpace(envelope.Error)) > 0 {
+		return decodeMCPResponse(envelope)
 	}
 	var direct map[string]any
 	if err := json.Unmarshal(raw, &direct); err != nil {

@@ -783,7 +783,7 @@ func newTestCoordinatorClient(t *testing.T, server *testCoordinator) pb.WorkerCo
 	t.Helper()
 
 	listener := newTestCoordinatorListener(t, server)
-	conn, err := grpc.DialContext(context.Background(), "bufnet",
+	conn, err := grpc.NewClient("passthrough:///bufnet",
 		grpc.WithContextDialer(testBufconnDialer(listener)),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

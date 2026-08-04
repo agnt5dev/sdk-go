@@ -124,9 +124,3 @@ func withEventWriter(writer eventWriter) WorkerOption {
 		w.eventWriter = writer
 	}
 }
-
-func withCheckpointWriter(writer stepCheckpointWriter) WorkerOption {
-	return func(w *Worker) {
-		w.checkpointWriter = writer
-	}
-}

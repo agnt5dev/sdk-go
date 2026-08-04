@@ -28,7 +28,9 @@ func (w *Worker) runWorkerStream(ctx context.Context, client pb.WorkerCoordinato
 	}
 	w.writeHealthMarker()
 	defer w.removeHealthMarker()
-	defer stream.CloseSend()
+	defer func() {
+		_ = stream.CloseSend()
+	}()
 	streamCtx, stopStream := context.WithCancel(ctx)
 	defer stopStream()
 	recvCh := receiveRuntimeMessages(stream)
