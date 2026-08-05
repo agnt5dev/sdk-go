@@ -37,9 +37,25 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 
 	result, invokeErr := w.invoke(ctx, invocation, componentCorrelationID, runCorrelationID)
 	durationMS := time.Since(startedAt).Milliseconds()
-	messages, eventsErr := w.flushInvocationEvents(ctx, invocation, result.Events, metadata, componentCorrelationID)
-	if invokeErr == nil && eventsErr != nil {
-		invokeErr = eventsErr
+	eventsToFlush := result.Events
+	if IsWaitingForUserInput(invokeErr) && metadata["dispatch_mode"] == "pull" {
+		eventsToFlush = make([]Event, 0, len(result.Events))
+		for _, event := range result.Events {
+			// CompleteJob owns the fenced workflow.paused terminal record for a
+			// pull lease. The generic append path must still durably flush every
+			// preceding lifecycle event before the paused response is returned.
+			if event.Type != "workflow.paused" {
+				eventsToFlush = append(eventsToFlush, event)
+			}
+		}
+	}
+	messages, eventsErr := w.flushInvocationEvents(ctx, invocation, eventsToFlush, metadata, componentCorrelationID)
+	if eventsErr != nil {
+		if invokeErr != nil {
+			invokeErr = fmt.Errorf("agnt5: flush invocation events: %w (handler outcome: %v)", eventsErr, invokeErr)
+		} else {
+			invokeErr = eventsErr
+		}
 	}
 	if IsWaitingForUserInput(invokeErr) {
 		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchPausedResponse(req, result, invokeErr)))

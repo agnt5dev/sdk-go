@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -141,6 +142,55 @@ func TestHITLResumeContinuesOriginalTraceAndSkipsCachedStepEvents(t *testing.T) 
 	}
 }
 
+func TestHITLPauseFailsClosedWhenDurableEventFlushFails(t *testing.T) {
+	flushErr := errors.New("append batch unavailable")
+	writer := &failingInvocationBatchWriter{err: flushErr}
+	worker := NewWorker("svc", withEventWriter(writer))
+	if err := RegisterWorkflow(worker, "approval", func(ctx *Context, _ map[string]any) (string, error) {
+		return ctx.AskUser(UserInputRequest{Prompt: "Approve?", Type: HITLApproval})
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	response := requireDispatchResponse(t, worker.dispatchServiceMessages(
+		context.Background(),
+		hitlDispatchRequest("12345678-aaaa:invoke", "approval", nil),
+	))
+	if response.GetSuccess() || response.GetEventType() != "run.failed" {
+		t.Fatalf("pause response must fail closed when events are not durable: %#v", response)
+	}
+	if !strings.Contains(response.GetErrorMessage(), flushErr.Error()) {
+		t.Fatalf("pause response error = %q, want %q", response.GetErrorMessage(), flushErr)
+	}
+}
+
+func TestPullHITLPauseLeavesTerminalRecordToCompleteJob(t *testing.T) {
+	writer := &recordingEventWriter{}
+	worker := NewWorker("svc", withEventWriter(writer))
+	if err := RegisterWorkflow(worker, "approval", func(ctx *Context, _ map[string]any) (string, error) {
+		return ctx.AskUser(UserInputRequest{Prompt: "Approve?", Type: HITLApproval})
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	response := requireDispatchResponse(t, worker.dispatchServiceMessages(
+		context.Background(),
+		hitlDispatchRequest("12345678-aaaa:invoke", "approval", map[string]string{
+			"dispatch_mode": "pull",
+		}),
+	))
+	if !response.GetSuccess() || response.GetEventType() != "workflow.paused" {
+		t.Fatalf("pause response = %#v", response)
+	}
+	requireEventTypes(t, writer.Events(), []string{
+		"run.started",
+		"workflow.started",
+		"workflow.step.started",
+		"approval.requested",
+		"workflow.step.paused",
+	})
+}
+
 func TestHITLResumeFailureUsesOriginalWorkflowCorrelationID(t *testing.T) {
 	writer := &recordingEventWriter{}
 	worker := NewWorker("svc", withEventWriter(writer))
@@ -180,6 +230,15 @@ func TestHITLResumeFailureUsesOriginalWorkflowCorrelationID(t *testing.T) {
 		workflowFailed.ParentCorrelationID != runCorrelationID {
 		t.Fatalf("workflow.failed correlation = %#v", workflowFailed)
 	}
+}
+
+type failingInvocationBatchWriter struct {
+	recordingEventWriter
+	err error
+}
+
+func (w *failingInvocationBatchWriter) WriteEvents(context.Context, []journalEvent) error {
+	return w.err
 }
 
 func TestHITLMultiPauseCompletesOnlyCurrentWaitStep(t *testing.T) {
