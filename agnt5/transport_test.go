@@ -221,10 +221,17 @@ func TestRunWorkerStreamHandlesSingleDispatch(t *testing.T) {
 			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
 			ComponentName: "greet",
 			InputData:     []byte(`{"name":"Ada"}`),
-			Metadata:      map[string]string{"request_id": "req-1"},
-			Attempt:       2,
-			IsStreaming:   true,
-			LeaseId:       "lease-1",
+			Metadata: map[string]string{
+				"request_id":        "req-1",
+				"dispatch_mode":     "pull",
+				"worker_id":         "forged-worker",
+				"worker_session_id": "forged-session",
+				"lease_id":          "forged-lease",
+				"lease_attempt":     "99",
+			},
+			Attempt:     2,
+			IsStreaming: true,
+			LeaseId:     "lease-1",
 		},
 		received: make(chan *pb.ServiceMessage, 1),
 		response: make(chan *pb.DispatchComponentResponse, 1),
@@ -243,6 +250,17 @@ func TestRunWorkerStreamHandlesSingleDispatch(t *testing.T) {
 		}
 		if ctx.Metadata("request_id") != "req-1" {
 			t.Fatalf("metadata: %#v", ctx.MetadataMap())
+		}
+		for key, want := range map[string]string{
+			"dispatch_mode":     "push",
+			"worker_id":         "worker-1",
+			"worker_session_id": "worker-1",
+			"lease_id":          "lease-1",
+			"lease_attempt":     "2",
+		} {
+			if got := ctx.Metadata(key); got != want {
+				t.Fatalf("metadata[%q] = %q, want %q", key, got, want)
+			}
 		}
 		if ctx.Attempt() != 2 || !ctx.IsStreaming() || ctx.LeaseID() != "lease-1" {
 			t.Fatalf("dispatch context: attempt=%d streaming=%t lease=%q", ctx.Attempt(), ctx.IsStreaming(), ctx.LeaseID())

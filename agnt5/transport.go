@@ -186,6 +186,7 @@ func (w *Worker) handleRuntimeMessageWithLease(
 		if data.DispatchComponent == nil {
 			return fmt.Errorf("%w: empty dispatch component", ErrUnexpectedRuntimeMessage)
 		}
+		w.stampPushExecutionAuthority(data.DispatchComponent)
 		invocationID := data.DispatchComponent.GetInvocationId()
 		delete(suppressed, invocationID)
 		if err := acquireDispatchSlot(ctx, slots); err != nil {
@@ -249,6 +250,16 @@ func (w *Worker) handleRuntimeMessageWithLease(
 	default:
 		return fmt.Errorf("%w: %v", ErrUnexpectedRuntimeMessage, message.GetMessageType())
 	}
+}
+
+func (w *Worker) stampPushExecutionAuthority(request *pb.DispatchComponentRequest) {
+	metadata := cloneStringMap(request.GetMetadata())
+	metadata["dispatch_mode"] = "push"
+	metadata["worker_id"] = w.workerID
+	metadata["worker_session_id"] = w.workerID
+	metadata["lease_id"] = request.GetLeaseId()
+	metadata["lease_attempt"] = fmt.Sprintf("%d", request.GetAttempt())
+	request.Metadata = metadata
 }
 
 type executionLeaseLoss struct {

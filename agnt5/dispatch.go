@@ -217,6 +217,39 @@ func (w *Worker) invocationMetadata(inv Invocation) map[string]string {
 	metadata["attempt"] = fmt.Sprintf("%d", inv.Attempt)
 	if inv.LeaseID != "" {
 		metadata["lease_id"] = inv.LeaseID
+		metadata["lease_attempt"] = fmt.Sprintf("%d", inv.Attempt)
+		if metadata["dispatch_mode"] == "" {
+			metadata["dispatch_mode"] = "push"
+		}
+		if metadata["dispatch_mode"] == "push" {
+			// Push leases use the durable worker identity as their session
+			// fence. Pull dispatch stamps the authenticated session ID before
+			// reaching this method and must retain it unchanged.
+			metadata["worker_session_id"] = w.workerID
+		}
+	}
+	return metadata
+}
+
+var executionAuthorityMetadataKeys = [...]string{
+	"dispatch_mode",
+	"worker_id",
+	"worker_session_id",
+	"lease_id",
+	"lease_attempt",
+}
+
+func mergeInvocationEventMetadata(baseMetadata, eventMetadata map[string]string) map[string]string {
+	metadata := cloneStringMap(baseMetadata)
+	for key, value := range eventMetadata {
+		metadata[key] = value
+	}
+	// Per-event metadata is user-authored. Preserve custom fields, but pin the
+	// execution fence to the transport-authored dispatch values.
+	for _, key := range executionAuthorityMetadataKeys {
+		if value, ok := baseMetadata[key]; ok {
+			metadata[key] = value
+		}
 	}
 	return metadata
 }
@@ -317,10 +350,7 @@ func (w *Worker) flushInvocationEvents(ctx context.Context, inv Invocation, even
 		if event.SourceTimestampNS == 0 {
 			event.SourceTimestampNS = nowUnixNS()
 		}
-		metadata := cloneStringMap(baseMetadata)
-		for key, value := range event.Metadata {
-			metadata[key] = value
-		}
+		metadata := mergeInvocationEventMetadata(baseMetadata, event.Metadata)
 		correlationID := event.CorrelationID
 		if correlationID == "" {
 			correlationID = newCorrelationID("event")
@@ -366,10 +396,7 @@ func (w *Worker) streamInvocationEvent(ctx context.Context, inv Invocation, even
 	if event.SourceTimestampNS == 0 {
 		event.SourceTimestampNS = nowUnixNS()
 	}
-	metadata := cloneStringMap(baseMetadata)
-	for key, value := range event.Metadata {
-		metadata[key] = value
-	}
+	metadata := mergeInvocationEventMetadata(baseMetadata, event.Metadata)
 	correlationID := event.CorrelationID
 	if correlationID == "" {
 		correlationID = newCorrelationID("event")
@@ -390,10 +417,7 @@ func (w *Worker) writeInvocationEvent(ctx context.Context, inv Invocation, event
 	if event.SourceTimestampNS == 0 {
 		event.SourceTimestampNS = nowUnixNS()
 	}
-	metadata := cloneStringMap(baseMetadata)
-	for key, value := range event.Metadata {
-		metadata[key] = value
-	}
+	metadata := mergeInvocationEventMetadata(baseMetadata, event.Metadata)
 	correlationID := event.CorrelationID
 	if correlationID == "" {
 		correlationID = newCorrelationID("event")
