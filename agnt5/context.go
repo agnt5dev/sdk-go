@@ -23,6 +23,7 @@ type Context struct {
 
 	stateStore       StateStore
 	checkpointWriter stepCheckpointWriter
+	activationWriter stepActivationWriter
 }
 
 type contextShared struct {
@@ -66,6 +67,9 @@ func newContext(parent context.Context, inv Invocation, checkpointWriter stepChe
 		runCID:           runCorrelationIDFromRunID(inv.RunID),
 		stateStore:       stateStore,
 		checkpointWriter: checkpointWriter,
+	}
+	if writer, ok := checkpointWriter.(stepActivationWriter); ok {
+		ctx.activationWriter = writer
 	}
 	ctx.loadReplayMetadata(inv.Metadata)
 	ctx.logger = &Logger{ctx: ctx}
@@ -259,6 +263,7 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 		componentCID:     c.componentCID,
 		stateStore:       c.stateStore,
 		checkpointWriter: c.checkpointWriter,
+		activationWriter: c.activationWriter,
 	}
 	child.logger = &Logger{ctx: child}
 	return child

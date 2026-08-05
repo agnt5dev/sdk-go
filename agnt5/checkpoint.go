@@ -32,6 +32,12 @@ type stepCheckpointWriter interface {
 	Checkpoint(context.Context, *pb.CheckpointRequest) (*pb.CheckpointResponse, error)
 }
 
+type stepActivationWriter interface {
+	BeginActivation(context.Context, *pb.BeginActivationRequest) (*pb.BeginActivationResponse, error)
+	CompleteActivation(context.Context, *pb.CompleteActivationRequest) (*pb.CompleteActivationResponse, error)
+	FailActivation(context.Context, *pb.FailActivationRequest) (*pb.FailActivationResponse, error)
+}
+
 type journalEvent struct {
 	RunID               string
 	EventType           string
@@ -289,6 +295,39 @@ func (w *engineEventWriter) Checkpoint(ctx context.Context, req *pb.CheckpointRe
 	}
 	if !resp.GetSuccess() {
 		return nil, fmt.Errorf("agnt5: checkpoint step %q rejected: %s", req.GetCheckpoint().GetStepKey(), resp.GetErrorMessage())
+	}
+	return resp, nil
+}
+
+func (w *engineEventWriter) BeginActivation(ctx context.Context, req *pb.BeginActivationRequest) (*pb.BeginActivationResponse, error) {
+	if w == nil || w.client == nil {
+		return nil, newActivationError(ActivationErrorDurabilityUnavailable, "activation client is not configured", "", 0, nil)
+	}
+	resp, err := w.client.BeginActivation(ctx, req)
+	if err != nil {
+		return nil, activationRPCError("BeginActivation", err)
+	}
+	return resp, nil
+}
+
+func (w *engineEventWriter) CompleteActivation(ctx context.Context, req *pb.CompleteActivationRequest) (*pb.CompleteActivationResponse, error) {
+	if w == nil || w.client == nil {
+		return nil, newActivationError(ActivationErrorDurabilityUnavailable, "activation client is not configured", req.GetActivationId(), req.GetAttempt(), nil)
+	}
+	resp, err := w.client.CompleteActivation(ctx, req)
+	if err != nil {
+		return nil, activationRPCError("CompleteActivation", err)
+	}
+	return resp, nil
+}
+
+func (w *engineEventWriter) FailActivation(ctx context.Context, req *pb.FailActivationRequest) (*pb.FailActivationResponse, error) {
+	if w == nil || w.client == nil {
+		return nil, newActivationError(ActivationErrorDurabilityUnavailable, "activation client is not configured", req.GetActivationId(), req.GetAttempt(), nil)
+	}
+	resp, err := w.client.FailActivation(ctx, req)
+	if err != nil {
+		return nil, activationRPCError("FailActivation", err)
 	}
 	return resp, nil
 }
