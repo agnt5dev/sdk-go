@@ -23,6 +23,23 @@ const (
 	WorkerModePull WorkerMode = "pull"
 )
 
+// DurableActivationMode controls worker startup against mixed runtime versions.
+type DurableActivationMode string
+
+const (
+	DurableActivationDisabled  DurableActivationMode = "disabled"
+	DurableActivationPreferred DurableActivationMode = "preferred"
+	DurableActivationRequired  DurableActivationMode = "required"
+)
+
+// DurableActivationStatus reports the negotiated durability state.
+type DurableActivationStatus struct {
+	Mode     DurableActivationMode
+	Enabled  bool
+	Degraded bool
+	Reason   string
+}
+
 // Invocation contains the runtime data needed to execute one component.
 type Invocation struct {
 	ID             string

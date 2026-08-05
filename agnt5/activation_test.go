@@ -310,6 +310,83 @@ func TestActivationRPCErrorUsesTypedRuntimeDetail(t *testing.T) {
 	}
 }
 
+func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
+	preferred := NewWorker("svc", WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="))
+	supported, required := preferred.protocolRegistrationCapabilities()
+	if !reflect.DeepEqual(supported, []string{durableActivationV1Capability}) || len(required) != 0 {
+		t.Fatalf("preferred protocols: supported=%v required=%v", supported, required)
+	}
+	if err := preferred.applyProtocolNegotiation(nil, nil); err != nil {
+		t.Fatalf("preferred old runtime: %v", err)
+	}
+	status := preferred.DurableActivationStatus()
+	if status.Enabled || !status.Degraded || status.Reason == "" {
+		t.Fatalf("preferred old-runtime status: %#v", status)
+	}
+	if err := preferred.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); err != nil {
+		t.Fatalf("preferred v1 runtime: %v", err)
+	}
+	status = preferred.DurableActivationStatus()
+	if !status.Enabled || status.Degraded {
+		t.Fatalf("preferred v1 status: %#v", status)
+	}
+
+	requiredWorker := NewWorker(
+		"svc",
+		WithDurableActivationMode(DurableActivationRequired),
+		WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="),
+	)
+	supported, required = requiredWorker.protocolRegistrationCapabilities()
+	if !reflect.DeepEqual(supported, []string{durableActivationV1Capability}) ||
+		!reflect.DeepEqual(required, []string{durableActivationV1Capability}) {
+		t.Fatalf("required protocols: supported=%v required=%v", supported, required)
+	}
+	if err := requiredWorker.applyProtocolNegotiation(nil, nil); !errors.Is(err, ErrDurabilityUnavailable) {
+		t.Fatalf("required old runtime error = %v", err)
+	}
+	if err := requiredWorker.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); err != nil {
+		t.Fatalf("required v1 runtime: %v", err)
+	}
+
+	missingIdentity := NewWorker("svc", WithDurableActivationMode(DurableActivationRequired))
+	if err := missingIdentity.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); !errors.Is(err, ErrDurabilityUnavailable) {
+		t.Fatalf("required missing definition identity error = %v", err)
+	}
+}
+
+func TestNegotiatedWorkerInvocationCarriesDefinitionIdentity(t *testing.T) {
+	worker := NewWorker(
+		"svc",
+		WithServiceVersion("v1"),
+		WithProjectID("project-1"),
+		WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="),
+	)
+	if err := RegisterWorkflow(worker, "workflow", func(*Context, map[string]any) (string, error) {
+		return "ok", nil
+	}, WithComponentConfig(map[string]string{"model": "deterministic"})); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if err := worker.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); err != nil {
+		t.Fatalf("negotiate: %v", err)
+	}
+	component, ok := worker.registry.Get("workflow")
+	if !ok {
+		t.Fatal("workflow component missing")
+	}
+	invocation := worker.withActivationMetadata(Invocation{
+		ID:            "inv-1",
+		RunID:         "run-1",
+		ComponentName: "workflow",
+		ComponentType: ComponentTypeWorkflow,
+	}, component)
+	if invocation.Metadata[durableActivationV1Capability] != "true" ||
+		invocation.Metadata[activationDefinitionVersionMetadata] != "v1" ||
+		invocation.Metadata[activationArtifactSHA256Metadata] == "" ||
+		invocation.Metadata[activationDefinitionConfigMetadata] == "" {
+		t.Fatalf("activation metadata: %#v", invocation.Metadata)
+	}
+}
+
 func sha256Bytes(value []byte) []byte {
 	digest := sha256.Sum256(value)
 	return digest[:]

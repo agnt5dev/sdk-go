@@ -90,6 +90,13 @@ func (w *Worker) openRegisteredStream(ctx context.Context, client pb.WorkerCoord
 	if err := registrationResponseError(message); err != nil {
 		return nil, err
 	}
+	response := message.GetRegisterServiceResponse()
+	if err := w.applyProtocolNegotiation(
+		response.GetSupportedProtocolCapabilities(),
+		response.GetRequiredProtocolCapabilities(),
+	); err != nil {
+		return nil, err
+	}
 	return stream, nil
 }
 

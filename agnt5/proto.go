@@ -18,16 +18,19 @@ func (w *Worker) registrationServiceMessage() *pb.ServiceMessage {
 
 func (w *Worker) registerService() *pb.RegisterService {
 	components := w.Components()
+	supportedProtocols, requiredProtocols := w.protocolRegistrationCapabilities()
 	return &pb.RegisterService{
-		ServiceName:    w.serviceName,
-		ServiceVersion: w.serviceVersion,
-		ServiceType:    w.serviceType,
-		Components:     protoComponentInfos(components),
-		Metadata:       w.Metadata(),
-		Mode:           protoWorkerMode(w.workerMode),
-		DeploymentId:   w.deploymentID,
-		MaxConcurrency: w.maxConcurrency,
-		Capabilities:   protoCapabilities(components),
+		ServiceName:                   w.serviceName,
+		ServiceVersion:                w.serviceVersion,
+		ServiceType:                   w.serviceType,
+		Components:                    protoComponentInfos(components),
+		Metadata:                      w.Metadata(),
+		Mode:                          protoWorkerMode(w.workerMode),
+		DeploymentId:                  w.deploymentID,
+		MaxConcurrency:                w.maxConcurrency,
+		Capabilities:                  protoCapabilities(components),
+		SupportedProtocolCapabilities: supportedProtocols,
+		RequiredProtocolCapabilities:  requiredProtocols,
 	}
 }
 

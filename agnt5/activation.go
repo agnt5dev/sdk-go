@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -59,6 +60,92 @@ func activationPlanForStep(ctx *Context, stableKey string, input any) (activatio
 		inputDigest:      inputDigest[:],
 		definitionDigest: definitionDigest,
 	}, true, nil
+}
+
+func (w *Worker) protocolRegistrationCapabilities() (supported, required []string) {
+	if w.durableActivationMode == DurableActivationDisabled {
+		return nil, nil
+	}
+	supported = []string{durableActivationV1Capability}
+	if w.durableActivationMode == DurableActivationRequired {
+		required = []string{durableActivationV1Capability}
+	}
+	return supported, required
+}
+
+func (w *Worker) applyProtocolNegotiation(runtimeSupported, runtimeRequired []string) error {
+	workerSupported, _ := w.protocolRegistrationCapabilities()
+	for _, required := range runtimeRequired {
+		if !stringSliceContains(workerSupported, required) {
+			return newActivationError(
+				ActivationErrorDurabilityUnavailable,
+				"runtime requires unsupported worker protocol capability: "+required,
+				"",
+				0,
+				nil,
+			)
+		}
+	}
+	enabled := stringSliceContains(runtimeSupported, durableActivationV1Capability) &&
+		stringSliceContains(workerSupported, durableActivationV1Capability)
+	definitionReason := ""
+	if enabled {
+		if _, err := decodeSHA256(w.metadata[activationArtifactSHA256Metadata]); err != nil {
+			enabled = false
+			definitionReason = "activation artifact identity is unavailable; configure activation_artifact_sha256"
+		}
+	}
+	if w.durableActivationMode == DurableActivationRequired && !enabled {
+		message := "worker requires durable_activation_v1 but the runtime did not negotiate it"
+		if definitionReason != "" {
+			message = "worker requires durable_activation_v1 but " + definitionReason
+		}
+		return newActivationError(
+			ActivationErrorDurabilityUnavailable,
+			message,
+			"",
+			0,
+			nil,
+		)
+	}
+	reason := ""
+	if w.durableActivationMode == DurableActivationPreferred && !enabled {
+		if definitionReason != "" {
+			reason = definitionReason + "; legacy checkpoints remain enabled"
+		} else {
+			reason = "runtime did not advertise durable_activation_v1; legacy checkpoints remain enabled"
+		}
+	}
+	w.protocolMu.Lock()
+	previousReason := w.durableActivationWhy
+	w.durableActivationOn = enabled
+	w.durableActivationWhy = reason
+	w.protocolMu.Unlock()
+	if reason != "" && reason != previousReason {
+		fmt.Fprintf(os.Stderr, "[WARN] agnt5 durable activation degraded: %s\n", reason)
+	}
+	return nil
+}
+
+func stringSliceContains(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *Worker) withActivationMetadata(inv Invocation, component Component) Invocation {
+	inv.Metadata = w.invocationMetadata(inv)
+	if status := w.DurableActivationStatus(); status.Enabled {
+		inv.Metadata[durableActivationV1Capability] = "true"
+		inv.Metadata[activationDefinitionVersionMetadata] = w.serviceVersion
+		if componentConfig, err := canonicalActivationValue(component.Config); err == nil {
+			inv.Metadata[activationDefinitionConfigMetadata] = string(componentConfig)
+		}
+	}
+	return inv
 }
 
 func activationDefinitionDigestFromContext(ctx *Context) ([]byte, error) {

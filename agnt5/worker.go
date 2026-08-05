@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -39,58 +40,64 @@ const (
 	envJournalQueueSize        = "AGNT5_JOURNAL_QUEUE_SIZE"
 	envJournalBatchSize        = "AGNT5_JOURNAL_BATCH_SIZE"
 	envJournalFlushIntervalMS  = "AGNT5_JOURNAL_FLUSH_INTERVAL_MS"
+	envDurableActivationMode   = "AGNT5_DURABLE_ACTIVATION_MODE"
 )
 
 // Worker owns component registration and, once transport is wired, runtime
 // connectivity for a Go service.
 type Worker struct {
-	workerID            string
-	serviceName         string
-	serviceVersion      string
-	serviceType         string
-	coordinatorEndpoint string
-	engineEndpoint      string
-	projectID           string
-	deploymentID        string
-	workerMode          WorkerMode
-	maxConcurrency      uint32
-	metadata            map[string]string
-	registry            *Registry
-	grpcDialOptions     []grpc.DialOption
-	eventWriter         eventWriter
-	checkpointWriter    stepCheckpointWriter
-	stateStore          StateStore
-	maxReconnects       uint32
-	reconnectBackoff    time.Duration
-	reconnectBackoffMax time.Duration
-	reconnectResetAfter time.Duration
-	journalQueueSize    uint32
-	journalBatchSize    uint32
-	journalFlushEvery   time.Duration
+	workerID              string
+	serviceName           string
+	serviceVersion        string
+	serviceType           string
+	coordinatorEndpoint   string
+	engineEndpoint        string
+	projectID             string
+	deploymentID          string
+	workerMode            WorkerMode
+	maxConcurrency        uint32
+	metadata              map[string]string
+	registry              *Registry
+	grpcDialOptions       []grpc.DialOption
+	eventWriter           eventWriter
+	checkpointWriter      stepCheckpointWriter
+	stateStore            StateStore
+	maxReconnects         uint32
+	reconnectBackoff      time.Duration
+	reconnectBackoffMax   time.Duration
+	reconnectResetAfter   time.Duration
+	journalQueueSize      uint32
+	journalBatchSize      uint32
+	journalFlushEvery     time.Duration
+	durableActivationMode DurableActivationMode
+	protocolMu            sync.RWMutex
+	durableActivationOn   bool
+	durableActivationWhy  string
 }
 
 // NewWorker constructs a Go worker with environment-compatible defaults.
 func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 	w := &Worker{
-		workerID:            envOrDefault(envWorkerID, newWorkerID()),
-		serviceName:         serviceName,
-		serviceVersion:      defaultServiceVersion,
-		serviceType:         defaultServiceType,
-		coordinatorEndpoint: envOrDefault(envCoordinatorEndpoint, defaultCoordinatorEndpoint),
-		engineEndpoint:      os.Getenv(envEngineURL),
-		projectID:           os.Getenv(envProjectID),
-		deploymentID:        os.Getenv(envDeploymentID),
-		workerMode:          workerModeFromEnv(),
-		maxConcurrency:      uint32FromEnv(envMaxConcurrency),
-		metadata:            make(map[string]string),
-		registry:            NewRegistry(),
-		maxReconnects:       uint32FromEnvDefault(envMaxRetries, defaultMaxReconnects),
-		reconnectBackoff:    defaultReconnectBackoff,
-		reconnectBackoffMax: defaultReconnectBackoffMax,
-		reconnectResetAfter: defaultReconnectResetAfter,
-		journalQueueSize:    uint32FromEnvDefault(envJournalQueueSize, defaultJournalQueueSize),
-		journalBatchSize:    uint32FromEnvDefault(envJournalBatchSize, defaultJournalBatchSize),
-		journalFlushEvery:   time.Duration(int64FromEnvDefault(envJournalFlushIntervalMS, defaultJournalFlushMS)) * time.Millisecond,
+		workerID:              envOrDefault(envWorkerID, newWorkerID()),
+		serviceName:           serviceName,
+		serviceVersion:        defaultServiceVersion,
+		serviceType:           defaultServiceType,
+		coordinatorEndpoint:   envOrDefault(envCoordinatorEndpoint, defaultCoordinatorEndpoint),
+		engineEndpoint:        os.Getenv(envEngineURL),
+		projectID:             os.Getenv(envProjectID),
+		deploymentID:          os.Getenv(envDeploymentID),
+		workerMode:            workerModeFromEnv(),
+		maxConcurrency:        uint32FromEnv(envMaxConcurrency),
+		metadata:              make(map[string]string),
+		registry:              NewRegistry(),
+		maxReconnects:         uint32FromEnvDefault(envMaxRetries, defaultMaxReconnects),
+		reconnectBackoff:      defaultReconnectBackoff,
+		reconnectBackoffMax:   defaultReconnectBackoffMax,
+		reconnectResetAfter:   defaultReconnectResetAfter,
+		journalQueueSize:      uint32FromEnvDefault(envJournalQueueSize, defaultJournalQueueSize),
+		journalBatchSize:      uint32FromEnvDefault(envJournalBatchSize, defaultJournalBatchSize),
+		journalFlushEvery:     time.Duration(int64FromEnvDefault(envJournalFlushIntervalMS, defaultJournalFlushMS)) * time.Millisecond,
+		durableActivationMode: durableActivationModeFromEnv(),
 	}
 	if w.projectID != "" {
 		w.metadata["project_id"] = w.projectID
@@ -112,6 +119,17 @@ func envOrDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func durableActivationModeFromEnv() DurableActivationMode {
+	switch DurableActivationMode(os.Getenv(envDurableActivationMode)) {
+	case DurableActivationDisabled:
+		return DurableActivationDisabled
+	case DurableActivationRequired:
+		return DurableActivationRequired
+	default:
+		return DurableActivationPreferred
+	}
 }
 
 // newWorkerID returns a random RFC-4122 v4 UUID. The platform's readiness
@@ -213,6 +231,18 @@ func (w *Worker) DeploymentID() string {
 // WorkerMode returns the configured assignment mode.
 func (w *Worker) WorkerMode() WorkerMode {
 	return w.workerMode
+}
+
+// DurableActivationStatus returns the latest negotiated runtime capability state.
+func (w *Worker) DurableActivationStatus() DurableActivationStatus {
+	w.protocolMu.RLock()
+	defer w.protocolMu.RUnlock()
+	return DurableActivationStatus{
+		Mode:     w.durableActivationMode,
+		Enabled:  w.durableActivationOn,
+		Degraded: w.durableActivationMode == DurableActivationPreferred && !w.durableActivationOn,
+		Reason:   w.durableActivationWhy,
+	}
 }
 
 // MaxConcurrency returns the configured in-flight invocation budget.
@@ -412,7 +442,8 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 	if inv.ComponentType != "" && inv.ComponentType != component.Type {
 		return InvocationResult{}, ErrComponentNotFound
 	}
-	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(w.invocationMetadata(inv)), w.stateStore)
+	inv = w.withActivationMetadata(inv, component)
+	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(inv.Metadata), w.stateStore)
 	runCorrelationID := runCorrelationIDFromRunID(inv.RunID)
 	if len(streamParentCorrelationID) > 1 && streamParentCorrelationID[1] != "" {
 		runCorrelationID = streamParentCorrelationID[1]

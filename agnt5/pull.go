@@ -51,6 +51,12 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 	if sessionID == "" {
 		return fmt.Errorf("agnt5: register pull worker session returned empty session id")
 	}
+	if err := w.applyProtocolNegotiation(
+		session.GetSupportedProtocolCapabilities(),
+		session.GetRequiredProtocolCapabilities(),
+	); err != nil {
+		return err
+	}
 	w.writeHealthMarker()
 	defer w.removeHealthMarker()
 	if policy := session.GetEffectiveSlotPolicy(); policy != nil {
@@ -107,6 +113,7 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 
 func (w *Worker) registerWorkerSessionRequest(config pullSlotConfig) *pb.RegisterWorkerSessionRequest {
 	components := append(w.Components(), builtInScorerComponentInfos()...)
+	supportedProtocols, requiredProtocols := w.protocolRegistrationCapabilities()
 	sort.Slice(components, func(i, j int) bool { return components[i].Name < components[j].Name })
 	return &pb.RegisterWorkerSessionRequest{
 		WorkerId:     w.workerID,
@@ -120,11 +127,13 @@ func (w *Worker) registerWorkerSessionRequest(config pullSlotConfig) *pb.Registe
 			TargetMemoryUsage: 0.80,
 			RampThrottleMs:    1_000,
 		},
-		Capabilities:   protoCapabilities(components),
-		Components:     protoComponentInfos(components),
-		ServiceName:    w.serviceName,
-		ServiceVersion: w.serviceVersion,
-		ServiceType:    w.serviceType,
+		Capabilities:                  protoCapabilities(components),
+		Components:                    protoComponentInfos(components),
+		ServiceName:                   w.serviceName,
+		ServiceVersion:                w.serviceVersion,
+		ServiceType:                   w.serviceType,
+		SupportedProtocolCapabilities: supportedProtocols,
+		RequiredProtocolCapabilities:  requiredProtocols,
 	}
 }
 
