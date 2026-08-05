@@ -354,6 +354,16 @@ func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	}
 }
 
+func TestWorkerConfiguresDurableActivationArtifactFromEnvironment(t *testing.T) {
+	artifact := "0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="
+	t.Setenv(envActivationArtifactSHA256, artifact)
+
+	worker := NewWorker("svc")
+	if got := worker.Metadata()[activationArtifactSHA256Metadata]; got != artifact {
+		t.Fatalf("activation artifact metadata = %q, want %q", got, artifact)
+	}
+}
+
 func TestNegotiatedWorkerInvocationCarriesDefinitionIdentity(t *testing.T) {
 	worker := NewWorker(
 		"svc",

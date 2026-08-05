@@ -43,6 +43,8 @@ const (
 	envDurableActivationMode   = "AGNT5_DURABLE_ACTIVATION_MODE"
 )
 
+const envActivationArtifactSHA256 = "AGNT5_ACTIVATION_ARTIFACT_SHA256"
+
 // Worker owns component registration and, once transport is wired, runtime
 // connectivity for a Go service.
 type Worker struct {
@@ -104,6 +106,9 @@ func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 	}
 	if w.deploymentID != "" {
 		w.metadata["deployment_id"] = w.deploymentID
+	}
+	if artifactSHA256 := os.Getenv(envActivationArtifactSHA256); artifactSHA256 != "" {
+		w.metadata[activationArtifactSHA256Metadata] = artifactSHA256
 	}
 	for _, opt := range opts {
 		if opt != nil {
