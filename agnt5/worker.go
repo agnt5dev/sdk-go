@@ -291,7 +291,20 @@ func (w *Worker) Run(ctx context.Context) error {
 			return err
 		}
 		defer restore()
-		return w.runWorkerStream(ctx, newWorkerCoordinatorClient(conn))
+		leaseEndpoint := w.engineEndpoint
+		if leaseEndpoint == "" {
+			leaseEndpoint = w.coordinatorEndpoint
+		}
+		leaseConn, err := dialEngine(ctx, leaseEndpoint, w.grpcDialOptions...)
+		if err != nil {
+			return err
+		}
+		defer leaseConn.Close()
+		return w.runWorkerStreamWithLeaseClient(
+			ctx,
+			newWorkerCoordinatorClient(conn),
+			newEngineServiceClient(leaseConn),
+		)
 	})
 }
 

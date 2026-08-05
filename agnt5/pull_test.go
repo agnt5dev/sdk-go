@@ -27,6 +27,7 @@ type testEngine struct {
 	jobPolled    bool
 	pollErrs     []error
 	renewErrs    []error
+	renewResults []*pb.RenewJobLeaseResponse
 	completeErrs []error
 	capacityErrs []error
 	polled       chan *pb.PollJobRequest
@@ -156,8 +157,66 @@ func (s *testEngine) RenewJobLease(_ context.Context, req *pb.RenewJobLeaseReque
 		s.mu.Unlock()
 		return nil, err
 	}
+	if len(s.renewResults) > 0 {
+		response := s.renewResults[0]
+		s.renewResults = s.renewResults[1:]
+		s.mu.Unlock()
+		return response, nil
+	}
 	s.mu.Unlock()
 	return &pb.RenewJobLeaseResponse{Renewed: true, LeaseExpiresAtMs: time.Now().Add(time.Minute).UnixMilli()}, nil
+}
+
+func TestWorkerRunPullSuppressesCompletionAfterDefiniteLeaseLoss(t *testing.T) {
+	t.Setenv(envClaimTimeoutMS, "40")
+	server := &testEngine{
+		job: &pb.JobAssignment{
+			JobId:         "run-renew-rejected",
+			RunId:         "run-renew-rejected",
+			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
+			ComponentName: "block",
+			InputData:     []byte(`{}`),
+			LeaseId:       "lease-rejected",
+		},
+		renewResults: []*pb.RenewJobLeaseResponse{{
+			Renewed: false,
+			Outcome: pb.LeaseRenewalOutcome_LEASE_RENEWAL_OUTCOME_AUTHORITY_LOST,
+		}},
+		registered: make(chan *pb.RegisterWorkerSessionRequest, 1),
+		completed:  make(chan *pb.CompleteJobRequest, 1),
+		renewed:    make(chan *pb.RenewJobLeaseRequest, 1),
+		capacity:   make(chan *pb.ReportWorkerCapacityRequest, 1),
+	}
+	listener := newTestEngineListener(t, server)
+	worker := NewWorker("svc",
+		WithWorkerID("worker-pull"),
+		WithProjectID("proj-1"),
+		WithDeploymentID("dep-1"),
+		WithWorkerMode(WorkerModePull),
+		WithCoordinatorEndpoint("http://bufnet"),
+		WithMaxConcurrency(1),
+		withGRPCDialOptions(grpc.WithContextDialer(testBufconnDialer(listener))),
+	)
+	if err := RegisterFunction(worker, "block", func(ctx *Context, _ map[string]string) (map[string]string, error) {
+		<-ctx.Done()
+		return map[string]string{"late": "true"}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- worker.Run(ctx) }()
+	<-server.renewed
+	select {
+	case completion := <-server.completed:
+		t.Fatalf("stale completion was forwarded after authority loss: %#v", completion)
+	case <-time.After(100 * time.Millisecond):
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("worker run: %v", err)
+	}
 }
 
 func (s *testEngine) GetEntityState(_ context.Context, _ *pb.GetEntityStateRequest) (*pb.GetEntityStateResponse, error) {
@@ -506,7 +565,7 @@ func TestWorkerRunPullKeepsSessionAfterTransientPermissionDenied(t *testing.T) {
 	}
 }
 
-func TestWorkerRunPullReregistersAfterPermissionDeniedRenewal(t *testing.T) {
+func TestWorkerRunPullReregistersImmediatelyAfterPermissionDeniedRenewal(t *testing.T) {
 	t.Setenv(envClaimTimeoutMS, "6")
 	denied := status.Error(codes.PermissionDenied, "worker session is not active")
 	server := &testEngine{
@@ -550,11 +609,9 @@ func TestWorkerRunPullReregistersAfterPermissionDeniedRenewal(t *testing.T) {
 		done <- worker.Run(ctx)
 	}()
 	<-server.registered
-	for i := 0; i < sessionRejectThreshold; i++ {
-		renewal := <-server.renewed
-		if renewal.GetWorkerSessionId() != "session-1" {
-			t.Fatalf("renewal %d session = %q, want session-1", i, renewal.GetWorkerSessionId())
-		}
+	renewal := <-server.renewed
+	if renewal.GetWorkerSessionId() != "session-1" {
+		t.Fatalf("renewal session = %q, want session-1", renewal.GetWorkerSessionId())
 	}
 	<-server.registered
 	cancel()
