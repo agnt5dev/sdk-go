@@ -78,6 +78,384 @@ func (CheckpointType) EnumDescriptor() ([]byte, []int) {
 	return file_api_v1_engine_proto_rawDescGZIP(), []int{0}
 }
 
+// ActivationKind identifies the durable unit represented by an activation.
+type ActivationKind int32
+
+const (
+	ActivationKind_ACTIVATION_KIND_UNSPECIFIED ActivationKind = 0
+	ActivationKind_ACTIVATION_KIND_STEP        ActivationKind = 1
+	ActivationKind_ACTIVATION_KIND_FUNCTION    ActivationKind = 2
+	ActivationKind_ACTIVATION_KIND_MODEL       ActivationKind = 3
+	ActivationKind_ACTIVATION_KIND_TOOL        ActivationKind = 4
+	ActivationKind_ACTIVATION_KIND_CHILD       ActivationKind = 5
+	ActivationKind_ACTIVATION_KIND_APPROVAL    ActivationKind = 6
+	ActivationKind_ACTIVATION_KIND_TIMER       ActivationKind = 7
+	ActivationKind_ACTIVATION_KIND_EVAL        ActivationKind = 8
+)
+
+// Enum value maps for ActivationKind.
+var (
+	ActivationKind_name = map[int32]string{
+		0: "ACTIVATION_KIND_UNSPECIFIED",
+		1: "ACTIVATION_KIND_STEP",
+		2: "ACTIVATION_KIND_FUNCTION",
+		3: "ACTIVATION_KIND_MODEL",
+		4: "ACTIVATION_KIND_TOOL",
+		5: "ACTIVATION_KIND_CHILD",
+		6: "ACTIVATION_KIND_APPROVAL",
+		7: "ACTIVATION_KIND_TIMER",
+		8: "ACTIVATION_KIND_EVAL",
+	}
+	ActivationKind_value = map[string]int32{
+		"ACTIVATION_KIND_UNSPECIFIED": 0,
+		"ACTIVATION_KIND_STEP":        1,
+		"ACTIVATION_KIND_FUNCTION":    2,
+		"ACTIVATION_KIND_MODEL":       3,
+		"ACTIVATION_KIND_TOOL":        4,
+		"ACTIVATION_KIND_CHILD":       5,
+		"ACTIVATION_KIND_APPROVAL":    6,
+		"ACTIVATION_KIND_TIMER":       7,
+		"ACTIVATION_KIND_EVAL":        8,
+	}
+)
+
+func (x ActivationKind) Enum() *ActivationKind {
+	p := new(ActivationKind)
+	*p = x
+	return p
+}
+
+func (x ActivationKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActivationKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[1].Descriptor()
+}
+
+func (ActivationKind) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[1]
+}
+
+func (x ActivationKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActivationKind.Descriptor instead.
+func (ActivationKind) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{1}
+}
+
+// BeginActivationOutcome is the complete V1 begin decision surface.
+type BeginActivationOutcome int32
+
+const (
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_UNSPECIFIED     BeginActivationOutcome = 0
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_EXECUTE         BeginActivationOutcome = 1
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_REPLAY          BeginActivationOutcome = 2
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_WAIT            BeginActivationOutcome = 3
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_CONFLICT        BeginActivationOutcome = 4
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_CANCELLED       BeginActivationOutcome = 5
+	BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_UNKNOWN_OUTCOME BeginActivationOutcome = 6
+)
+
+// Enum value maps for BeginActivationOutcome.
+var (
+	BeginActivationOutcome_name = map[int32]string{
+		0: "BEGIN_ACTIVATION_OUTCOME_UNSPECIFIED",
+		1: "BEGIN_ACTIVATION_OUTCOME_EXECUTE",
+		2: "BEGIN_ACTIVATION_OUTCOME_REPLAY",
+		3: "BEGIN_ACTIVATION_OUTCOME_WAIT",
+		4: "BEGIN_ACTIVATION_OUTCOME_CONFLICT",
+		5: "BEGIN_ACTIVATION_OUTCOME_CANCELLED",
+		6: "BEGIN_ACTIVATION_OUTCOME_UNKNOWN_OUTCOME",
+	}
+	BeginActivationOutcome_value = map[string]int32{
+		"BEGIN_ACTIVATION_OUTCOME_UNSPECIFIED":     0,
+		"BEGIN_ACTIVATION_OUTCOME_EXECUTE":         1,
+		"BEGIN_ACTIVATION_OUTCOME_REPLAY":          2,
+		"BEGIN_ACTIVATION_OUTCOME_WAIT":            3,
+		"BEGIN_ACTIVATION_OUTCOME_CONFLICT":        4,
+		"BEGIN_ACTIVATION_OUTCOME_CANCELLED":       5,
+		"BEGIN_ACTIVATION_OUTCOME_UNKNOWN_OUTCOME": 6,
+	}
+)
+
+func (x BeginActivationOutcome) Enum() *BeginActivationOutcome {
+	p := new(BeginActivationOutcome)
+	*p = x
+	return p
+}
+
+func (x BeginActivationOutcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeginActivationOutcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[2].Descriptor()
+}
+
+func (BeginActivationOutcome) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[2]
+}
+
+func (x BeginActivationOutcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BeginActivationOutcome.Descriptor instead.
+func (BeginActivationOutcome) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{2}
+}
+
+// ActivationRecoveryPolicy controls how interrupted or uncertain work settles.
+type ActivationRecoveryPolicy int32
+
+const (
+	ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_UNSPECIFIED      ActivationRecoveryPolicy = 0
+	ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_IDEMPOTENT_RETRY ActivationRecoveryPolicy = 1
+	ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_DURABLE_STEPS    ActivationRecoveryPolicy = 2
+	ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_UNKNOWN_OUTCOME  ActivationRecoveryPolicy = 3
+	ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_COMPENSATE       ActivationRecoveryPolicy = 4
+	ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_FAIL             ActivationRecoveryPolicy = 5
+)
+
+// Enum value maps for ActivationRecoveryPolicy.
+var (
+	ActivationRecoveryPolicy_name = map[int32]string{
+		0: "ACTIVATION_RECOVERY_POLICY_UNSPECIFIED",
+		1: "ACTIVATION_RECOVERY_POLICY_IDEMPOTENT_RETRY",
+		2: "ACTIVATION_RECOVERY_POLICY_DURABLE_STEPS",
+		3: "ACTIVATION_RECOVERY_POLICY_UNKNOWN_OUTCOME",
+		4: "ACTIVATION_RECOVERY_POLICY_COMPENSATE",
+		5: "ACTIVATION_RECOVERY_POLICY_FAIL",
+	}
+	ActivationRecoveryPolicy_value = map[string]int32{
+		"ACTIVATION_RECOVERY_POLICY_UNSPECIFIED":      0,
+		"ACTIVATION_RECOVERY_POLICY_IDEMPOTENT_RETRY": 1,
+		"ACTIVATION_RECOVERY_POLICY_DURABLE_STEPS":    2,
+		"ACTIVATION_RECOVERY_POLICY_UNKNOWN_OUTCOME":  3,
+		"ACTIVATION_RECOVERY_POLICY_COMPENSATE":       4,
+		"ACTIVATION_RECOVERY_POLICY_FAIL":             5,
+	}
+)
+
+func (x ActivationRecoveryPolicy) Enum() *ActivationRecoveryPolicy {
+	p := new(ActivationRecoveryPolicy)
+	*p = x
+	return p
+}
+
+func (x ActivationRecoveryPolicy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActivationRecoveryPolicy) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[3].Descriptor()
+}
+
+func (ActivationRecoveryPolicy) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[3]
+}
+
+func (x ActivationRecoveryPolicy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActivationRecoveryPolicy.Descriptor instead.
+func (ActivationRecoveryPolicy) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{3}
+}
+
+// ActivationExternalOutcomeCertainty describes whether an external effect is known.
+type ActivationExternalOutcomeCertainty int32
+
+const (
+	ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED      ActivationExternalOutcomeCertainty = 0
+	ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_NO_EFFECT        ActivationExternalOutcomeCertainty = 1
+	ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_EFFECT_COMMITTED ActivationExternalOutcomeCertainty = 2
+	ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN          ActivationExternalOutcomeCertainty = 3
+)
+
+// Enum value maps for ActivationExternalOutcomeCertainty.
+var (
+	ActivationExternalOutcomeCertainty_name = map[int32]string{
+		0: "ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED",
+		1: "ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_NO_EFFECT",
+		2: "ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_EFFECT_COMMITTED",
+		3: "ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN",
+	}
+	ActivationExternalOutcomeCertainty_value = map[string]int32{
+		"ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED":      0,
+		"ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_NO_EFFECT":        1,
+		"ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_EFFECT_COMMITTED": 2,
+		"ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN":          3,
+	}
+)
+
+func (x ActivationExternalOutcomeCertainty) Enum() *ActivationExternalOutcomeCertainty {
+	p := new(ActivationExternalOutcomeCertainty)
+	*p = x
+	return p
+}
+
+func (x ActivationExternalOutcomeCertainty) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActivationExternalOutcomeCertainty) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[4].Descriptor()
+}
+
+func (ActivationExternalOutcomeCertainty) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[4]
+}
+
+func (x ActivationExternalOutcomeCertainty) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActivationExternalOutcomeCertainty.Descriptor instead.
+func (ActivationExternalOutcomeCertainty) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{4}
+}
+
+// ActivationStatus is the durable aggregate status.
+type ActivationStatus int32
+
+const (
+	ActivationStatus_ACTIVATION_STATUS_UNSPECIFIED     ActivationStatus = 0
+	ActivationStatus_ACTIVATION_STATUS_ACTIVE          ActivationStatus = 1
+	ActivationStatus_ACTIVATION_STATUS_RETRY_READY     ActivationStatus = 2
+	ActivationStatus_ACTIVATION_STATUS_COMPLETED       ActivationStatus = 3
+	ActivationStatus_ACTIVATION_STATUS_FAILED          ActivationStatus = 4
+	ActivationStatus_ACTIVATION_STATUS_SUSPENDED       ActivationStatus = 5
+	ActivationStatus_ACTIVATION_STATUS_CANCELLED       ActivationStatus = 6
+	ActivationStatus_ACTIVATION_STATUS_UNKNOWN_OUTCOME ActivationStatus = 7
+)
+
+// Enum value maps for ActivationStatus.
+var (
+	ActivationStatus_name = map[int32]string{
+		0: "ACTIVATION_STATUS_UNSPECIFIED",
+		1: "ACTIVATION_STATUS_ACTIVE",
+		2: "ACTIVATION_STATUS_RETRY_READY",
+		3: "ACTIVATION_STATUS_COMPLETED",
+		4: "ACTIVATION_STATUS_FAILED",
+		5: "ACTIVATION_STATUS_SUSPENDED",
+		6: "ACTIVATION_STATUS_CANCELLED",
+		7: "ACTIVATION_STATUS_UNKNOWN_OUTCOME",
+	}
+	ActivationStatus_value = map[string]int32{
+		"ACTIVATION_STATUS_UNSPECIFIED":     0,
+		"ACTIVATION_STATUS_ACTIVE":          1,
+		"ACTIVATION_STATUS_RETRY_READY":     2,
+		"ACTIVATION_STATUS_COMPLETED":       3,
+		"ACTIVATION_STATUS_FAILED":          4,
+		"ACTIVATION_STATUS_SUSPENDED":       5,
+		"ACTIVATION_STATUS_CANCELLED":       6,
+		"ACTIVATION_STATUS_UNKNOWN_OUTCOME": 7,
+	}
+)
+
+func (x ActivationStatus) Enum() *ActivationStatus {
+	p := new(ActivationStatus)
+	*p = x
+	return p
+}
+
+func (x ActivationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActivationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[5].Descriptor()
+}
+
+func (ActivationStatus) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[5]
+}
+
+func (x ActivationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActivationStatus.Descriptor instead.
+func (ActivationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{5}
+}
+
+// ActivationErrorCode is stable across runtime and SDK implementations.
+type ActivationErrorCode int32
+
+const (
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_UNSPECIFIED              ActivationErrorCode = 0
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_NONDETERMINISTIC_REPLAY  ActivationErrorCode = 1
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_STALE_AUTHORITY          ActivationErrorCode = 2
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_UNKNOWN_WRITE_OUTCOME    ActivationErrorCode = 3
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_PAYLOAD_CONFLICT         ActivationErrorCode = 4
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_ILLEGAL_TRANSITION       ActivationErrorCode = 5
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_INVALID_ARGUMENT         ActivationErrorCode = 6
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_INLINE_PAYLOAD_TOO_LARGE ActivationErrorCode = 7
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_REFERENCE_REQUIRED       ActivationErrorCode = 8
+	ActivationErrorCode_ACTIVATION_ERROR_CODE_STATE_VERSION_CONFLICT   ActivationErrorCode = 9
+)
+
+// Enum value maps for ActivationErrorCode.
+var (
+	ActivationErrorCode_name = map[int32]string{
+		0: "ACTIVATION_ERROR_CODE_UNSPECIFIED",
+		1: "ACTIVATION_ERROR_CODE_NONDETERMINISTIC_REPLAY",
+		2: "ACTIVATION_ERROR_CODE_STALE_AUTHORITY",
+		3: "ACTIVATION_ERROR_CODE_UNKNOWN_WRITE_OUTCOME",
+		4: "ACTIVATION_ERROR_CODE_PAYLOAD_CONFLICT",
+		5: "ACTIVATION_ERROR_CODE_ILLEGAL_TRANSITION",
+		6: "ACTIVATION_ERROR_CODE_INVALID_ARGUMENT",
+		7: "ACTIVATION_ERROR_CODE_INLINE_PAYLOAD_TOO_LARGE",
+		8: "ACTIVATION_ERROR_CODE_REFERENCE_REQUIRED",
+		9: "ACTIVATION_ERROR_CODE_STATE_VERSION_CONFLICT",
+	}
+	ActivationErrorCode_value = map[string]int32{
+		"ACTIVATION_ERROR_CODE_UNSPECIFIED":              0,
+		"ACTIVATION_ERROR_CODE_NONDETERMINISTIC_REPLAY":  1,
+		"ACTIVATION_ERROR_CODE_STALE_AUTHORITY":          2,
+		"ACTIVATION_ERROR_CODE_UNKNOWN_WRITE_OUTCOME":    3,
+		"ACTIVATION_ERROR_CODE_PAYLOAD_CONFLICT":         4,
+		"ACTIVATION_ERROR_CODE_ILLEGAL_TRANSITION":       5,
+		"ACTIVATION_ERROR_CODE_INVALID_ARGUMENT":         6,
+		"ACTIVATION_ERROR_CODE_INLINE_PAYLOAD_TOO_LARGE": 7,
+		"ACTIVATION_ERROR_CODE_REFERENCE_REQUIRED":       8,
+		"ACTIVATION_ERROR_CODE_STATE_VERSION_CONFLICT":   9,
+	}
+)
+
+func (x ActivationErrorCode) Enum() *ActivationErrorCode {
+	p := new(ActivationErrorCode)
+	*p = x
+	return p
+}
+
+func (x ActivationErrorCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActivationErrorCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[6].Descriptor()
+}
+
+func (ActivationErrorCode) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[6]
+}
+
+func (x ActivationErrorCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActivationErrorCode.Descriptor instead.
+func (ActivationErrorCode) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{6}
+}
+
 // Record is the fundamental unit stored in the journal log.
 // All orchestration state is derived from records.
 type Record struct {
@@ -7022,6 +7400,2300 @@ func (x *CheckpointResponse) GetCachedOutput() []byte {
 	return nil
 }
 
+// ActivationErrorDetail is encoded in gRPC status details for failed writes.
+type ActivationErrorDetail struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          ActivationErrorCode    `protobuf:"varint,1,opt,name=code,proto3,enum=api.v1.ActivationErrorCode" json:"code,omitempty"`
+	ActivationId  string                 `protobuf:"bytes,2,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt       uint32                 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationErrorDetail) Reset() {
+	*x = ActivationErrorDetail{}
+	mi := &file_api_v1_engine_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationErrorDetail) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationErrorDetail) ProtoMessage() {}
+
+func (x *ActivationErrorDetail) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationErrorDetail.ProtoReflect.Descriptor instead.
+func (*ActivationErrorDetail) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *ActivationErrorDetail) GetCode() ActivationErrorCode {
+	if x != nil {
+		return x.Code
+	}
+	return ActivationErrorCode_ACTIVATION_ERROR_CODE_UNSPECIFIED
+}
+
+func (x *ActivationErrorDetail) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationErrorDetail) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationErrorDetail) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// ImmutablePayloadReference addresses a project-scoped immutable value.
+type ImmutablePayloadReference struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Kind          string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	Uri           string                 `protobuf:"bytes,3,opt,name=uri,proto3" json:"uri,omitempty"`
+	SizeBytes     uint64                 `protobuf:"varint,4,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	Sha256        []byte                 `protobuf:"bytes,5,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	ContentType   string                 `protobuf:"bytes,6,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImmutablePayloadReference) Reset() {
+	*x = ImmutablePayloadReference{}
+	mi := &file_api_v1_engine_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImmutablePayloadReference) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImmutablePayloadReference) ProtoMessage() {}
+
+func (x *ImmutablePayloadReference) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImmutablePayloadReference.ProtoReflect.Descriptor instead.
+func (*ImmutablePayloadReference) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *ImmutablePayloadReference) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ImmutablePayloadReference) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ImmutablePayloadReference) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+func (x *ImmutablePayloadReference) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *ImmutablePayloadReference) GetSha256() []byte {
+	if x != nil {
+		return x.Sha256
+	}
+	return nil
+}
+
+func (x *ImmutablePayloadReference) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
+// ActivationPayload contains either bounded inline bytes or an immutable reference.
+type ActivationPayload struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Value:
+	//
+	//	*ActivationPayload_InlineData
+	//	*ActivationPayload_Reference
+	Value         isActivationPayload_Value `protobuf_oneof:"value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationPayload) Reset() {
+	*x = ActivationPayload{}
+	mi := &file_api_v1_engine_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationPayload) ProtoMessage() {}
+
+func (x *ActivationPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationPayload.ProtoReflect.Descriptor instead.
+func (*ActivationPayload) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *ActivationPayload) GetValue() isActivationPayload_Value {
+	if x != nil {
+		return x.Value
+	}
+	return nil
+}
+
+func (x *ActivationPayload) GetInlineData() []byte {
+	if x != nil {
+		if x, ok := x.Value.(*ActivationPayload_InlineData); ok {
+			return x.InlineData
+		}
+	}
+	return nil
+}
+
+func (x *ActivationPayload) GetReference() *ImmutablePayloadReference {
+	if x != nil {
+		if x, ok := x.Value.(*ActivationPayload_Reference); ok {
+			return x.Reference
+		}
+	}
+	return nil
+}
+
+type isActivationPayload_Value interface {
+	isActivationPayload_Value()
+}
+
+type ActivationPayload_InlineData struct {
+	InlineData []byte `protobuf:"bytes,1,opt,name=inline_data,json=inlineData,proto3,oneof"`
+}
+
+type ActivationPayload_Reference struct {
+	Reference *ImmutablePayloadReference `protobuf:"bytes,2,opt,name=reference,proto3,oneof"`
+}
+
+func (*ActivationPayload_InlineData) isActivationPayload_Value() {}
+
+func (*ActivationPayload_Reference) isActivationPayload_Value() {}
+
+// ActivationStateMutation is committed as part of an accepted completion.
+type ActivationStateMutation struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	OperationId     string                 `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	EntityType      string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"`
+	EntityKey       string                 `protobuf:"bytes,3,opt,name=entity_key,json=entityKey,proto3" json:"entity_key,omitempty"`
+	Scope           string                 `protobuf:"bytes,4,opt,name=scope,proto3" json:"scope,omitempty"`
+	ScopeId         string                 `protobuf:"bytes,5,opt,name=scope_id,json=scopeId,proto3" json:"scope_id,omitempty"`
+	Data            []byte                 `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
+	DataType        string                 `protobuf:"bytes,7,opt,name=data_type,json=dataType,proto3" json:"data_type,omitempty"`
+	ExpectedVersion int64                  `protobuf:"varint,8,opt,name=expected_version,json=expectedVersion,proto3" json:"expected_version,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ActivationStateMutation) Reset() {
+	*x = ActivationStateMutation{}
+	mi := &file_api_v1_engine_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationStateMutation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationStateMutation) ProtoMessage() {}
+
+func (x *ActivationStateMutation) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationStateMutation.ProtoReflect.Descriptor instead.
+func (*ActivationStateMutation) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *ActivationStateMutation) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
+func (x *ActivationStateMutation) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *ActivationStateMutation) GetEntityKey() string {
+	if x != nil {
+		return x.EntityKey
+	}
+	return ""
+}
+
+func (x *ActivationStateMutation) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *ActivationStateMutation) GetScopeId() string {
+	if x != nil {
+		return x.ScopeId
+	}
+	return ""
+}
+
+func (x *ActivationStateMutation) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *ActivationStateMutation) GetDataType() string {
+	if x != nil {
+		return x.DataType
+	}
+	return ""
+}
+
+func (x *ActivationStateMutation) GetExpectedVersion() int64 {
+	if x != nil {
+		return x.ExpectedVersion
+	}
+	return 0
+}
+
+// ActivationOutboxIntent is a durable effect intent accepted with a completion.
+type ActivationOutboxIntent struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IntentId       string                 `protobuf:"bytes,1,opt,name=intent_id,json=intentId,proto3" json:"intent_id,omitempty"`
+	Kind           string                 `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	Payload        *ActivationPayload     `protobuf:"bytes,4,opt,name=payload,proto3" json:"payload,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ActivationOutboxIntent) Reset() {
+	*x = ActivationOutboxIntent{}
+	mi := &file_api_v1_engine_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationOutboxIntent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationOutboxIntent) ProtoMessage() {}
+
+func (x *ActivationOutboxIntent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationOutboxIntent.ProtoReflect.Descriptor instead.
+func (*ActivationOutboxIntent) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *ActivationOutboxIntent) GetIntentId() string {
+	if x != nil {
+		return x.IntentId
+	}
+	return ""
+}
+
+func (x *ActivationOutboxIntent) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ActivationOutboxIntent) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *ActivationOutboxIntent) GetPayload() *ActivationPayload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+// ActivationUsage contains bounded provider/runtime accounting.
+type ActivationUsage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TokensIn      int64                  `protobuf:"varint,1,opt,name=tokens_in,json=tokensIn,proto3" json:"tokens_in,omitempty"`
+	TokensOut     int64                  `protobuf:"varint,2,opt,name=tokens_out,json=tokensOut,proto3" json:"tokens_out,omitempty"`
+	CostUsd       float64                `protobuf:"fixed64,3,opt,name=cost_usd,json=costUsd,proto3" json:"cost_usd,omitempty"`
+	LatencyMs     int64                  `protobuf:"varint,4,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	Provider      string                 `protobuf:"bytes,5,opt,name=provider,proto3" json:"provider,omitempty"`
+	Model         string                 `protobuf:"bytes,6,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationUsage) Reset() {
+	*x = ActivationUsage{}
+	mi := &file_api_v1_engine_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationUsage) ProtoMessage() {}
+
+func (x *ActivationUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationUsage.ProtoReflect.Descriptor instead.
+func (*ActivationUsage) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *ActivationUsage) GetTokensIn() int64 {
+	if x != nil {
+		return x.TokensIn
+	}
+	return 0
+}
+
+func (x *ActivationUsage) GetTokensOut() int64 {
+	if x != nil {
+		return x.TokensOut
+	}
+	return 0
+}
+
+func (x *ActivationUsage) GetCostUsd() float64 {
+	if x != nil {
+		return x.CostUsd
+	}
+	return 0
+}
+
+func (x *ActivationUsage) GetLatencyMs() int64 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+func (x *ActivationUsage) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *ActivationUsage) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+// ActivationEvidence contains bounded diagnostic evidence for an accepted outcome.
+type ActivationEvidence struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EvidenceType  string                 `protobuf:"bytes,1,opt,name=evidence_type,json=evidenceType,proto3" json:"evidence_type,omitempty"`
+	Payload       *ActivationPayload     `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	Sha256        []byte                 `protobuf:"bytes,3,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationEvidence) Reset() {
+	*x = ActivationEvidence{}
+	mi := &file_api_v1_engine_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationEvidence) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationEvidence) ProtoMessage() {}
+
+func (x *ActivationEvidence) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationEvidence.ProtoReflect.Descriptor instead.
+func (*ActivationEvidence) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *ActivationEvidence) GetEvidenceType() string {
+	if x != nil {
+		return x.EvidenceType
+	}
+	return ""
+}
+
+func (x *ActivationEvidence) GetPayload() *ActivationPayload {
+	if x != nil {
+		return x.Payload
+	}
+	return nil
+}
+
+func (x *ActivationEvidence) GetSha256() []byte {
+	if x != nil {
+		return x.Sha256
+	}
+	return nil
+}
+
+// BeginActivationRequest identifies one logical activation independently of attempts.
+type BeginActivationRequest struct {
+	state              protoimpl.MessageState   `protogen:"open.v1"`
+	ProjectId          string                   `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId              string                   `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ParentActivationId string                   `protobuf:"bytes,3,opt,name=parent_activation_id,json=parentActivationId,proto3" json:"parent_activation_id,omitempty"`
+	Kind               ActivationKind           `protobuf:"varint,4,opt,name=kind,proto3,enum=api.v1.ActivationKind" json:"kind,omitempty"`
+	StableKey          string                   `protobuf:"bytes,5,opt,name=stable_key,json=stableKey,proto3" json:"stable_key,omitempty"`
+	InputDigest        []byte                   `protobuf:"bytes,6,opt,name=input_digest,json=inputDigest,proto3" json:"input_digest,omitempty"`
+	DefinitionDigest   []byte                   `protobuf:"bytes,7,opt,name=definition_digest,json=definitionDigest,proto3" json:"definition_digest,omitempty"`
+	RecoveryPolicy     ActivationRecoveryPolicy `protobuf:"varint,8,opt,name=recovery_policy,json=recoveryPolicy,proto3,enum=api.v1.ActivationRecoveryPolicy" json:"recovery_policy,omitempty"`
+	WorkerSessionId    string                   `protobuf:"bytes,9,opt,name=worker_session_id,json=workerSessionId,proto3" json:"worker_session_id,omitempty"`
+	RunAuthority       []byte                   `protobuf:"bytes,10,opt,name=run_authority,json=runAuthority,proto3" json:"run_authority,omitempty"`
+	LeaseAuthority     []byte                   `protobuf:"bytes,11,opt,name=lease_authority,json=leaseAuthority,proto3" json:"lease_authority,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *BeginActivationRequest) Reset() {
+	*x = BeginActivationRequest{}
+	mi := &file_api_v1_engine_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeginActivationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeginActivationRequest) ProtoMessage() {}
+
+func (x *BeginActivationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BeginActivationRequest.ProtoReflect.Descriptor instead.
+func (*BeginActivationRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *BeginActivationRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *BeginActivationRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *BeginActivationRequest) GetParentActivationId() string {
+	if x != nil {
+		return x.ParentActivationId
+	}
+	return ""
+}
+
+func (x *BeginActivationRequest) GetKind() ActivationKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ActivationKind_ACTIVATION_KIND_UNSPECIFIED
+}
+
+func (x *BeginActivationRequest) GetStableKey() string {
+	if x != nil {
+		return x.StableKey
+	}
+	return ""
+}
+
+func (x *BeginActivationRequest) GetInputDigest() []byte {
+	if x != nil {
+		return x.InputDigest
+	}
+	return nil
+}
+
+func (x *BeginActivationRequest) GetDefinitionDigest() []byte {
+	if x != nil {
+		return x.DefinitionDigest
+	}
+	return nil
+}
+
+func (x *BeginActivationRequest) GetRecoveryPolicy() ActivationRecoveryPolicy {
+	if x != nil {
+		return x.RecoveryPolicy
+	}
+	return ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_UNSPECIFIED
+}
+
+func (x *BeginActivationRequest) GetWorkerSessionId() string {
+	if x != nil {
+		return x.WorkerSessionId
+	}
+	return ""
+}
+
+func (x *BeginActivationRequest) GetRunAuthority() []byte {
+	if x != nil {
+		return x.RunAuthority
+	}
+	return nil
+}
+
+func (x *BeginActivationRequest) GetLeaseAuthority() []byte {
+	if x != nil {
+		return x.LeaseAuthority
+	}
+	return nil
+}
+
+// ActivationConflictReceipt describes deterministic-key reuse with new semantics.
+type ActivationConflictReceipt struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	ErrorCode                ActivationErrorCode    `protobuf:"varint,1,opt,name=error_code,json=errorCode,proto3,enum=api.v1.ActivationErrorCode" json:"error_code,omitempty"`
+	ExpectedInputDigest      []byte                 `protobuf:"bytes,2,opt,name=expected_input_digest,json=expectedInputDigest,proto3" json:"expected_input_digest,omitempty"`
+	ProvidedInputDigest      []byte                 `protobuf:"bytes,3,opt,name=provided_input_digest,json=providedInputDigest,proto3" json:"provided_input_digest,omitempty"`
+	ExpectedDefinitionDigest []byte                 `protobuf:"bytes,4,opt,name=expected_definition_digest,json=expectedDefinitionDigest,proto3" json:"expected_definition_digest,omitempty"`
+	ProvidedDefinitionDigest []byte                 `protobuf:"bytes,5,opt,name=provided_definition_digest,json=providedDefinitionDigest,proto3" json:"provided_definition_digest,omitempty"`
+	Message                  string                 `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *ActivationConflictReceipt) Reset() {
+	*x = ActivationConflictReceipt{}
+	mi := &file_api_v1_engine_proto_msgTypes[101]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationConflictReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationConflictReceipt) ProtoMessage() {}
+
+func (x *ActivationConflictReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[101]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationConflictReceipt.ProtoReflect.Descriptor instead.
+func (*ActivationConflictReceipt) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{101}
+}
+
+func (x *ActivationConflictReceipt) GetErrorCode() ActivationErrorCode {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ActivationErrorCode_ACTIVATION_ERROR_CODE_UNSPECIFIED
+}
+
+func (x *ActivationConflictReceipt) GetExpectedInputDigest() []byte {
+	if x != nil {
+		return x.ExpectedInputDigest
+	}
+	return nil
+}
+
+func (x *ActivationConflictReceipt) GetProvidedInputDigest() []byte {
+	if x != nil {
+		return x.ProvidedInputDigest
+	}
+	return nil
+}
+
+func (x *ActivationConflictReceipt) GetExpectedDefinitionDigest() []byte {
+	if x != nil {
+		return x.ExpectedDefinitionDigest
+	}
+	return nil
+}
+
+func (x *ActivationConflictReceipt) GetProvidedDefinitionDigest() []byte {
+	if x != nil {
+		return x.ProvidedDefinitionDigest
+	}
+	return nil
+}
+
+func (x *ActivationConflictReceipt) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+// ActivationWaitReceipt identifies the active attempt a caller must not duplicate.
+type ActivationWaitReceipt struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Attempt               uint32                 `protobuf:"varint,1,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	ActiveWorkerSessionId string                 `protobuf:"bytes,2,opt,name=active_worker_session_id,json=activeWorkerSessionId,proto3" json:"active_worker_session_id,omitempty"`
+	AcceptedJournalOffset uint64                 `protobuf:"varint,3,opt,name=accepted_journal_offset,json=acceptedJournalOffset,proto3" json:"accepted_journal_offset,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ActivationWaitReceipt) Reset() {
+	*x = ActivationWaitReceipt{}
+	mi := &file_api_v1_engine_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationWaitReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationWaitReceipt) ProtoMessage() {}
+
+func (x *ActivationWaitReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationWaitReceipt.ProtoReflect.Descriptor instead.
+func (*ActivationWaitReceipt) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{102}
+}
+
+func (x *ActivationWaitReceipt) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationWaitReceipt) GetActiveWorkerSessionId() string {
+	if x != nil {
+		return x.ActiveWorkerSessionId
+	}
+	return ""
+}
+
+func (x *ActivationWaitReceipt) GetAcceptedJournalOffset() uint64 {
+	if x != nil {
+		return x.AcceptedJournalOffset
+	}
+	return 0
+}
+
+// ActivationUnknownOutcomeReceipt explains why the runtime refuses to retry.
+type ActivationUnknownOutcomeReceipt struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	ErrorCode             string                 `protobuf:"bytes,1,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorData             *ActivationPayload     `protobuf:"bytes,2,opt,name=error_data,json=errorData,proto3" json:"error_data,omitempty"`
+	AcceptedJournalOffset uint64                 `protobuf:"varint,3,opt,name=accepted_journal_offset,json=acceptedJournalOffset,proto3" json:"accepted_journal_offset,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ActivationUnknownOutcomeReceipt) Reset() {
+	*x = ActivationUnknownOutcomeReceipt{}
+	mi := &file_api_v1_engine_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationUnknownOutcomeReceipt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationUnknownOutcomeReceipt) ProtoMessage() {}
+
+func (x *ActivationUnknownOutcomeReceipt) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationUnknownOutcomeReceipt.ProtoReflect.Descriptor instead.
+func (*ActivationUnknownOutcomeReceipt) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *ActivationUnknownOutcomeReceipt) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *ActivationUnknownOutcomeReceipt) GetErrorData() *ActivationPayload {
+	if x != nil {
+		return x.ErrorData
+	}
+	return nil
+}
+
+func (x *ActivationUnknownOutcomeReceipt) GetAcceptedJournalOffset() uint64 {
+	if x != nil {
+		return x.AcceptedJournalOffset
+	}
+	return 0
+}
+
+// BeginActivationResponse carries the complete journal-authoritative decision.
+type BeginActivationResponse struct {
+	state                 protoimpl.MessageState           `protogen:"open.v1"`
+	Outcome               BeginActivationOutcome           `protobuf:"varint,1,opt,name=outcome,proto3,enum=api.v1.BeginActivationOutcome" json:"outcome,omitempty"`
+	ActivationId          string                           `protobuf:"bytes,2,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt               uint32                           `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken            []byte                           `protobuf:"bytes,4,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	AcceptedJournalOffset uint64                           `protobuf:"varint,5,opt,name=accepted_journal_offset,json=acceptedJournalOffset,proto3" json:"accepted_journal_offset,omitempty"`
+	ReplayResult          *ActivationPayload               `protobuf:"bytes,6,opt,name=replay_result,json=replayResult,proto3" json:"replay_result,omitempty"`
+	Conflict              *ActivationConflictReceipt       `protobuf:"bytes,7,opt,name=conflict,proto3" json:"conflict,omitempty"`
+	Wait                  *ActivationWaitReceipt           `protobuf:"bytes,8,opt,name=wait,proto3" json:"wait,omitempty"`
+	UnknownOutcome        *ActivationUnknownOutcomeReceipt `protobuf:"bytes,9,opt,name=unknown_outcome,json=unknownOutcome,proto3" json:"unknown_outcome,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *BeginActivationResponse) Reset() {
+	*x = BeginActivationResponse{}
+	mi := &file_api_v1_engine_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeginActivationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeginActivationResponse) ProtoMessage() {}
+
+func (x *BeginActivationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BeginActivationResponse.ProtoReflect.Descriptor instead.
+func (*BeginActivationResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{104}
+}
+
+func (x *BeginActivationResponse) GetOutcome() BeginActivationOutcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_UNSPECIFIED
+}
+
+func (x *BeginActivationResponse) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *BeginActivationResponse) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *BeginActivationResponse) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *BeginActivationResponse) GetAcceptedJournalOffset() uint64 {
+	if x != nil {
+		return x.AcceptedJournalOffset
+	}
+	return 0
+}
+
+func (x *BeginActivationResponse) GetReplayResult() *ActivationPayload {
+	if x != nil {
+		return x.ReplayResult
+	}
+	return nil
+}
+
+func (x *BeginActivationResponse) GetConflict() *ActivationConflictReceipt {
+	if x != nil {
+		return x.Conflict
+	}
+	return nil
+}
+
+func (x *BeginActivationResponse) GetWait() *ActivationWaitReceipt {
+	if x != nil {
+		return x.Wait
+	}
+	return nil
+}
+
+func (x *BeginActivationResponse) GetUnknownOutcome() *ActivationUnknownOutcomeReceipt {
+	if x != nil {
+		return x.UnknownOutcome
+	}
+	return nil
+}
+
+// CompleteActivationRequest commits one fenced logical completion.
+type CompleteActivationRequest struct {
+	state          protoimpl.MessageState     `protogen:"open.v1"`
+	ProjectId      string                     `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId          string                     `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId   string                     `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt        uint32                     `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken     []byte                     `protobuf:"bytes,5,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	Output         *ActivationPayload         `protobuf:"bytes,6,opt,name=output,proto3" json:"output,omitempty"`
+	OutputDigest   []byte                     `protobuf:"bytes,7,opt,name=output_digest,json=outputDigest,proto3" json:"output_digest,omitempty"`
+	StateMutations []*ActivationStateMutation `protobuf:"bytes,8,rep,name=state_mutations,json=stateMutations,proto3" json:"state_mutations,omitempty"`
+	OutboxIntents  []*ActivationOutboxIntent  `protobuf:"bytes,9,rep,name=outbox_intents,json=outboxIntents,proto3" json:"outbox_intents,omitempty"`
+	Usage          *ActivationUsage           `protobuf:"bytes,10,opt,name=usage,proto3" json:"usage,omitempty"`
+	Evidence       []*ActivationEvidence      `protobuf:"bytes,11,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CompleteActivationRequest) Reset() {
+	*x = CompleteActivationRequest{}
+	mi := &file_api_v1_engine_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteActivationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteActivationRequest) ProtoMessage() {}
+
+func (x *CompleteActivationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteActivationRequest.ProtoReflect.Descriptor instead.
+func (*CompleteActivationRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{105}
+}
+
+func (x *CompleteActivationRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *CompleteActivationRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *CompleteActivationRequest) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *CompleteActivationRequest) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *CompleteActivationRequest) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *CompleteActivationRequest) GetOutput() *ActivationPayload {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *CompleteActivationRequest) GetOutputDigest() []byte {
+	if x != nil {
+		return x.OutputDigest
+	}
+	return nil
+}
+
+func (x *CompleteActivationRequest) GetStateMutations() []*ActivationStateMutation {
+	if x != nil {
+		return x.StateMutations
+	}
+	return nil
+}
+
+func (x *CompleteActivationRequest) GetOutboxIntents() []*ActivationOutboxIntent {
+	if x != nil {
+		return x.OutboxIntents
+	}
+	return nil
+}
+
+func (x *CompleteActivationRequest) GetUsage() *ActivationUsage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+func (x *CompleteActivationRequest) GetEvidence() []*ActivationEvidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+// CompleteActivationResponse acknowledges the canonical completion offset.
+type CompleteActivationResponse struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Accepted              bool                   `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	Replayed              bool                   `protobuf:"varint,2,opt,name=replayed,proto3" json:"replayed,omitempty"`
+	ActivationId          string                 `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt               uint32                 `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	AcceptedJournalOffset uint64                 `protobuf:"varint,5,opt,name=accepted_journal_offset,json=acceptedJournalOffset,proto3" json:"accepted_journal_offset,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *CompleteActivationResponse) Reset() {
+	*x = CompleteActivationResponse{}
+	mi := &file_api_v1_engine_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteActivationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteActivationResponse) ProtoMessage() {}
+
+func (x *CompleteActivationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteActivationResponse.ProtoReflect.Descriptor instead.
+func (*CompleteActivationResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{106}
+}
+
+func (x *CompleteActivationResponse) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
+func (x *CompleteActivationResponse) GetReplayed() bool {
+	if x != nil {
+		return x.Replayed
+	}
+	return false
+}
+
+func (x *CompleteActivationResponse) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *CompleteActivationResponse) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *CompleteActivationResponse) GetAcceptedJournalOffset() uint64 {
+	if x != nil {
+		return x.AcceptedJournalOffset
+	}
+	return 0
+}
+
+// FailActivationRequest records one fenced failure or uncertain external outcome.
+type FailActivationRequest struct {
+	state                    protoimpl.MessageState             `protogen:"open.v1"`
+	ProjectId                string                             `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId                    string                             `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId             string                             `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt                  uint32                             `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken               []byte                             `protobuf:"bytes,5,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	ErrorCode                string                             `protobuf:"bytes,6,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorData                *ActivationPayload                 `protobuf:"bytes,7,opt,name=error_data,json=errorData,proto3" json:"error_data,omitempty"`
+	Retryable                bool                               `protobuf:"varint,8,opt,name=retryable,proto3" json:"retryable,omitempty"`
+	ExternalOutcomeCertainty ActivationExternalOutcomeCertainty `protobuf:"varint,9,opt,name=external_outcome_certainty,json=externalOutcomeCertainty,proto3,enum=api.v1.ActivationExternalOutcomeCertainty" json:"external_outcome_certainty,omitempty"`
+	Evidence                 []*ActivationEvidence              `protobuf:"bytes,10,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *FailActivationRequest) Reset() {
+	*x = FailActivationRequest{}
+	mi := &file_api_v1_engine_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FailActivationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FailActivationRequest) ProtoMessage() {}
+
+func (x *FailActivationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FailActivationRequest.ProtoReflect.Descriptor instead.
+func (*FailActivationRequest) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{107}
+}
+
+func (x *FailActivationRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *FailActivationRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *FailActivationRequest) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *FailActivationRequest) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *FailActivationRequest) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *FailActivationRequest) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *FailActivationRequest) GetErrorData() *ActivationPayload {
+	if x != nil {
+		return x.ErrorData
+	}
+	return nil
+}
+
+func (x *FailActivationRequest) GetRetryable() bool {
+	if x != nil {
+		return x.Retryable
+	}
+	return false
+}
+
+func (x *FailActivationRequest) GetExternalOutcomeCertainty() ActivationExternalOutcomeCertainty {
+	if x != nil {
+		return x.ExternalOutcomeCertainty
+	}
+	return ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED
+}
+
+func (x *FailActivationRequest) GetEvidence() []*ActivationEvidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+// FailActivationResponse acknowledges the canonical failure decision.
+type FailActivationResponse struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Accepted              bool                   `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	Replayed              bool                   `protobuf:"varint,2,opt,name=replayed,proto3" json:"replayed,omitempty"`
+	ActivationId          string                 `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt               uint32                 `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	Status                ActivationStatus       `protobuf:"varint,5,opt,name=status,proto3,enum=api.v1.ActivationStatus" json:"status,omitempty"`
+	AcceptedJournalOffset uint64                 `protobuf:"varint,6,opt,name=accepted_journal_offset,json=acceptedJournalOffset,proto3" json:"accepted_journal_offset,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *FailActivationResponse) Reset() {
+	*x = FailActivationResponse{}
+	mi := &file_api_v1_engine_proto_msgTypes[108]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FailActivationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FailActivationResponse) ProtoMessage() {}
+
+func (x *FailActivationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[108]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FailActivationResponse.ProtoReflect.Descriptor instead.
+func (*FailActivationResponse) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{108}
+}
+
+func (x *FailActivationResponse) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
+func (x *FailActivationResponse) GetReplayed() bool {
+	if x != nil {
+		return x.Replayed
+	}
+	return false
+}
+
+func (x *FailActivationResponse) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *FailActivationResponse) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *FailActivationResponse) GetStatus() ActivationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ActivationStatus_ACTIVATION_STATUS_UNSPECIFIED
+}
+
+func (x *FailActivationResponse) GetAcceptedJournalOffset() uint64 {
+	if x != nil {
+		return x.AcceptedJournalOffset
+	}
+	return 0
+}
+
+// ActivationStartedRecord is the canonical journal event for a new attempt.
+type ActivationStartedRecord struct {
+	state              protoimpl.MessageState   `protogen:"open.v1"`
+	ProjectId          string                   `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId              string                   `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ParentActivationId string                   `protobuf:"bytes,3,opt,name=parent_activation_id,json=parentActivationId,proto3" json:"parent_activation_id,omitempty"`
+	ActivationId       string                   `protobuf:"bytes,4,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Kind               ActivationKind           `protobuf:"varint,5,opt,name=kind,proto3,enum=api.v1.ActivationKind" json:"kind,omitempty"`
+	StableKey          string                   `protobuf:"bytes,6,opt,name=stable_key,json=stableKey,proto3" json:"stable_key,omitempty"`
+	InputDigest        []byte                   `protobuf:"bytes,7,opt,name=input_digest,json=inputDigest,proto3" json:"input_digest,omitempty"`
+	DefinitionDigest   []byte                   `protobuf:"bytes,8,opt,name=definition_digest,json=definitionDigest,proto3" json:"definition_digest,omitempty"`
+	RecoveryPolicy     ActivationRecoveryPolicy `protobuf:"varint,9,opt,name=recovery_policy,json=recoveryPolicy,proto3,enum=api.v1.ActivationRecoveryPolicy" json:"recovery_policy,omitempty"`
+	Attempt            uint32                   `protobuf:"varint,10,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken         []byte                   `protobuf:"bytes,11,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	WorkerSessionId    string                   `protobuf:"bytes,12,opt,name=worker_session_id,json=workerSessionId,proto3" json:"worker_session_id,omitempty"`
+	RunAuthority       []byte                   `protobuf:"bytes,13,opt,name=run_authority,json=runAuthority,proto3" json:"run_authority,omitempty"`
+	LeaseAuthority     []byte                   `protobuf:"bytes,14,opt,name=lease_authority,json=leaseAuthority,proto3" json:"lease_authority,omitempty"`
+	PreviousAttempt    uint32                   `protobuf:"varint,15,opt,name=previous_attempt,json=previousAttempt,proto3" json:"previous_attempt,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ActivationStartedRecord) Reset() {
+	*x = ActivationStartedRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationStartedRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationStartedRecord) ProtoMessage() {}
+
+func (x *ActivationStartedRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationStartedRecord.ProtoReflect.Descriptor instead.
+func (*ActivationStartedRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{109}
+}
+
+func (x *ActivationStartedRecord) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ActivationStartedRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ActivationStartedRecord) GetParentActivationId() string {
+	if x != nil {
+		return x.ParentActivationId
+	}
+	return ""
+}
+
+func (x *ActivationStartedRecord) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationStartedRecord) GetKind() ActivationKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ActivationKind_ACTIVATION_KIND_UNSPECIFIED
+}
+
+func (x *ActivationStartedRecord) GetStableKey() string {
+	if x != nil {
+		return x.StableKey
+	}
+	return ""
+}
+
+func (x *ActivationStartedRecord) GetInputDigest() []byte {
+	if x != nil {
+		return x.InputDigest
+	}
+	return nil
+}
+
+func (x *ActivationStartedRecord) GetDefinitionDigest() []byte {
+	if x != nil {
+		return x.DefinitionDigest
+	}
+	return nil
+}
+
+func (x *ActivationStartedRecord) GetRecoveryPolicy() ActivationRecoveryPolicy {
+	if x != nil {
+		return x.RecoveryPolicy
+	}
+	return ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_UNSPECIFIED
+}
+
+func (x *ActivationStartedRecord) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationStartedRecord) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *ActivationStartedRecord) GetWorkerSessionId() string {
+	if x != nil {
+		return x.WorkerSessionId
+	}
+	return ""
+}
+
+func (x *ActivationStartedRecord) GetRunAuthority() []byte {
+	if x != nil {
+		return x.RunAuthority
+	}
+	return nil
+}
+
+func (x *ActivationStartedRecord) GetLeaseAuthority() []byte {
+	if x != nil {
+		return x.LeaseAuthority
+	}
+	return nil
+}
+
+func (x *ActivationStartedRecord) GetPreviousAttempt() uint32 {
+	if x != nil {
+		return x.PreviousAttempt
+	}
+	return 0
+}
+
+// ActivationCompletedRecord is the canonical all-or-nothing completion bundle.
+type ActivationCompletedRecord struct {
+	state          protoimpl.MessageState     `protogen:"open.v1"`
+	ProjectId      string                     `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId          string                     `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId   string                     `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt        uint32                     `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken     []byte                     `protobuf:"bytes,5,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	Output         *ActivationPayload         `protobuf:"bytes,6,opt,name=output,proto3" json:"output,omitempty"`
+	OutputDigest   []byte                     `protobuf:"bytes,7,opt,name=output_digest,json=outputDigest,proto3" json:"output_digest,omitempty"`
+	StateMutations []*ActivationStateMutation `protobuf:"bytes,8,rep,name=state_mutations,json=stateMutations,proto3" json:"state_mutations,omitempty"`
+	OutboxIntents  []*ActivationOutboxIntent  `protobuf:"bytes,9,rep,name=outbox_intents,json=outboxIntents,proto3" json:"outbox_intents,omitempty"`
+	Usage          *ActivationUsage           `protobuf:"bytes,10,opt,name=usage,proto3" json:"usage,omitempty"`
+	Evidence       []*ActivationEvidence      `protobuf:"bytes,11,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ActivationCompletedRecord) Reset() {
+	*x = ActivationCompletedRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationCompletedRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationCompletedRecord) ProtoMessage() {}
+
+func (x *ActivationCompletedRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationCompletedRecord.ProtoReflect.Descriptor instead.
+func (*ActivationCompletedRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *ActivationCompletedRecord) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ActivationCompletedRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ActivationCompletedRecord) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationCompletedRecord) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationCompletedRecord) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *ActivationCompletedRecord) GetOutput() *ActivationPayload {
+	if x != nil {
+		return x.Output
+	}
+	return nil
+}
+
+func (x *ActivationCompletedRecord) GetOutputDigest() []byte {
+	if x != nil {
+		return x.OutputDigest
+	}
+	return nil
+}
+
+func (x *ActivationCompletedRecord) GetStateMutations() []*ActivationStateMutation {
+	if x != nil {
+		return x.StateMutations
+	}
+	return nil
+}
+
+func (x *ActivationCompletedRecord) GetOutboxIntents() []*ActivationOutboxIntent {
+	if x != nil {
+		return x.OutboxIntents
+	}
+	return nil
+}
+
+func (x *ActivationCompletedRecord) GetUsage() *ActivationUsage {
+	if x != nil {
+		return x.Usage
+	}
+	return nil
+}
+
+func (x *ActivationCompletedRecord) GetEvidence() []*ActivationEvidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+// ActivationFailedRecord is the canonical failure bundle.
+type ActivationFailedRecord struct {
+	state                    protoimpl.MessageState             `protogen:"open.v1"`
+	ProjectId                string                             `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId                    string                             `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId             string                             `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt                  uint32                             `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken               []byte                             `protobuf:"bytes,5,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	ErrorCode                string                             `protobuf:"bytes,6,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorData                *ActivationPayload                 `protobuf:"bytes,7,opt,name=error_data,json=errorData,proto3" json:"error_data,omitempty"`
+	Retryable                bool                               `protobuf:"varint,8,opt,name=retryable,proto3" json:"retryable,omitempty"`
+	ExternalOutcomeCertainty ActivationExternalOutcomeCertainty `protobuf:"varint,9,opt,name=external_outcome_certainty,json=externalOutcomeCertainty,proto3,enum=api.v1.ActivationExternalOutcomeCertainty" json:"external_outcome_certainty,omitempty"`
+	Evidence                 []*ActivationEvidence              `protobuf:"bytes,10,rep,name=evidence,proto3" json:"evidence,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *ActivationFailedRecord) Reset() {
+	*x = ActivationFailedRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationFailedRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationFailedRecord) ProtoMessage() {}
+
+func (x *ActivationFailedRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationFailedRecord.ProtoReflect.Descriptor instead.
+func (*ActivationFailedRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *ActivationFailedRecord) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ActivationFailedRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ActivationFailedRecord) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationFailedRecord) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationFailedRecord) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *ActivationFailedRecord) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *ActivationFailedRecord) GetErrorData() *ActivationPayload {
+	if x != nil {
+		return x.ErrorData
+	}
+	return nil
+}
+
+func (x *ActivationFailedRecord) GetRetryable() bool {
+	if x != nil {
+		return x.Retryable
+	}
+	return false
+}
+
+func (x *ActivationFailedRecord) GetExternalOutcomeCertainty() ActivationExternalOutcomeCertainty {
+	if x != nil {
+		return x.ExternalOutcomeCertainty
+	}
+	return ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED
+}
+
+func (x *ActivationFailedRecord) GetEvidence() []*ActivationEvidence {
+	if x != nil {
+		return x.Evidence
+	}
+	return nil
+}
+
+// ActivationSuspendedRecord records a durable nonterminal suspension.
+type ActivationSuspendedRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId  string                 `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt       uint32                 `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken    []byte                 `protobuf:"bytes,5,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	ResumeSource  string                 `protobuf:"bytes,6,opt,name=resume_source,json=resumeSource,proto3" json:"resume_source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationSuspendedRecord) Reset() {
+	*x = ActivationSuspendedRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationSuspendedRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationSuspendedRecord) ProtoMessage() {}
+
+func (x *ActivationSuspendedRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationSuspendedRecord.ProtoReflect.Descriptor instead.
+func (*ActivationSuspendedRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *ActivationSuspendedRecord) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ActivationSuspendedRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ActivationSuspendedRecord) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationSuspendedRecord) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationSuspendedRecord) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *ActivationSuspendedRecord) GetResumeSource() string {
+	if x != nil {
+		return x.ResumeSource
+	}
+	return ""
+}
+
+// ActivationCancelledRecord records the canonical cancellation winner.
+type ActivationCancelledRecord struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId  string                 `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt       uint32                 `protobuf:"varint,4,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	Reason        string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationCancelledRecord) Reset() {
+	*x = ActivationCancelledRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationCancelledRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationCancelledRecord) ProtoMessage() {}
+
+func (x *ActivationCancelledRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationCancelledRecord.ProtoReflect.Descriptor instead.
+func (*ActivationCancelledRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *ActivationCancelledRecord) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ActivationCancelledRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ActivationCancelledRecord) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationCancelledRecord) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *ActivationCancelledRecord) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+// ActivationUnknownOutcomeRecord records an effect whose external result is uncertain.
+type ActivationUnknownOutcomeRecord struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Failure       *ActivationFailedRecord `protobuf:"bytes,1,opt,name=failure,proto3" json:"failure,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationUnknownOutcomeRecord) Reset() {
+	*x = ActivationUnknownOutcomeRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationUnknownOutcomeRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationUnknownOutcomeRecord) ProtoMessage() {}
+
+func (x *ActivationUnknownOutcomeRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationUnknownOutcomeRecord.ProtoReflect.Descriptor instead.
+func (*ActivationUnknownOutcomeRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *ActivationUnknownOutcomeRecord) GetFailure() *ActivationFailedRecord {
+	if x != nil {
+		return x.Failure
+	}
+	return nil
+}
+
+// ActivationSnapshotRecord is a journal-owned compaction snapshot.
+type ActivationSnapshotRecord struct {
+	state                 protoimpl.MessageState     `protogen:"open.v1"`
+	ProjectId             string                     `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	RunId                 string                     `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ActivationId          string                     `protobuf:"bytes,3,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Status                ActivationStatus           `protobuf:"varint,4,opt,name=status,proto3,enum=api.v1.ActivationStatus" json:"status,omitempty"`
+	CurrentAttempt        *ActivationStartedRecord   `protobuf:"bytes,5,opt,name=current_attempt,json=currentAttempt,proto3" json:"current_attempt,omitempty"`
+	Completion            *ActivationCompletedRecord `protobuf:"bytes,6,opt,name=completion,proto3" json:"completion,omitempty"`
+	Failure               *ActivationFailedRecord    `protobuf:"bytes,7,opt,name=failure,proto3" json:"failure,omitempty"`
+	AcceptedJournalOffset uint64                     `protobuf:"varint,8,opt,name=accepted_journal_offset,json=acceptedJournalOffset,proto3" json:"accepted_journal_offset,omitempty"`
+	Suspension            *ActivationSuspendedRecord `protobuf:"bytes,9,opt,name=suspension,proto3" json:"suspension,omitempty"`
+	Cancellation          *ActivationCancelledRecord `protobuf:"bytes,10,opt,name=cancellation,proto3" json:"cancellation,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ActivationSnapshotRecord) Reset() {
+	*x = ActivationSnapshotRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationSnapshotRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationSnapshotRecord) ProtoMessage() {}
+
+func (x *ActivationSnapshotRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationSnapshotRecord.ProtoReflect.Descriptor instead.
+func (*ActivationSnapshotRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{115}
+}
+
+func (x *ActivationSnapshotRecord) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ActivationSnapshotRecord) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *ActivationSnapshotRecord) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *ActivationSnapshotRecord) GetStatus() ActivationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ActivationStatus_ACTIVATION_STATUS_UNSPECIFIED
+}
+
+func (x *ActivationSnapshotRecord) GetCurrentAttempt() *ActivationStartedRecord {
+	if x != nil {
+		return x.CurrentAttempt
+	}
+	return nil
+}
+
+func (x *ActivationSnapshotRecord) GetCompletion() *ActivationCompletedRecord {
+	if x != nil {
+		return x.Completion
+	}
+	return nil
+}
+
+func (x *ActivationSnapshotRecord) GetFailure() *ActivationFailedRecord {
+	if x != nil {
+		return x.Failure
+	}
+	return nil
+}
+
+func (x *ActivationSnapshotRecord) GetAcceptedJournalOffset() uint64 {
+	if x != nil {
+		return x.AcceptedJournalOffset
+	}
+	return 0
+}
+
+func (x *ActivationSnapshotRecord) GetSuspension() *ActivationSuspendedRecord {
+	if x != nil {
+		return x.Suspension
+	}
+	return nil
+}
+
+func (x *ActivationSnapshotRecord) GetCancellation() *ActivationCancelledRecord {
+	if x != nil {
+		return x.Cancellation
+	}
+	return nil
+}
+
+// ActivationJournalRecord is the canonical Durable Activation V1 encoding.
+// It intentionally contains no map fields so deterministic protobuf encoding
+// is byte-identical across supported languages.
+type ActivationJournalRecord struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Version uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*ActivationJournalRecord_Started
+	//	*ActivationJournalRecord_Completed
+	//	*ActivationJournalRecord_Failed
+	//	*ActivationJournalRecord_Suspended
+	//	*ActivationJournalRecord_Cancelled
+	//	*ActivationJournalRecord_Snapshot
+	//	*ActivationJournalRecord_UnknownOutcome
+	Event         isActivationJournalRecord_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActivationJournalRecord) Reset() {
+	*x = ActivationJournalRecord{}
+	mi := &file_api_v1_engine_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActivationJournalRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActivationJournalRecord) ProtoMessage() {}
+
+func (x *ActivationJournalRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActivationJournalRecord.ProtoReflect.Descriptor instead.
+func (*ActivationJournalRecord) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *ActivationJournalRecord) GetVersion() uint32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *ActivationJournalRecord) GetEvent() isActivationJournalRecord_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetStarted() *ActivationStartedRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_Started); ok {
+			return x.Started
+		}
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetCompleted() *ActivationCompletedRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_Completed); ok {
+			return x.Completed
+		}
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetFailed() *ActivationFailedRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_Failed); ok {
+			return x.Failed
+		}
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetSuspended() *ActivationSuspendedRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_Suspended); ok {
+			return x.Suspended
+		}
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetCancelled() *ActivationCancelledRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_Cancelled); ok {
+			return x.Cancelled
+		}
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetSnapshot() *ActivationSnapshotRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_Snapshot); ok {
+			return x.Snapshot
+		}
+	}
+	return nil
+}
+
+func (x *ActivationJournalRecord) GetUnknownOutcome() *ActivationUnknownOutcomeRecord {
+	if x != nil {
+		if x, ok := x.Event.(*ActivationJournalRecord_UnknownOutcome); ok {
+			return x.UnknownOutcome
+		}
+	}
+	return nil
+}
+
+type isActivationJournalRecord_Event interface {
+	isActivationJournalRecord_Event()
+}
+
+type ActivationJournalRecord_Started struct {
+	Started *ActivationStartedRecord `protobuf:"bytes,10,opt,name=started,proto3,oneof"`
+}
+
+type ActivationJournalRecord_Completed struct {
+	Completed *ActivationCompletedRecord `protobuf:"bytes,11,opt,name=completed,proto3,oneof"`
+}
+
+type ActivationJournalRecord_Failed struct {
+	Failed *ActivationFailedRecord `protobuf:"bytes,12,opt,name=failed,proto3,oneof"`
+}
+
+type ActivationJournalRecord_Suspended struct {
+	Suspended *ActivationSuspendedRecord `protobuf:"bytes,13,opt,name=suspended,proto3,oneof"`
+}
+
+type ActivationJournalRecord_Cancelled struct {
+	Cancelled *ActivationCancelledRecord `protobuf:"bytes,14,opt,name=cancelled,proto3,oneof"`
+}
+
+type ActivationJournalRecord_Snapshot struct {
+	Snapshot *ActivationSnapshotRecord `protobuf:"bytes,15,opt,name=snapshot,proto3,oneof"`
+}
+
+type ActivationJournalRecord_UnknownOutcome struct {
+	UnknownOutcome *ActivationUnknownOutcomeRecord `protobuf:"bytes,16,opt,name=unknown_outcome,json=unknownOutcome,proto3,oneof"`
+}
+
+func (*ActivationJournalRecord_Started) isActivationJournalRecord_Event() {}
+
+func (*ActivationJournalRecord_Completed) isActivationJournalRecord_Event() {}
+
+func (*ActivationJournalRecord_Failed) isActivationJournalRecord_Event() {}
+
+func (*ActivationJournalRecord_Suspended) isActivationJournalRecord_Event() {}
+
+func (*ActivationJournalRecord_Cancelled) isActivationJournalRecord_Event() {}
+
+func (*ActivationJournalRecord_Snapshot) isActivationJournalRecord_Event() {}
+
+func (*ActivationJournalRecord_UnknownOutcome) isActivationJournalRecord_Event() {}
+
 // EventStreamMessage carries a single ephemeral event from worker to engine.
 // Used for SSE-only events (tokens, progress, logs, spans) that need real-time
 // delivery but not journal persistence.
@@ -7041,7 +9713,7 @@ type EventStreamMessage struct {
 
 func (x *EventStreamMessage) Reset() {
 	*x = EventStreamMessage{}
-	mi := &file_api_v1_engine_proto_msgTypes[93]
+	mi := &file_api_v1_engine_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7053,7 +9725,7 @@ func (x *EventStreamMessage) String() string {
 func (*EventStreamMessage) ProtoMessage() {}
 
 func (x *EventStreamMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[93]
+	mi := &file_api_v1_engine_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7066,7 +9738,7 @@ func (x *EventStreamMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventStreamMessage.ProtoReflect.Descriptor instead.
 func (*EventStreamMessage) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{93}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *EventStreamMessage) GetRunId() string {
@@ -7137,7 +9809,7 @@ type EventStreamAck struct {
 
 func (x *EventStreamAck) Reset() {
 	*x = EventStreamAck{}
-	mi := &file_api_v1_engine_proto_msgTypes[94]
+	mi := &file_api_v1_engine_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7149,7 +9821,7 @@ func (x *EventStreamAck) String() string {
 func (*EventStreamAck) ProtoMessage() {}
 
 func (x *EventStreamAck) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[94]
+	mi := &file_api_v1_engine_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7162,7 +9834,7 @@ func (x *EventStreamAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventStreamAck.ProtoReflect.Descriptor instead.
 func (*EventStreamAck) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{94}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *EventStreamAck) GetSuccess() bool {
@@ -7200,7 +9872,7 @@ type PollJobsRequest struct {
 
 func (x *PollJobsRequest) Reset() {
 	*x = PollJobsRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[95]
+	mi := &file_api_v1_engine_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7212,7 +9884,7 @@ func (x *PollJobsRequest) String() string {
 func (*PollJobsRequest) ProtoMessage() {}
 
 func (x *PollJobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[95]
+	mi := &file_api_v1_engine_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7225,7 +9897,7 @@ func (x *PollJobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobsRequest.ProtoReflect.Descriptor instead.
 func (*PollJobsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{95}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *PollJobsRequest) GetWorkerId() string {
@@ -7280,7 +9952,7 @@ type PollJobsResponse struct {
 
 func (x *PollJobsResponse) Reset() {
 	*x = PollJobsResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[96]
+	mi := &file_api_v1_engine_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7292,7 +9964,7 @@ func (x *PollJobsResponse) String() string {
 func (*PollJobsResponse) ProtoMessage() {}
 
 func (x *PollJobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[96]
+	mi := &file_api_v1_engine_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7305,7 +9977,7 @@ func (x *PollJobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobsResponse.ProtoReflect.Descriptor instead.
 func (*PollJobsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{96}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *PollJobsResponse) GetJobs() []*JobAssignment {
@@ -7328,7 +10000,7 @@ type WorkerSlotPolicy struct {
 
 func (x *WorkerSlotPolicy) Reset() {
 	*x = WorkerSlotPolicy{}
-	mi := &file_api_v1_engine_proto_msgTypes[97]
+	mi := &file_api_v1_engine_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7340,7 +10012,7 @@ func (x *WorkerSlotPolicy) String() string {
 func (*WorkerSlotPolicy) ProtoMessage() {}
 
 func (x *WorkerSlotPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[97]
+	mi := &file_api_v1_engine_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7353,7 +10025,7 @@ func (x *WorkerSlotPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerSlotPolicy.ProtoReflect.Descriptor instead.
 func (*WorkerSlotPolicy) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{97}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *WorkerSlotPolicy) GetMinSlots() uint32 {
@@ -7409,7 +10081,7 @@ type RegisterWorkerSessionRequest struct {
 
 func (x *RegisterWorkerSessionRequest) Reset() {
 	*x = RegisterWorkerSessionRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[98]
+	mi := &file_api_v1_engine_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7421,7 +10093,7 @@ func (x *RegisterWorkerSessionRequest) String() string {
 func (*RegisterWorkerSessionRequest) ProtoMessage() {}
 
 func (x *RegisterWorkerSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[98]
+	mi := &file_api_v1_engine_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7434,7 +10106,7 @@ func (x *RegisterWorkerSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterWorkerSessionRequest.ProtoReflect.Descriptor instead.
 func (*RegisterWorkerSessionRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{98}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *RegisterWorkerSessionRequest) GetWorkerId() string {
@@ -7518,7 +10190,7 @@ type RegisterWorkerSessionResponse struct {
 
 func (x *RegisterWorkerSessionResponse) Reset() {
 	*x = RegisterWorkerSessionResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[99]
+	mi := &file_api_v1_engine_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7530,7 +10202,7 @@ func (x *RegisterWorkerSessionResponse) String() string {
 func (*RegisterWorkerSessionResponse) ProtoMessage() {}
 
 func (x *RegisterWorkerSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[99]
+	mi := &file_api_v1_engine_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7543,7 +10215,7 @@ func (x *RegisterWorkerSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterWorkerSessionResponse.ProtoReflect.Descriptor instead.
 func (*RegisterWorkerSessionResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{99}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *RegisterWorkerSessionResponse) GetWorkerSessionId() string {
@@ -7579,7 +10251,7 @@ type PollJobRequest struct {
 
 func (x *PollJobRequest) Reset() {
 	*x = PollJobRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[100]
+	mi := &file_api_v1_engine_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7591,7 +10263,7 @@ func (x *PollJobRequest) String() string {
 func (*PollJobRequest) ProtoMessage() {}
 
 func (x *PollJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[100]
+	mi := &file_api_v1_engine_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7604,7 +10276,7 @@ func (x *PollJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobRequest.ProtoReflect.Descriptor instead.
 func (*PollJobRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{100}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *PollJobRequest) GetWorkerId() string {
@@ -7644,7 +10316,7 @@ type PollJobResponse struct {
 
 func (x *PollJobResponse) Reset() {
 	*x = PollJobResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[101]
+	mi := &file_api_v1_engine_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7656,7 +10328,7 @@ func (x *PollJobResponse) String() string {
 func (*PollJobResponse) ProtoMessage() {}
 
 func (x *PollJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[101]
+	mi := &file_api_v1_engine_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7669,7 +10341,7 @@ func (x *PollJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobResponse.ProtoReflect.Descriptor instead.
 func (*PollJobResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{101}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *PollJobResponse) GetJob() *JobAssignment {
@@ -7700,7 +10372,7 @@ type JobAssignment struct {
 
 func (x *JobAssignment) Reset() {
 	*x = JobAssignment{}
-	mi := &file_api_v1_engine_proto_msgTypes[102]
+	mi := &file_api_v1_engine_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7712,7 +10384,7 @@ func (x *JobAssignment) String() string {
 func (*JobAssignment) ProtoMessage() {}
 
 func (x *JobAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[102]
+	mi := &file_api_v1_engine_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7725,7 +10397,7 @@ func (x *JobAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobAssignment.ProtoReflect.Descriptor instead.
 func (*JobAssignment) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{102}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *JobAssignment) GetJobId() string {
@@ -7825,7 +10497,7 @@ type RenewJobLeaseRequest struct {
 
 func (x *RenewJobLeaseRequest) Reset() {
 	*x = RenewJobLeaseRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[103]
+	mi := &file_api_v1_engine_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7837,7 +10509,7 @@ func (x *RenewJobLeaseRequest) String() string {
 func (*RenewJobLeaseRequest) ProtoMessage() {}
 
 func (x *RenewJobLeaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[103]
+	mi := &file_api_v1_engine_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7850,7 +10522,7 @@ func (x *RenewJobLeaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewJobLeaseRequest.ProtoReflect.Descriptor instead.
 func (*RenewJobLeaseRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{103}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *RenewJobLeaseRequest) GetWorkerId() string {
@@ -7898,7 +10570,7 @@ type RenewJobLeaseResponse struct {
 
 func (x *RenewJobLeaseResponse) Reset() {
 	*x = RenewJobLeaseResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[104]
+	mi := &file_api_v1_engine_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7910,7 +10582,7 @@ func (x *RenewJobLeaseResponse) String() string {
 func (*RenewJobLeaseResponse) ProtoMessage() {}
 
 func (x *RenewJobLeaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[104]
+	mi := &file_api_v1_engine_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7923,7 +10595,7 @@ func (x *RenewJobLeaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewJobLeaseResponse.ProtoReflect.Descriptor instead.
 func (*RenewJobLeaseResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{104}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *RenewJobLeaseResponse) GetRenewed() bool {
@@ -7957,7 +10629,7 @@ type ReportWorkerCapacityRequest struct {
 
 func (x *ReportWorkerCapacityRequest) Reset() {
 	*x = ReportWorkerCapacityRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[105]
+	mi := &file_api_v1_engine_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7969,7 +10641,7 @@ func (x *ReportWorkerCapacityRequest) String() string {
 func (*ReportWorkerCapacityRequest) ProtoMessage() {}
 
 func (x *ReportWorkerCapacityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[105]
+	mi := &file_api_v1_engine_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7982,7 +10654,7 @@ func (x *ReportWorkerCapacityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportWorkerCapacityRequest.ProtoReflect.Descriptor instead.
 func (*ReportWorkerCapacityRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{105}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *ReportWorkerCapacityRequest) GetWorkerId() string {
@@ -8058,7 +10730,7 @@ type ReportWorkerCapacityResponse struct {
 
 func (x *ReportWorkerCapacityResponse) Reset() {
 	*x = ReportWorkerCapacityResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[106]
+	mi := &file_api_v1_engine_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8070,7 +10742,7 @@ func (x *ReportWorkerCapacityResponse) String() string {
 func (*ReportWorkerCapacityResponse) ProtoMessage() {}
 
 func (x *ReportWorkerCapacityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[106]
+	mi := &file_api_v1_engine_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8083,7 +10755,7 @@ func (x *ReportWorkerCapacityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportWorkerCapacityResponse.ProtoReflect.Descriptor instead.
 func (*ReportWorkerCapacityResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{106}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *ReportWorkerCapacityResponse) GetAccepted() bool {
@@ -8123,7 +10795,7 @@ type CompleteJobRequest struct {
 
 func (x *CompleteJobRequest) Reset() {
 	*x = CompleteJobRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[107]
+	mi := &file_api_v1_engine_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8135,7 +10807,7 @@ func (x *CompleteJobRequest) String() string {
 func (*CompleteJobRequest) ProtoMessage() {}
 
 func (x *CompleteJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[107]
+	mi := &file_api_v1_engine_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8148,7 +10820,7 @@ func (x *CompleteJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteJobRequest.ProtoReflect.Descriptor instead.
 func (*CompleteJobRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{107}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *CompleteJobRequest) GetJobId() string {
@@ -8238,7 +10910,7 @@ type CompleteJobResponse struct {
 
 func (x *CompleteJobResponse) Reset() {
 	*x = CompleteJobResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[108]
+	mi := &file_api_v1_engine_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8250,7 +10922,7 @@ func (x *CompleteJobResponse) String() string {
 func (*CompleteJobResponse) ProtoMessage() {}
 
 func (x *CompleteJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[108]
+	mi := &file_api_v1_engine_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8263,7 +10935,7 @@ func (x *CompleteJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteJobResponse.ProtoReflect.Descriptor instead.
 func (*CompleteJobResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{108}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *CompleteJobResponse) GetAcknowledged() bool {
@@ -8955,7 +11627,240 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x1a\n" +
 	"\bmemoized\x18\x03 \x01(\bR\bmemoized\x12#\n" +
-	"\rcached_output\x18\x04 \x01(\fR\fcachedOutput\"\xfe\x01\n" +
+	"\rcached_output\x18\x04 \x01(\fR\fcachedOutput\"\xa1\x01\n" +
+	"\x15ActivationErrorDetail\x12/\n" +
+	"\x04code\x18\x01 \x01(\x0e2\x1b.api.v1.ActivationErrorCodeR\x04code\x12#\n" +
+	"\ractivation_id\x18\x02 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x03 \x01(\rR\aattempt\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\xba\x01\n" +
+	"\x19ImmutablePayloadReference\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x10\n" +
+	"\x03uri\x18\x03 \x01(\tR\x03uri\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x04 \x01(\x04R\tsizeBytes\x12\x16\n" +
+	"\x06sha256\x18\x05 \x01(\fR\x06sha256\x12!\n" +
+	"\fcontent_type\x18\x06 \x01(\tR\vcontentType\"\x82\x01\n" +
+	"\x11ActivationPayload\x12!\n" +
+	"\vinline_data\x18\x01 \x01(\fH\x00R\n" +
+	"inlineData\x12A\n" +
+	"\treference\x18\x02 \x01(\v2!.api.v1.ImmutablePayloadReferenceH\x00R\treferenceB\a\n" +
+	"\x05value\"\x89\x02\n" +
+	"\x17ActivationStateMutation\x12!\n" +
+	"\foperation_id\x18\x01 \x01(\tR\voperationId\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
+	"entityType\x12\x1d\n" +
+	"\n" +
+	"entity_key\x18\x03 \x01(\tR\tentityKey\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\x12\x19\n" +
+	"\bscope_id\x18\x05 \x01(\tR\ascopeId\x12\x12\n" +
+	"\x04data\x18\x06 \x01(\fR\x04data\x12\x1b\n" +
+	"\tdata_type\x18\a \x01(\tR\bdataType\x12)\n" +
+	"\x10expected_version\x18\b \x01(\x03R\x0fexpectedVersion\"\xa7\x01\n" +
+	"\x16ActivationOutboxIntent\x12\x1b\n" +
+	"\tintent_id\x18\x01 \x01(\tR\bintentId\x12\x12\n" +
+	"\x04kind\x18\x02 \x01(\tR\x04kind\x12'\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\x123\n" +
+	"\apayload\x18\x04 \x01(\v2\x19.api.v1.ActivationPayloadR\apayload\"\xb9\x01\n" +
+	"\x0fActivationUsage\x12\x1b\n" +
+	"\ttokens_in\x18\x01 \x01(\x03R\btokensIn\x12\x1d\n" +
+	"\n" +
+	"tokens_out\x18\x02 \x01(\x03R\ttokensOut\x12\x19\n" +
+	"\bcost_usd\x18\x03 \x01(\x01R\acostUsd\x12\x1d\n" +
+	"\n" +
+	"latency_ms\x18\x04 \x01(\x03R\tlatencyMs\x12\x1a\n" +
+	"\bprovider\x18\x05 \x01(\tR\bprovider\x12\x14\n" +
+	"\x05model\x18\x06 \x01(\tR\x05model\"\x86\x01\n" +
+	"\x12ActivationEvidence\x12#\n" +
+	"\revidence_type\x18\x01 \x01(\tR\fevidenceType\x123\n" +
+	"\apayload\x18\x02 \x01(\v2\x19.api.v1.ActivationPayloadR\apayload\x12\x16\n" +
+	"\x06sha256\x18\x03 \x01(\fR\x06sha256\"\xe0\x03\n" +
+	"\x16BeginActivationRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x120\n" +
+	"\x14parent_activation_id\x18\x03 \x01(\tR\x12parentActivationId\x12*\n" +
+	"\x04kind\x18\x04 \x01(\x0e2\x16.api.v1.ActivationKindR\x04kind\x12\x1d\n" +
+	"\n" +
+	"stable_key\x18\x05 \x01(\tR\tstableKey\x12!\n" +
+	"\finput_digest\x18\x06 \x01(\fR\vinputDigest\x12+\n" +
+	"\x11definition_digest\x18\a \x01(\fR\x10definitionDigest\x12I\n" +
+	"\x0frecovery_policy\x18\b \x01(\x0e2 .api.v1.ActivationRecoveryPolicyR\x0erecoveryPolicy\x12*\n" +
+	"\x11worker_session_id\x18\t \x01(\tR\x0fworkerSessionId\x12#\n" +
+	"\rrun_authority\x18\n" +
+	" \x01(\fR\frunAuthority\x12'\n" +
+	"\x0flease_authority\x18\v \x01(\fR\x0eleaseAuthority\"\xd5\x02\n" +
+	"\x19ActivationConflictReceipt\x12:\n" +
+	"\n" +
+	"error_code\x18\x01 \x01(\x0e2\x1b.api.v1.ActivationErrorCodeR\terrorCode\x122\n" +
+	"\x15expected_input_digest\x18\x02 \x01(\fR\x13expectedInputDigest\x122\n" +
+	"\x15provided_input_digest\x18\x03 \x01(\fR\x13providedInputDigest\x12<\n" +
+	"\x1aexpected_definition_digest\x18\x04 \x01(\fR\x18expectedDefinitionDigest\x12<\n" +
+	"\x1aprovided_definition_digest\x18\x05 \x01(\fR\x18providedDefinitionDigest\x12\x18\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\"\xa2\x01\n" +
+	"\x15ActivationWaitReceipt\x12\x18\n" +
+	"\aattempt\x18\x01 \x01(\rR\aattempt\x127\n" +
+	"\x18active_worker_session_id\x18\x02 \x01(\tR\x15activeWorkerSessionId\x126\n" +
+	"\x17accepted_journal_offset\x18\x03 \x01(\x04R\x15acceptedJournalOffset\"\xb2\x01\n" +
+	"\x1fActivationUnknownOutcomeReceipt\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x01 \x01(\tR\terrorCode\x128\n" +
+	"\n" +
+	"error_data\x18\x02 \x01(\v2\x19.api.v1.ActivationPayloadR\terrorData\x126\n" +
+	"\x17accepted_journal_offset\x18\x03 \x01(\x04R\x15acceptedJournalOffset\"\xef\x03\n" +
+	"\x17BeginActivationResponse\x128\n" +
+	"\aoutcome\x18\x01 \x01(\x0e2\x1e.api.v1.BeginActivationOutcomeR\aoutcome\x12#\n" +
+	"\ractivation_id\x18\x02 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x03 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x04 \x01(\fR\n" +
+	"fenceToken\x126\n" +
+	"\x17accepted_journal_offset\x18\x05 \x01(\x04R\x15acceptedJournalOffset\x12>\n" +
+	"\rreplay_result\x18\x06 \x01(\v2\x19.api.v1.ActivationPayloadR\freplayResult\x12=\n" +
+	"\bconflict\x18\a \x01(\v2!.api.v1.ActivationConflictReceiptR\bconflict\x121\n" +
+	"\x04wait\x18\b \x01(\v2\x1d.api.v1.ActivationWaitReceiptR\x04wait\x12P\n" +
+	"\x0funknown_outcome\x18\t \x01(\v2'.api.v1.ActivationUnknownOutcomeReceiptR\x0eunknownOutcome\"\x81\x04\n" +
+	"\x19CompleteActivationRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x05 \x01(\fR\n" +
+	"fenceToken\x121\n" +
+	"\x06output\x18\x06 \x01(\v2\x19.api.v1.ActivationPayloadR\x06output\x12#\n" +
+	"\routput_digest\x18\a \x01(\fR\foutputDigest\x12H\n" +
+	"\x0fstate_mutations\x18\b \x03(\v2\x1f.api.v1.ActivationStateMutationR\x0estateMutations\x12E\n" +
+	"\x0eoutbox_intents\x18\t \x03(\v2\x1e.api.v1.ActivationOutboxIntentR\routboxIntents\x12-\n" +
+	"\x05usage\x18\n" +
+	" \x01(\v2\x17.api.v1.ActivationUsageR\x05usage\x126\n" +
+	"\bevidence\x18\v \x03(\v2\x1a.api.v1.ActivationEvidenceR\bevidence\"\xcb\x01\n" +
+	"\x1aCompleteActivationResponse\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x1a\n" +
+	"\breplayed\x18\x02 \x01(\bR\breplayed\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x126\n" +
+	"\x17accepted_journal_offset\x18\x05 \x01(\x04R\x15acceptedJournalOffset\"\xc6\x03\n" +
+	"\x15FailActivationRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x05 \x01(\fR\n" +
+	"fenceToken\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x06 \x01(\tR\terrorCode\x128\n" +
+	"\n" +
+	"error_data\x18\a \x01(\v2\x19.api.v1.ActivationPayloadR\terrorData\x12\x1c\n" +
+	"\tretryable\x18\b \x01(\bR\tretryable\x12h\n" +
+	"\x1aexternal_outcome_certainty\x18\t \x01(\x0e2*.api.v1.ActivationExternalOutcomeCertaintyR\x18externalOutcomeCertainty\x126\n" +
+	"\bevidence\x18\n" +
+	" \x03(\v2\x1a.api.v1.ActivationEvidenceR\bevidence\"\xf9\x01\n" +
+	"\x16FailActivationResponse\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x1a\n" +
+	"\breplayed\x18\x02 \x01(\bR\breplayed\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x120\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x18.api.v1.ActivationStatusR\x06status\x126\n" +
+	"\x17accepted_journal_offset\x18\x06 \x01(\x04R\x15acceptedJournalOffset\"\xec\x04\n" +
+	"\x17ActivationStartedRecord\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x120\n" +
+	"\x14parent_activation_id\x18\x03 \x01(\tR\x12parentActivationId\x12#\n" +
+	"\ractivation_id\x18\x04 \x01(\tR\factivationId\x12*\n" +
+	"\x04kind\x18\x05 \x01(\x0e2\x16.api.v1.ActivationKindR\x04kind\x12\x1d\n" +
+	"\n" +
+	"stable_key\x18\x06 \x01(\tR\tstableKey\x12!\n" +
+	"\finput_digest\x18\a \x01(\fR\vinputDigest\x12+\n" +
+	"\x11definition_digest\x18\b \x01(\fR\x10definitionDigest\x12I\n" +
+	"\x0frecovery_policy\x18\t \x01(\x0e2 .api.v1.ActivationRecoveryPolicyR\x0erecoveryPolicy\x12\x18\n" +
+	"\aattempt\x18\n" +
+	" \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\v \x01(\fR\n" +
+	"fenceToken\x12*\n" +
+	"\x11worker_session_id\x18\f \x01(\tR\x0fworkerSessionId\x12#\n" +
+	"\rrun_authority\x18\r \x01(\fR\frunAuthority\x12'\n" +
+	"\x0flease_authority\x18\x0e \x01(\fR\x0eleaseAuthority\x12)\n" +
+	"\x10previous_attempt\x18\x0f \x01(\rR\x0fpreviousAttempt\"\x81\x04\n" +
+	"\x19ActivationCompletedRecord\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x05 \x01(\fR\n" +
+	"fenceToken\x121\n" +
+	"\x06output\x18\x06 \x01(\v2\x19.api.v1.ActivationPayloadR\x06output\x12#\n" +
+	"\routput_digest\x18\a \x01(\fR\foutputDigest\x12H\n" +
+	"\x0fstate_mutations\x18\b \x03(\v2\x1f.api.v1.ActivationStateMutationR\x0estateMutations\x12E\n" +
+	"\x0eoutbox_intents\x18\t \x03(\v2\x1e.api.v1.ActivationOutboxIntentR\routboxIntents\x12-\n" +
+	"\x05usage\x18\n" +
+	" \x01(\v2\x17.api.v1.ActivationUsageR\x05usage\x126\n" +
+	"\bevidence\x18\v \x03(\v2\x1a.api.v1.ActivationEvidenceR\bevidence\"\xc7\x03\n" +
+	"\x16ActivationFailedRecord\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x05 \x01(\fR\n" +
+	"fenceToken\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\x06 \x01(\tR\terrorCode\x128\n" +
+	"\n" +
+	"error_data\x18\a \x01(\v2\x19.api.v1.ActivationPayloadR\terrorData\x12\x1c\n" +
+	"\tretryable\x18\b \x01(\bR\tretryable\x12h\n" +
+	"\x1aexternal_outcome_certainty\x18\t \x01(\x0e2*.api.v1.ActivationExternalOutcomeCertaintyR\x18externalOutcomeCertainty\x126\n" +
+	"\bevidence\x18\n" +
+	" \x03(\v2\x1a.api.v1.ActivationEvidenceR\bevidence\"\xd6\x01\n" +
+	"\x19ActivationSuspendedRecord\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x05 \x01(\fR\n" +
+	"fenceToken\x12#\n" +
+	"\rresume_source\x18\x06 \x01(\tR\fresumeSource\"\xa8\x01\n" +
+	"\x19ActivationCancelledRecord\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x04 \x01(\rR\aattempt\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"Z\n" +
+	"\x1eActivationUnknownOutcomeRecord\x128\n" +
+	"\afailure\x18\x01 \x01(\v2\x1e.api.v1.ActivationFailedRecordR\afailure\"\xb0\x04\n" +
+	"\x18ActivationSnapshotRecord\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
+	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12#\n" +
+	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x120\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x18.api.v1.ActivationStatusR\x06status\x12H\n" +
+	"\x0fcurrent_attempt\x18\x05 \x01(\v2\x1f.api.v1.ActivationStartedRecordR\x0ecurrentAttempt\x12A\n" +
+	"\n" +
+	"completion\x18\x06 \x01(\v2!.api.v1.ActivationCompletedRecordR\n" +
+	"completion\x128\n" +
+	"\afailure\x18\a \x01(\v2\x1e.api.v1.ActivationFailedRecordR\afailure\x126\n" +
+	"\x17accepted_journal_offset\x18\b \x01(\x04R\x15acceptedJournalOffset\x12A\n" +
+	"\n" +
+	"suspension\x18\t \x01(\v2!.api.v1.ActivationSuspendedRecordR\n" +
+	"suspension\x12E\n" +
+	"\fcancellation\x18\n" +
+	" \x01(\v2!.api.v1.ActivationCancelledRecordR\fcancellation\"\x8f\x04\n" +
+	"\x17ActivationJournalRecord\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\rR\aversion\x12;\n" +
+	"\astarted\x18\n" +
+	" \x01(\v2\x1f.api.v1.ActivationStartedRecordH\x00R\astarted\x12A\n" +
+	"\tcompleted\x18\v \x01(\v2!.api.v1.ActivationCompletedRecordH\x00R\tcompleted\x128\n" +
+	"\x06failed\x18\f \x01(\v2\x1e.api.v1.ActivationFailedRecordH\x00R\x06failed\x12A\n" +
+	"\tsuspended\x18\r \x01(\v2!.api.v1.ActivationSuspendedRecordH\x00R\tsuspended\x12A\n" +
+	"\tcancelled\x18\x0e \x01(\v2!.api.v1.ActivationCancelledRecordH\x00R\tcancelled\x12>\n" +
+	"\bsnapshot\x18\x0f \x01(\v2 .api.v1.ActivationSnapshotRecordH\x00R\bsnapshot\x12Q\n" +
+	"\x0funknown_outcome\x18\x10 \x01(\v2&.api.v1.ActivationUnknownOutcomeRecordH\x00R\x0eunknownOutcomeB\a\n" +
+	"\x05event\"\xfe\x01\n" +
 	"\x12EventStreamMessage\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x1d\n" +
 	"\n" +
@@ -9083,12 +11988,65 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x1cCHECKPOINT_TYPE_STEP_STARTED\x10\x01\x12\"\n" +
 	"\x1eCHECKPOINT_TYPE_STEP_COMPLETED\x10\x02\x12\x1f\n" +
 	"\x1bCHECKPOINT_TYPE_STEP_FAILED\x10\x03\x12\"\n" +
-	"\x1eCHECKPOINT_TYPE_STATE_SNAPSHOT\x10\x042\xaf\x15\n" +
+	"\x1eCHECKPOINT_TYPE_STATE_SNAPSHOT\x10\x04*\x92\x02\n" +
+	"\x0eActivationKind\x12\x1f\n" +
+	"\x1bACTIVATION_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14ACTIVATION_KIND_STEP\x10\x01\x12\x1c\n" +
+	"\x18ACTIVATION_KIND_FUNCTION\x10\x02\x12\x19\n" +
+	"\x15ACTIVATION_KIND_MODEL\x10\x03\x12\x18\n" +
+	"\x14ACTIVATION_KIND_TOOL\x10\x04\x12\x19\n" +
+	"\x15ACTIVATION_KIND_CHILD\x10\x05\x12\x1c\n" +
+	"\x18ACTIVATION_KIND_APPROVAL\x10\x06\x12\x19\n" +
+	"\x15ACTIVATION_KIND_TIMER\x10\a\x12\x18\n" +
+	"\x14ACTIVATION_KIND_EVAL\x10\b\"\x04\b\t\x10\x0f*\xad\x02\n" +
+	"\x16BeginActivationOutcome\x12(\n" +
+	"$BEGIN_ACTIVATION_OUTCOME_UNSPECIFIED\x10\x00\x12$\n" +
+	" BEGIN_ACTIVATION_OUTCOME_EXECUTE\x10\x01\x12#\n" +
+	"\x1fBEGIN_ACTIVATION_OUTCOME_REPLAY\x10\x02\x12!\n" +
+	"\x1dBEGIN_ACTIVATION_OUTCOME_WAIT\x10\x03\x12%\n" +
+	"!BEGIN_ACTIVATION_OUTCOME_CONFLICT\x10\x04\x12&\n" +
+	"\"BEGIN_ACTIVATION_OUTCOME_CANCELLED\x10\x05\x12,\n" +
+	"(BEGIN_ACTIVATION_OUTCOME_UNKNOWN_OUTCOME\x10\x06*\xa5\x02\n" +
+	"\x18ActivationRecoveryPolicy\x12*\n" +
+	"&ACTIVATION_RECOVERY_POLICY_UNSPECIFIED\x10\x00\x12/\n" +
+	"+ACTIVATION_RECOVERY_POLICY_IDEMPOTENT_RETRY\x10\x01\x12,\n" +
+	"(ACTIVATION_RECOVERY_POLICY_DURABLE_STEPS\x10\x02\x12.\n" +
+	"*ACTIVATION_RECOVERY_POLICY_UNKNOWN_OUTCOME\x10\x03\x12)\n" +
+	"%ACTIVATION_RECOVERY_POLICY_COMPENSATE\x10\x04\x12#\n" +
+	"\x1fACTIVATION_RECOVERY_POLICY_FAIL\x10\x05*\xff\x01\n" +
+	"\"ActivationExternalOutcomeCertainty\x125\n" +
+	"1ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED\x10\x00\x123\n" +
+	"/ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_NO_EFFECT\x10\x01\x12:\n" +
+	"6ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_EFFECT_COMMITTED\x10\x02\x121\n" +
+	"-ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN\x10\x03*\x9e\x02\n" +
+	"\x10ActivationStatus\x12!\n" +
+	"\x1dACTIVATION_STATUS_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18ACTIVATION_STATUS_ACTIVE\x10\x01\x12!\n" +
+	"\x1dACTIVATION_STATUS_RETRY_READY\x10\x02\x12\x1f\n" +
+	"\x1bACTIVATION_STATUS_COMPLETED\x10\x03\x12\x1c\n" +
+	"\x18ACTIVATION_STATUS_FAILED\x10\x04\x12\x1f\n" +
+	"\x1bACTIVATION_STATUS_SUSPENDED\x10\x05\x12\x1f\n" +
+	"\x1bACTIVATION_STATUS_CANCELLED\x10\x06\x12%\n" +
+	"!ACTIVATION_STATUS_UNKNOWN_OUTCOME\x10\a*\xe5\x03\n" +
+	"\x13ActivationErrorCode\x12%\n" +
+	"!ACTIVATION_ERROR_CODE_UNSPECIFIED\x10\x00\x121\n" +
+	"-ACTIVATION_ERROR_CODE_NONDETERMINISTIC_REPLAY\x10\x01\x12)\n" +
+	"%ACTIVATION_ERROR_CODE_STALE_AUTHORITY\x10\x02\x12/\n" +
+	"+ACTIVATION_ERROR_CODE_UNKNOWN_WRITE_OUTCOME\x10\x03\x12*\n" +
+	"&ACTIVATION_ERROR_CODE_PAYLOAD_CONFLICT\x10\x04\x12,\n" +
+	"(ACTIVATION_ERROR_CODE_ILLEGAL_TRANSITION\x10\x05\x12*\n" +
+	"&ACTIVATION_ERROR_CODE_INVALID_ARGUMENT\x10\x06\x122\n" +
+	".ACTIVATION_ERROR_CODE_INLINE_PAYLOAD_TOO_LARGE\x10\a\x12,\n" +
+	"(ACTIVATION_ERROR_CODE_REFERENCE_REQUIRED\x10\b\x120\n" +
+	",ACTIVATION_ERROR_CODE_STATE_VERSION_CONFLICT\x10\t2\xb1\x17\n" +
 	"\rEngineService\x127\n" +
 	"\x06Append\x12\x15.api.v1.AppendRequest\x1a\x16.api.v1.AppendResponse\x12F\n" +
 	"\vAppendBatch\x12\x1a.api.v1.AppendBatchRequest\x1a\x1b.api.v1.AppendBatchResponse\x12C\n" +
 	"\n" +
-	"Checkpoint\x12\x19.api.v1.CheckpointRequest\x1a\x1a.api.v1.CheckpointResponse\x12C\n" +
+	"Checkpoint\x12\x19.api.v1.CheckpointRequest\x1a\x1a.api.v1.CheckpointResponse\x12R\n" +
+	"\x0fBeginActivation\x12\x1e.api.v1.BeginActivationRequest\x1a\x1f.api.v1.BeginActivationResponse\x12[\n" +
+	"\x12CompleteActivation\x12!.api.v1.CompleteActivationRequest\x1a\".api.v1.CompleteActivationResponse\x12O\n" +
+	"\x0eFailActivation\x12\x1d.api.v1.FailActivationRequest\x1a\x1e.api.v1.FailActivationResponse\x12C\n" +
 	"\vEventStream\x12\x1a.api.v1.EventStreamMessage\x1a\x16.api.v1.EventStreamAck(\x01\x12=\n" +
 	"\bPollJobs\x12\x17.api.v1.PollJobsRequest\x1a\x18.api.v1.PollJobsResponse\x12d\n" +
 	"\x15RegisterWorkerSession\x12$.api.v1.RegisterWorkerSessionRequest\x1a%.api.v1.RegisterWorkerSessionResponse\x12:\n" +
@@ -9153,311 +12111,393 @@ func file_api_v1_engine_proto_rawDescGZIP() []byte {
 	return file_api_v1_engine_proto_rawDescData
 }
 
-var file_api_v1_engine_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_api_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 116)
+var file_api_v1_engine_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_api_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 140)
 var file_api_v1_engine_proto_goTypes = []any{
 	(CheckpointType)(0),                       // 0: api.v1.CheckpointType
-	(*Record)(nil),                            // 1: api.v1.Record
-	(*AppendRequest)(nil),                     // 2: api.v1.AppendRequest
-	(*AppendResponse)(nil),                    // 3: api.v1.AppendResponse
-	(*AppendBatchRequest)(nil),                // 4: api.v1.AppendBatchRequest
-	(*AppendBatchResponse)(nil),               // 5: api.v1.AppendBatchResponse
-	(*ReadByRunIDRequest)(nil),                // 6: api.v1.ReadByRunIDRequest
-	(*ReadByRunIDResponse)(nil),               // 7: api.v1.ReadByRunIDResponse
-	(*FindByStepKeyRequest)(nil),              // 8: api.v1.FindByStepKeyRequest
-	(*FindByStepKeyResponse)(nil),             // 9: api.v1.FindByStepKeyResponse
-	(*GetRunRequest)(nil),                     // 10: api.v1.GetRunRequest
-	(*GetRunResponse)(nil),                    // 11: api.v1.GetRunResponse
-	(*ListRoutingWorkersRequest)(nil),         // 12: api.v1.ListRoutingWorkersRequest
-	(*ListRoutingWorkersResponse)(nil),        // 13: api.v1.ListRoutingWorkersResponse
-	(*Run)(nil),                               // 14: api.v1.Run
-	(*ModelUsage)(nil),                        // 15: api.v1.ModelUsage
-	(*TailRequest)(nil),                       // 16: api.v1.TailRequest
-	(*TailResponse)(nil),                      // 17: api.v1.TailResponse
-	(*GetStatusRequest)(nil),                  // 18: api.v1.GetStatusRequest
-	(*GetStatusResponse)(nil),                 // 19: api.v1.GetStatusResponse
-	(*StoreRequest)(nil),                      // 20: api.v1.StoreRequest
-	(*StoreResponse)(nil),                     // 21: api.v1.StoreResponse
-	(*GetRecordsRequest)(nil),                 // 22: api.v1.GetRecordsRequest
-	(*GetRecordsResponse)(nil),                // 23: api.v1.GetRecordsResponse
-	(*SealRequest)(nil),                       // 24: api.v1.SealRequest
-	(*SealResponse)(nil),                      // 25: api.v1.SealResponse
-	(*HeartbeatRequest)(nil),                  // 26: api.v1.HeartbeatRequest
-	(*HeartbeatResponse)(nil),                 // 27: api.v1.HeartbeatResponse
-	(*PartitionStatus)(nil),                   // 28: api.v1.PartitionStatus
-	(*VoteRequest)(nil),                       // 29: api.v1.VoteRequest
-	(*VoteResponse)(nil),                      // 30: api.v1.VoteResponse
-	(*AnnounceLeaderRequest)(nil),             // 31: api.v1.AnnounceLeaderRequest
-	(*AnnounceLeaderResponse)(nil),            // 32: api.v1.AnnounceLeaderResponse
-	(*ForwardAppendRequest)(nil),              // 33: api.v1.ForwardAppendRequest
-	(*ForwardAppendResponse)(nil),             // 34: api.v1.ForwardAppendResponse
-	(*AddMemberRequest)(nil),                  // 35: api.v1.AddMemberRequest
-	(*AddMemberResponse)(nil),                 // 36: api.v1.AddMemberResponse
-	(*RemoveMemberRequest)(nil),               // 37: api.v1.RemoveMemberRequest
-	(*RemoveMemberResponse)(nil),              // 38: api.v1.RemoveMemberResponse
-	(*TransferLeadershipRequest)(nil),         // 39: api.v1.TransferLeadershipRequest
-	(*TransferLeadershipResponse)(nil),        // 40: api.v1.TransferLeadershipResponse
-	(*GetEntityStateRequest)(nil),             // 41: api.v1.GetEntityStateRequest
-	(*GetEntityStateResponse)(nil),            // 42: api.v1.GetEntityStateResponse
-	(*PutEntityStateRequest)(nil),             // 43: api.v1.PutEntityStateRequest
-	(*PutEntityStateResponse)(nil),            // 44: api.v1.PutEntityStateResponse
-	(*Approval)(nil),                          // 45: api.v1.Approval
-	(*GetApprovalRequest)(nil),                // 46: api.v1.GetApprovalRequest
-	(*GetApprovalResponse)(nil),               // 47: api.v1.GetApprovalResponse
-	(*EngineListApprovalsRequest)(nil),        // 48: api.v1.EngineListApprovalsRequest
-	(*EngineListApprovalsResponse)(nil),       // 49: api.v1.EngineListApprovalsResponse
-	(*Signal)(nil),                            // 50: api.v1.Signal
-	(*GetSignalRequest)(nil),                  // 51: api.v1.GetSignalRequest
-	(*GetSignalResponse)(nil),                 // 52: api.v1.GetSignalResponse
-	(*LookupSignalRequest)(nil),               // 53: api.v1.LookupSignalRequest
-	(*LookupSignalResponse)(nil),              // 54: api.v1.LookupSignalResponse
-	(*ListSignalsRequest)(nil),                // 55: api.v1.ListSignalsRequest
-	(*ListSignalsResponse)(nil),               // 56: api.v1.ListSignalsResponse
-	(*Timer)(nil),                             // 57: api.v1.Timer
-	(*GetTimerRequest)(nil),                   // 58: api.v1.GetTimerRequest
-	(*GetTimerResponse)(nil),                  // 59: api.v1.GetTimerResponse
-	(*ListTimersRequest)(nil),                 // 60: api.v1.ListTimersRequest
-	(*ListTimersResponse)(nil),                // 61: api.v1.ListTimersResponse
-	(*ListDueTimersRequest)(nil),              // 62: api.v1.ListDueTimersRequest
-	(*ListDueTimersResponse)(nil),             // 63: api.v1.ListDueTimersResponse
-	(*Job)(nil),                               // 64: api.v1.Job
-	(*GetJobRequest)(nil),                     // 65: api.v1.GetJobRequest
-	(*GetJobResponse)(nil),                    // 66: api.v1.GetJobResponse
-	(*ListJobsByRunRequest)(nil),              // 67: api.v1.ListJobsByRunRequest
-	(*ListJobsByRunResponse)(nil),             // 68: api.v1.ListJobsByRunResponse
-	(*ListJobsByBatchRequest)(nil),            // 69: api.v1.ListJobsByBatchRequest
-	(*ListJobsByBatchResponse)(nil),           // 70: api.v1.ListJobsByBatchResponse
-	(*Batch)(nil),                             // 71: api.v1.Batch
-	(*GetBatchRequest)(nil),                   // 72: api.v1.GetBatchRequest
-	(*GetBatchResponse)(nil),                  // 73: api.v1.GetBatchResponse
-	(*Session)(nil),                           // 74: api.v1.Session
-	(*GetSessionRequest)(nil),                 // 75: api.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),                // 76: api.v1.GetSessionResponse
-	(*ListSessionsRequest)(nil),               // 77: api.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),              // 78: api.v1.ListSessionsResponse
-	(*ChatMessage)(nil),                       // 79: api.v1.ChatMessage
-	(*GetMessageRequest)(nil),                 // 80: api.v1.GetMessageRequest
-	(*GetMessageResponse)(nil),                // 81: api.v1.GetMessageResponse
-	(*ListMessagesByCorrelationRequest)(nil),  // 82: api.v1.ListMessagesByCorrelationRequest
-	(*ListMessagesByCorrelationResponse)(nil), // 83: api.v1.ListMessagesByCorrelationResponse
-	(*ListRunsRequest)(nil),                   // 84: api.v1.ListRunsRequest
-	(*ListRunsResponse)(nil),                  // 85: api.v1.ListRunsResponse
-	(*ListEventsRequest)(nil),                 // 86: api.v1.ListEventsRequest
-	(*EventSummary)(nil),                      // 87: api.v1.EventSummary
-	(*ListEventsResponse)(nil),                // 88: api.v1.ListEventsResponse
-	(*GetRunStatsRequest)(nil),                // 89: api.v1.GetRunStatsRequest
-	(*GetRunStatsResponse)(nil),               // 90: api.v1.GetRunStatsResponse
-	(*DurableStepCheckpoint)(nil),             // 91: api.v1.DurableStepCheckpoint
-	(*CheckpointRequest)(nil),                 // 92: api.v1.CheckpointRequest
-	(*CheckpointResponse)(nil),                // 93: api.v1.CheckpointResponse
-	(*EventStreamMessage)(nil),                // 94: api.v1.EventStreamMessage
-	(*EventStreamAck)(nil),                    // 95: api.v1.EventStreamAck
-	(*PollJobsRequest)(nil),                   // 96: api.v1.PollJobsRequest
-	(*PollJobsResponse)(nil),                  // 97: api.v1.PollJobsResponse
-	(*WorkerSlotPolicy)(nil),                  // 98: api.v1.WorkerSlotPolicy
-	(*RegisterWorkerSessionRequest)(nil),      // 99: api.v1.RegisterWorkerSessionRequest
-	(*RegisterWorkerSessionResponse)(nil),     // 100: api.v1.RegisterWorkerSessionResponse
-	(*PollJobRequest)(nil),                    // 101: api.v1.PollJobRequest
-	(*PollJobResponse)(nil),                   // 102: api.v1.PollJobResponse
-	(*JobAssignment)(nil),                     // 103: api.v1.JobAssignment
-	(*RenewJobLeaseRequest)(nil),              // 104: api.v1.RenewJobLeaseRequest
-	(*RenewJobLeaseResponse)(nil),             // 105: api.v1.RenewJobLeaseResponse
-	(*ReportWorkerCapacityRequest)(nil),       // 106: api.v1.ReportWorkerCapacityRequest
-	(*ReportWorkerCapacityResponse)(nil),      // 107: api.v1.ReportWorkerCapacityResponse
-	(*CompleteJobRequest)(nil),                // 108: api.v1.CompleteJobRequest
-	(*CompleteJobResponse)(nil),               // 109: api.v1.CompleteJobResponse
-	nil,                                       // 110: api.v1.Record.MetadataEntry
-	nil,                                       // 111: api.v1.Run.MetadataEntry
-	nil,                                       // 112: api.v1.Job.MetadataEntry
-	nil,                                       // 113: api.v1.GetRunStatsResponse.CountByStatusEntry
-	nil,                                       // 114: api.v1.GetRunStatsResponse.CountByComponentTypeEntry
-	nil,                                       // 115: api.v1.JobAssignment.MetadataEntry
-	nil,                                       // 116: api.v1.CompleteJobRequest.MetadataEntry
-	(*WorkerInfo)(nil),                        // 117: api.v1.WorkerInfo
-	(*timestamppb.Timestamp)(nil),             // 118: google.protobuf.Timestamp
-	(Priority)(0),                             // 119: api.v1.Priority
-	(*WorkerCapability)(nil),                  // 120: api.v1.WorkerCapability
-	(*ComponentInfo)(nil),                     // 121: api.v1.ComponentInfo
-	(ComponentType)(0),                        // 122: api.v1.ComponentType
+	(ActivationKind)(0),                       // 1: api.v1.ActivationKind
+	(BeginActivationOutcome)(0),               // 2: api.v1.BeginActivationOutcome
+	(ActivationRecoveryPolicy)(0),             // 3: api.v1.ActivationRecoveryPolicy
+	(ActivationExternalOutcomeCertainty)(0),   // 4: api.v1.ActivationExternalOutcomeCertainty
+	(ActivationStatus)(0),                     // 5: api.v1.ActivationStatus
+	(ActivationErrorCode)(0),                  // 6: api.v1.ActivationErrorCode
+	(*Record)(nil),                            // 7: api.v1.Record
+	(*AppendRequest)(nil),                     // 8: api.v1.AppendRequest
+	(*AppendResponse)(nil),                    // 9: api.v1.AppendResponse
+	(*AppendBatchRequest)(nil),                // 10: api.v1.AppendBatchRequest
+	(*AppendBatchResponse)(nil),               // 11: api.v1.AppendBatchResponse
+	(*ReadByRunIDRequest)(nil),                // 12: api.v1.ReadByRunIDRequest
+	(*ReadByRunIDResponse)(nil),               // 13: api.v1.ReadByRunIDResponse
+	(*FindByStepKeyRequest)(nil),              // 14: api.v1.FindByStepKeyRequest
+	(*FindByStepKeyResponse)(nil),             // 15: api.v1.FindByStepKeyResponse
+	(*GetRunRequest)(nil),                     // 16: api.v1.GetRunRequest
+	(*GetRunResponse)(nil),                    // 17: api.v1.GetRunResponse
+	(*ListRoutingWorkersRequest)(nil),         // 18: api.v1.ListRoutingWorkersRequest
+	(*ListRoutingWorkersResponse)(nil),        // 19: api.v1.ListRoutingWorkersResponse
+	(*Run)(nil),                               // 20: api.v1.Run
+	(*ModelUsage)(nil),                        // 21: api.v1.ModelUsage
+	(*TailRequest)(nil),                       // 22: api.v1.TailRequest
+	(*TailResponse)(nil),                      // 23: api.v1.TailResponse
+	(*GetStatusRequest)(nil),                  // 24: api.v1.GetStatusRequest
+	(*GetStatusResponse)(nil),                 // 25: api.v1.GetStatusResponse
+	(*StoreRequest)(nil),                      // 26: api.v1.StoreRequest
+	(*StoreResponse)(nil),                     // 27: api.v1.StoreResponse
+	(*GetRecordsRequest)(nil),                 // 28: api.v1.GetRecordsRequest
+	(*GetRecordsResponse)(nil),                // 29: api.v1.GetRecordsResponse
+	(*SealRequest)(nil),                       // 30: api.v1.SealRequest
+	(*SealResponse)(nil),                      // 31: api.v1.SealResponse
+	(*HeartbeatRequest)(nil),                  // 32: api.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),                 // 33: api.v1.HeartbeatResponse
+	(*PartitionStatus)(nil),                   // 34: api.v1.PartitionStatus
+	(*VoteRequest)(nil),                       // 35: api.v1.VoteRequest
+	(*VoteResponse)(nil),                      // 36: api.v1.VoteResponse
+	(*AnnounceLeaderRequest)(nil),             // 37: api.v1.AnnounceLeaderRequest
+	(*AnnounceLeaderResponse)(nil),            // 38: api.v1.AnnounceLeaderResponse
+	(*ForwardAppendRequest)(nil),              // 39: api.v1.ForwardAppendRequest
+	(*ForwardAppendResponse)(nil),             // 40: api.v1.ForwardAppendResponse
+	(*AddMemberRequest)(nil),                  // 41: api.v1.AddMemberRequest
+	(*AddMemberResponse)(nil),                 // 42: api.v1.AddMemberResponse
+	(*RemoveMemberRequest)(nil),               // 43: api.v1.RemoveMemberRequest
+	(*RemoveMemberResponse)(nil),              // 44: api.v1.RemoveMemberResponse
+	(*TransferLeadershipRequest)(nil),         // 45: api.v1.TransferLeadershipRequest
+	(*TransferLeadershipResponse)(nil),        // 46: api.v1.TransferLeadershipResponse
+	(*GetEntityStateRequest)(nil),             // 47: api.v1.GetEntityStateRequest
+	(*GetEntityStateResponse)(nil),            // 48: api.v1.GetEntityStateResponse
+	(*PutEntityStateRequest)(nil),             // 49: api.v1.PutEntityStateRequest
+	(*PutEntityStateResponse)(nil),            // 50: api.v1.PutEntityStateResponse
+	(*Approval)(nil),                          // 51: api.v1.Approval
+	(*GetApprovalRequest)(nil),                // 52: api.v1.GetApprovalRequest
+	(*GetApprovalResponse)(nil),               // 53: api.v1.GetApprovalResponse
+	(*EngineListApprovalsRequest)(nil),        // 54: api.v1.EngineListApprovalsRequest
+	(*EngineListApprovalsResponse)(nil),       // 55: api.v1.EngineListApprovalsResponse
+	(*Signal)(nil),                            // 56: api.v1.Signal
+	(*GetSignalRequest)(nil),                  // 57: api.v1.GetSignalRequest
+	(*GetSignalResponse)(nil),                 // 58: api.v1.GetSignalResponse
+	(*LookupSignalRequest)(nil),               // 59: api.v1.LookupSignalRequest
+	(*LookupSignalResponse)(nil),              // 60: api.v1.LookupSignalResponse
+	(*ListSignalsRequest)(nil),                // 61: api.v1.ListSignalsRequest
+	(*ListSignalsResponse)(nil),               // 62: api.v1.ListSignalsResponse
+	(*Timer)(nil),                             // 63: api.v1.Timer
+	(*GetTimerRequest)(nil),                   // 64: api.v1.GetTimerRequest
+	(*GetTimerResponse)(nil),                  // 65: api.v1.GetTimerResponse
+	(*ListTimersRequest)(nil),                 // 66: api.v1.ListTimersRequest
+	(*ListTimersResponse)(nil),                // 67: api.v1.ListTimersResponse
+	(*ListDueTimersRequest)(nil),              // 68: api.v1.ListDueTimersRequest
+	(*ListDueTimersResponse)(nil),             // 69: api.v1.ListDueTimersResponse
+	(*Job)(nil),                               // 70: api.v1.Job
+	(*GetJobRequest)(nil),                     // 71: api.v1.GetJobRequest
+	(*GetJobResponse)(nil),                    // 72: api.v1.GetJobResponse
+	(*ListJobsByRunRequest)(nil),              // 73: api.v1.ListJobsByRunRequest
+	(*ListJobsByRunResponse)(nil),             // 74: api.v1.ListJobsByRunResponse
+	(*ListJobsByBatchRequest)(nil),            // 75: api.v1.ListJobsByBatchRequest
+	(*ListJobsByBatchResponse)(nil),           // 76: api.v1.ListJobsByBatchResponse
+	(*Batch)(nil),                             // 77: api.v1.Batch
+	(*GetBatchRequest)(nil),                   // 78: api.v1.GetBatchRequest
+	(*GetBatchResponse)(nil),                  // 79: api.v1.GetBatchResponse
+	(*Session)(nil),                           // 80: api.v1.Session
+	(*GetSessionRequest)(nil),                 // 81: api.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),                // 82: api.v1.GetSessionResponse
+	(*ListSessionsRequest)(nil),               // 83: api.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),              // 84: api.v1.ListSessionsResponse
+	(*ChatMessage)(nil),                       // 85: api.v1.ChatMessage
+	(*GetMessageRequest)(nil),                 // 86: api.v1.GetMessageRequest
+	(*GetMessageResponse)(nil),                // 87: api.v1.GetMessageResponse
+	(*ListMessagesByCorrelationRequest)(nil),  // 88: api.v1.ListMessagesByCorrelationRequest
+	(*ListMessagesByCorrelationResponse)(nil), // 89: api.v1.ListMessagesByCorrelationResponse
+	(*ListRunsRequest)(nil),                   // 90: api.v1.ListRunsRequest
+	(*ListRunsResponse)(nil),                  // 91: api.v1.ListRunsResponse
+	(*ListEventsRequest)(nil),                 // 92: api.v1.ListEventsRequest
+	(*EventSummary)(nil),                      // 93: api.v1.EventSummary
+	(*ListEventsResponse)(nil),                // 94: api.v1.ListEventsResponse
+	(*GetRunStatsRequest)(nil),                // 95: api.v1.GetRunStatsRequest
+	(*GetRunStatsResponse)(nil),               // 96: api.v1.GetRunStatsResponse
+	(*DurableStepCheckpoint)(nil),             // 97: api.v1.DurableStepCheckpoint
+	(*CheckpointRequest)(nil),                 // 98: api.v1.CheckpointRequest
+	(*CheckpointResponse)(nil),                // 99: api.v1.CheckpointResponse
+	(*ActivationErrorDetail)(nil),             // 100: api.v1.ActivationErrorDetail
+	(*ImmutablePayloadReference)(nil),         // 101: api.v1.ImmutablePayloadReference
+	(*ActivationPayload)(nil),                 // 102: api.v1.ActivationPayload
+	(*ActivationStateMutation)(nil),           // 103: api.v1.ActivationStateMutation
+	(*ActivationOutboxIntent)(nil),            // 104: api.v1.ActivationOutboxIntent
+	(*ActivationUsage)(nil),                   // 105: api.v1.ActivationUsage
+	(*ActivationEvidence)(nil),                // 106: api.v1.ActivationEvidence
+	(*BeginActivationRequest)(nil),            // 107: api.v1.BeginActivationRequest
+	(*ActivationConflictReceipt)(nil),         // 108: api.v1.ActivationConflictReceipt
+	(*ActivationWaitReceipt)(nil),             // 109: api.v1.ActivationWaitReceipt
+	(*ActivationUnknownOutcomeReceipt)(nil),   // 110: api.v1.ActivationUnknownOutcomeReceipt
+	(*BeginActivationResponse)(nil),           // 111: api.v1.BeginActivationResponse
+	(*CompleteActivationRequest)(nil),         // 112: api.v1.CompleteActivationRequest
+	(*CompleteActivationResponse)(nil),        // 113: api.v1.CompleteActivationResponse
+	(*FailActivationRequest)(nil),             // 114: api.v1.FailActivationRequest
+	(*FailActivationResponse)(nil),            // 115: api.v1.FailActivationResponse
+	(*ActivationStartedRecord)(nil),           // 116: api.v1.ActivationStartedRecord
+	(*ActivationCompletedRecord)(nil),         // 117: api.v1.ActivationCompletedRecord
+	(*ActivationFailedRecord)(nil),            // 118: api.v1.ActivationFailedRecord
+	(*ActivationSuspendedRecord)(nil),         // 119: api.v1.ActivationSuspendedRecord
+	(*ActivationCancelledRecord)(nil),         // 120: api.v1.ActivationCancelledRecord
+	(*ActivationUnknownOutcomeRecord)(nil),    // 121: api.v1.ActivationUnknownOutcomeRecord
+	(*ActivationSnapshotRecord)(nil),          // 122: api.v1.ActivationSnapshotRecord
+	(*ActivationJournalRecord)(nil),           // 123: api.v1.ActivationJournalRecord
+	(*EventStreamMessage)(nil),                // 124: api.v1.EventStreamMessage
+	(*EventStreamAck)(nil),                    // 125: api.v1.EventStreamAck
+	(*PollJobsRequest)(nil),                   // 126: api.v1.PollJobsRequest
+	(*PollJobsResponse)(nil),                  // 127: api.v1.PollJobsResponse
+	(*WorkerSlotPolicy)(nil),                  // 128: api.v1.WorkerSlotPolicy
+	(*RegisterWorkerSessionRequest)(nil),      // 129: api.v1.RegisterWorkerSessionRequest
+	(*RegisterWorkerSessionResponse)(nil),     // 130: api.v1.RegisterWorkerSessionResponse
+	(*PollJobRequest)(nil),                    // 131: api.v1.PollJobRequest
+	(*PollJobResponse)(nil),                   // 132: api.v1.PollJobResponse
+	(*JobAssignment)(nil),                     // 133: api.v1.JobAssignment
+	(*RenewJobLeaseRequest)(nil),              // 134: api.v1.RenewJobLeaseRequest
+	(*RenewJobLeaseResponse)(nil),             // 135: api.v1.RenewJobLeaseResponse
+	(*ReportWorkerCapacityRequest)(nil),       // 136: api.v1.ReportWorkerCapacityRequest
+	(*ReportWorkerCapacityResponse)(nil),      // 137: api.v1.ReportWorkerCapacityResponse
+	(*CompleteJobRequest)(nil),                // 138: api.v1.CompleteJobRequest
+	(*CompleteJobResponse)(nil),               // 139: api.v1.CompleteJobResponse
+	nil,                                       // 140: api.v1.Record.MetadataEntry
+	nil,                                       // 141: api.v1.Run.MetadataEntry
+	nil,                                       // 142: api.v1.Job.MetadataEntry
+	nil,                                       // 143: api.v1.GetRunStatsResponse.CountByStatusEntry
+	nil,                                       // 144: api.v1.GetRunStatsResponse.CountByComponentTypeEntry
+	nil,                                       // 145: api.v1.JobAssignment.MetadataEntry
+	nil,                                       // 146: api.v1.CompleteJobRequest.MetadataEntry
+	(*WorkerInfo)(nil),                        // 147: api.v1.WorkerInfo
+	(*timestamppb.Timestamp)(nil),             // 148: google.protobuf.Timestamp
+	(Priority)(0),                             // 149: api.v1.Priority
+	(*WorkerCapability)(nil),                  // 150: api.v1.WorkerCapability
+	(*ComponentInfo)(nil),                     // 151: api.v1.ComponentInfo
+	(ComponentType)(0),                        // 152: api.v1.ComponentType
 }
 var file_api_v1_engine_proto_depIdxs = []int32{
-	110, // 0: api.v1.Record.metadata:type_name -> api.v1.Record.MetadataEntry
-	1,   // 1: api.v1.AppendRequest.record:type_name -> api.v1.Record
-	1,   // 2: api.v1.AppendBatchRequest.records:type_name -> api.v1.Record
-	1,   // 3: api.v1.ReadByRunIDResponse.records:type_name -> api.v1.Record
-	1,   // 4: api.v1.FindByStepKeyResponse.record:type_name -> api.v1.Record
-	14,  // 5: api.v1.GetRunResponse.run:type_name -> api.v1.Run
-	117, // 6: api.v1.ListRoutingWorkersResponse.workers:type_name -> api.v1.WorkerInfo
-	118, // 7: api.v1.Run.submitted_at:type_name -> google.protobuf.Timestamp
-	118, // 8: api.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	118, // 9: api.v1.Run.completed_at:type_name -> google.protobuf.Timestamp
-	118, // 10: api.v1.Run.gateway_received_at:type_name -> google.protobuf.Timestamp
-	118, // 11: api.v1.Run.assigned_at:type_name -> google.protobuf.Timestamp
-	111, // 12: api.v1.Run.metadata:type_name -> api.v1.Run.MetadataEntry
-	119, // 13: api.v1.Run.priority:type_name -> api.v1.Priority
-	15,  // 14: api.v1.Run.model_usage:type_name -> api.v1.ModelUsage
-	1,   // 15: api.v1.TailResponse.record:type_name -> api.v1.Record
-	1,   // 16: api.v1.StoreRequest.records:type_name -> api.v1.Record
-	1,   // 17: api.v1.GetRecordsResponse.records:type_name -> api.v1.Record
-	28,  // 18: api.v1.HeartbeatRequest.partition_statuses:type_name -> api.v1.PartitionStatus
-	28,  // 19: api.v1.HeartbeatResponse.partition_statuses:type_name -> api.v1.PartitionStatus
-	1,   // 20: api.v1.ForwardAppendRequest.records:type_name -> api.v1.Record
-	118, // 21: api.v1.Approval.requested_at:type_name -> google.protobuf.Timestamp
-	118, // 22: api.v1.Approval.expires_at:type_name -> google.protobuf.Timestamp
-	118, // 23: api.v1.Approval.decided_at:type_name -> google.protobuf.Timestamp
-	45,  // 24: api.v1.GetApprovalResponse.approval:type_name -> api.v1.Approval
-	45,  // 25: api.v1.EngineListApprovalsResponse.approvals:type_name -> api.v1.Approval
-	118, // 26: api.v1.Signal.received_at:type_name -> google.protobuf.Timestamp
-	118, // 27: api.v1.Signal.acknowledged_at:type_name -> google.protobuf.Timestamp
-	118, // 28: api.v1.Signal.expires_at:type_name -> google.protobuf.Timestamp
-	50,  // 29: api.v1.GetSignalResponse.signal:type_name -> api.v1.Signal
-	50,  // 30: api.v1.LookupSignalResponse.signal:type_name -> api.v1.Signal
-	50,  // 31: api.v1.ListSignalsResponse.signals:type_name -> api.v1.Signal
-	118, // 32: api.v1.Timer.fire_at:type_name -> google.protobuf.Timestamp
-	118, // 33: api.v1.Timer.fired_at:type_name -> google.protobuf.Timestamp
-	118, // 34: api.v1.Timer.canceled_at:type_name -> google.protobuf.Timestamp
-	118, // 35: api.v1.Timer.expired_at:type_name -> google.protobuf.Timestamp
-	57,  // 36: api.v1.GetTimerResponse.timer:type_name -> api.v1.Timer
-	57,  // 37: api.v1.ListTimersResponse.timers:type_name -> api.v1.Timer
-	57,  // 38: api.v1.ListDueTimersResponse.timers:type_name -> api.v1.Timer
-	112, // 39: api.v1.Job.metadata:type_name -> api.v1.Job.MetadataEntry
-	118, // 40: api.v1.Job.created_at:type_name -> google.protobuf.Timestamp
-	118, // 41: api.v1.Job.claimed_at:type_name -> google.protobuf.Timestamp
-	118, // 42: api.v1.Job.completed_at:type_name -> google.protobuf.Timestamp
-	64,  // 43: api.v1.GetJobResponse.job:type_name -> api.v1.Job
-	64,  // 44: api.v1.ListJobsByRunResponse.jobs:type_name -> api.v1.Job
-	64,  // 45: api.v1.ListJobsByBatchResponse.jobs:type_name -> api.v1.Job
-	118, // 46: api.v1.Batch.submitted_at:type_name -> google.protobuf.Timestamp
-	118, // 47: api.v1.Batch.started_at:type_name -> google.protobuf.Timestamp
-	118, // 48: api.v1.Batch.completed_at:type_name -> google.protobuf.Timestamp
-	71,  // 49: api.v1.GetBatchResponse.batch:type_name -> api.v1.Batch
-	118, // 50: api.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	118, // 51: api.v1.Session.updated_at:type_name -> google.protobuf.Timestamp
-	118, // 52: api.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
-	118, // 53: api.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	74,  // 54: api.v1.GetSessionResponse.session:type_name -> api.v1.Session
-	74,  // 55: api.v1.ListSessionsResponse.sessions:type_name -> api.v1.Session
-	118, // 56: api.v1.ChatMessage.scheduled_at:type_name -> google.protobuf.Timestamp
-	118, // 57: api.v1.ChatMessage.delivered_at:type_name -> google.protobuf.Timestamp
-	118, // 58: api.v1.ChatMessage.created_at:type_name -> google.protobuf.Timestamp
-	79,  // 59: api.v1.GetMessageResponse.message:type_name -> api.v1.ChatMessage
-	79,  // 60: api.v1.ListMessagesByCorrelationResponse.messages:type_name -> api.v1.ChatMessage
-	14,  // 61: api.v1.ListRunsResponse.items:type_name -> api.v1.Run
-	87,  // 62: api.v1.ListEventsResponse.items:type_name -> api.v1.EventSummary
-	113, // 63: api.v1.GetRunStatsResponse.count_by_status:type_name -> api.v1.GetRunStatsResponse.CountByStatusEntry
-	114, // 64: api.v1.GetRunStatsResponse.count_by_component_type:type_name -> api.v1.GetRunStatsResponse.CountByComponentTypeEntry
+	140, // 0: api.v1.Record.metadata:type_name -> api.v1.Record.MetadataEntry
+	7,   // 1: api.v1.AppendRequest.record:type_name -> api.v1.Record
+	7,   // 2: api.v1.AppendBatchRequest.records:type_name -> api.v1.Record
+	7,   // 3: api.v1.ReadByRunIDResponse.records:type_name -> api.v1.Record
+	7,   // 4: api.v1.FindByStepKeyResponse.record:type_name -> api.v1.Record
+	20,  // 5: api.v1.GetRunResponse.run:type_name -> api.v1.Run
+	147, // 6: api.v1.ListRoutingWorkersResponse.workers:type_name -> api.v1.WorkerInfo
+	148, // 7: api.v1.Run.submitted_at:type_name -> google.protobuf.Timestamp
+	148, // 8: api.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	148, // 9: api.v1.Run.completed_at:type_name -> google.protobuf.Timestamp
+	148, // 10: api.v1.Run.gateway_received_at:type_name -> google.protobuf.Timestamp
+	148, // 11: api.v1.Run.assigned_at:type_name -> google.protobuf.Timestamp
+	141, // 12: api.v1.Run.metadata:type_name -> api.v1.Run.MetadataEntry
+	149, // 13: api.v1.Run.priority:type_name -> api.v1.Priority
+	21,  // 14: api.v1.Run.model_usage:type_name -> api.v1.ModelUsage
+	7,   // 15: api.v1.TailResponse.record:type_name -> api.v1.Record
+	7,   // 16: api.v1.StoreRequest.records:type_name -> api.v1.Record
+	7,   // 17: api.v1.GetRecordsResponse.records:type_name -> api.v1.Record
+	34,  // 18: api.v1.HeartbeatRequest.partition_statuses:type_name -> api.v1.PartitionStatus
+	34,  // 19: api.v1.HeartbeatResponse.partition_statuses:type_name -> api.v1.PartitionStatus
+	7,   // 20: api.v1.ForwardAppendRequest.records:type_name -> api.v1.Record
+	148, // 21: api.v1.Approval.requested_at:type_name -> google.protobuf.Timestamp
+	148, // 22: api.v1.Approval.expires_at:type_name -> google.protobuf.Timestamp
+	148, // 23: api.v1.Approval.decided_at:type_name -> google.protobuf.Timestamp
+	51,  // 24: api.v1.GetApprovalResponse.approval:type_name -> api.v1.Approval
+	51,  // 25: api.v1.EngineListApprovalsResponse.approvals:type_name -> api.v1.Approval
+	148, // 26: api.v1.Signal.received_at:type_name -> google.protobuf.Timestamp
+	148, // 27: api.v1.Signal.acknowledged_at:type_name -> google.protobuf.Timestamp
+	148, // 28: api.v1.Signal.expires_at:type_name -> google.protobuf.Timestamp
+	56,  // 29: api.v1.GetSignalResponse.signal:type_name -> api.v1.Signal
+	56,  // 30: api.v1.LookupSignalResponse.signal:type_name -> api.v1.Signal
+	56,  // 31: api.v1.ListSignalsResponse.signals:type_name -> api.v1.Signal
+	148, // 32: api.v1.Timer.fire_at:type_name -> google.protobuf.Timestamp
+	148, // 33: api.v1.Timer.fired_at:type_name -> google.protobuf.Timestamp
+	148, // 34: api.v1.Timer.canceled_at:type_name -> google.protobuf.Timestamp
+	148, // 35: api.v1.Timer.expired_at:type_name -> google.protobuf.Timestamp
+	63,  // 36: api.v1.GetTimerResponse.timer:type_name -> api.v1.Timer
+	63,  // 37: api.v1.ListTimersResponse.timers:type_name -> api.v1.Timer
+	63,  // 38: api.v1.ListDueTimersResponse.timers:type_name -> api.v1.Timer
+	142, // 39: api.v1.Job.metadata:type_name -> api.v1.Job.MetadataEntry
+	148, // 40: api.v1.Job.created_at:type_name -> google.protobuf.Timestamp
+	148, // 41: api.v1.Job.claimed_at:type_name -> google.protobuf.Timestamp
+	148, // 42: api.v1.Job.completed_at:type_name -> google.protobuf.Timestamp
+	70,  // 43: api.v1.GetJobResponse.job:type_name -> api.v1.Job
+	70,  // 44: api.v1.ListJobsByRunResponse.jobs:type_name -> api.v1.Job
+	70,  // 45: api.v1.ListJobsByBatchResponse.jobs:type_name -> api.v1.Job
+	148, // 46: api.v1.Batch.submitted_at:type_name -> google.protobuf.Timestamp
+	148, // 47: api.v1.Batch.started_at:type_name -> google.protobuf.Timestamp
+	148, // 48: api.v1.Batch.completed_at:type_name -> google.protobuf.Timestamp
+	77,  // 49: api.v1.GetBatchResponse.batch:type_name -> api.v1.Batch
+	148, // 50: api.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	148, // 51: api.v1.Session.updated_at:type_name -> google.protobuf.Timestamp
+	148, // 52: api.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
+	148, // 53: api.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	80,  // 54: api.v1.GetSessionResponse.session:type_name -> api.v1.Session
+	80,  // 55: api.v1.ListSessionsResponse.sessions:type_name -> api.v1.Session
+	148, // 56: api.v1.ChatMessage.scheduled_at:type_name -> google.protobuf.Timestamp
+	148, // 57: api.v1.ChatMessage.delivered_at:type_name -> google.protobuf.Timestamp
+	148, // 58: api.v1.ChatMessage.created_at:type_name -> google.protobuf.Timestamp
+	85,  // 59: api.v1.GetMessageResponse.message:type_name -> api.v1.ChatMessage
+	85,  // 60: api.v1.ListMessagesByCorrelationResponse.messages:type_name -> api.v1.ChatMessage
+	20,  // 61: api.v1.ListRunsResponse.items:type_name -> api.v1.Run
+	93,  // 62: api.v1.ListEventsResponse.items:type_name -> api.v1.EventSummary
+	143, // 63: api.v1.GetRunStatsResponse.count_by_status:type_name -> api.v1.GetRunStatsResponse.CountByStatusEntry
+	144, // 64: api.v1.GetRunStatsResponse.count_by_component_type:type_name -> api.v1.GetRunStatsResponse.CountByComponentTypeEntry
 	0,   // 65: api.v1.DurableStepCheckpoint.type:type_name -> api.v1.CheckpointType
-	91,  // 66: api.v1.CheckpointRequest.checkpoint:type_name -> api.v1.DurableStepCheckpoint
-	103, // 67: api.v1.PollJobsResponse.jobs:type_name -> api.v1.JobAssignment
-	98,  // 68: api.v1.RegisterWorkerSessionRequest.slot_policy:type_name -> api.v1.WorkerSlotPolicy
-	120, // 69: api.v1.RegisterWorkerSessionRequest.capabilities:type_name -> api.v1.WorkerCapability
-	121, // 70: api.v1.RegisterWorkerSessionRequest.components:type_name -> api.v1.ComponentInfo
-	98,  // 71: api.v1.RegisterWorkerSessionResponse.effective_slot_policy:type_name -> api.v1.WorkerSlotPolicy
-	103, // 72: api.v1.PollJobResponse.job:type_name -> api.v1.JobAssignment
-	122, // 73: api.v1.JobAssignment.component_type:type_name -> api.v1.ComponentType
-	115, // 74: api.v1.JobAssignment.metadata:type_name -> api.v1.JobAssignment.MetadataEntry
-	116, // 75: api.v1.CompleteJobRequest.metadata:type_name -> api.v1.CompleteJobRequest.MetadataEntry
-	2,   // 76: api.v1.EngineService.Append:input_type -> api.v1.AppendRequest
-	4,   // 77: api.v1.EngineService.AppendBatch:input_type -> api.v1.AppendBatchRequest
-	92,  // 78: api.v1.EngineService.Checkpoint:input_type -> api.v1.CheckpointRequest
-	94,  // 79: api.v1.EngineService.EventStream:input_type -> api.v1.EventStreamMessage
-	96,  // 80: api.v1.EngineService.PollJobs:input_type -> api.v1.PollJobsRequest
-	99,  // 81: api.v1.EngineService.RegisterWorkerSession:input_type -> api.v1.RegisterWorkerSessionRequest
-	101, // 82: api.v1.EngineService.PollJob:input_type -> api.v1.PollJobRequest
-	104, // 83: api.v1.EngineService.RenewJobLease:input_type -> api.v1.RenewJobLeaseRequest
-	106, // 84: api.v1.EngineService.ReportWorkerCapacity:input_type -> api.v1.ReportWorkerCapacityRequest
-	108, // 85: api.v1.EngineService.CompleteJob:input_type -> api.v1.CompleteJobRequest
-	6,   // 86: api.v1.EngineService.ReadByRunID:input_type -> api.v1.ReadByRunIDRequest
-	8,   // 87: api.v1.EngineService.FindByStepKey:input_type -> api.v1.FindByStepKeyRequest
-	10,  // 88: api.v1.EngineService.GetRun:input_type -> api.v1.GetRunRequest
-	12,  // 89: api.v1.EngineService.ListRoutingWorkers:input_type -> api.v1.ListRoutingWorkersRequest
-	16,  // 90: api.v1.EngineService.Tail:input_type -> api.v1.TailRequest
-	41,  // 91: api.v1.EngineService.GetEntityState:input_type -> api.v1.GetEntityStateRequest
-	43,  // 92: api.v1.EngineService.PutEntityState:input_type -> api.v1.PutEntityStateRequest
-	46,  // 93: api.v1.EngineService.GetApproval:input_type -> api.v1.GetApprovalRequest
-	48,  // 94: api.v1.EngineService.ListApprovals:input_type -> api.v1.EngineListApprovalsRequest
-	51,  // 95: api.v1.EngineService.GetSignal:input_type -> api.v1.GetSignalRequest
-	53,  // 96: api.v1.EngineService.LookupSignal:input_type -> api.v1.LookupSignalRequest
-	55,  // 97: api.v1.EngineService.ListSignals:input_type -> api.v1.ListSignalsRequest
-	58,  // 98: api.v1.EngineService.GetTimer:input_type -> api.v1.GetTimerRequest
-	60,  // 99: api.v1.EngineService.ListTimers:input_type -> api.v1.ListTimersRequest
-	62,  // 100: api.v1.EngineService.ListDueTimers:input_type -> api.v1.ListDueTimersRequest
-	65,  // 101: api.v1.EngineService.GetJob:input_type -> api.v1.GetJobRequest
-	67,  // 102: api.v1.EngineService.ListJobsByRun:input_type -> api.v1.ListJobsByRunRequest
-	69,  // 103: api.v1.EngineService.ListJobsByBatch:input_type -> api.v1.ListJobsByBatchRequest
-	72,  // 104: api.v1.EngineService.GetBatch:input_type -> api.v1.GetBatchRequest
-	75,  // 105: api.v1.EngineService.GetSession:input_type -> api.v1.GetSessionRequest
-	77,  // 106: api.v1.EngineService.ListSessions:input_type -> api.v1.ListSessionsRequest
-	80,  // 107: api.v1.EngineService.GetMessage:input_type -> api.v1.GetMessageRequest
-	82,  // 108: api.v1.EngineService.ListMessagesByCorrelation:input_type -> api.v1.ListMessagesByCorrelationRequest
-	84,  // 109: api.v1.EngineService.ListRuns:input_type -> api.v1.ListRunsRequest
-	89,  // 110: api.v1.EngineService.GetRunStats:input_type -> api.v1.GetRunStatsRequest
-	86,  // 111: api.v1.EngineService.ListEvents:input_type -> api.v1.ListEventsRequest
-	18,  // 112: api.v1.EngineService.GetStatus:input_type -> api.v1.GetStatusRequest
-	20,  // 113: api.v1.ReplicationService.Store:input_type -> api.v1.StoreRequest
-	22,  // 114: api.v1.ReplicationService.GetRecords:input_type -> api.v1.GetRecordsRequest
-	24,  // 115: api.v1.ReplicationService.Seal:input_type -> api.v1.SealRequest
-	26,  // 116: api.v1.ReplicationService.Heartbeat:input_type -> api.v1.HeartbeatRequest
-	29,  // 117: api.v1.ReplicationService.RequestVote:input_type -> api.v1.VoteRequest
-	31,  // 118: api.v1.ReplicationService.AnnounceLeader:input_type -> api.v1.AnnounceLeaderRequest
-	33,  // 119: api.v1.ReplicationService.ForwardAppend:input_type -> api.v1.ForwardAppendRequest
-	33,  // 120: api.v1.ReplicationService.ForwardAppendV2:input_type -> api.v1.ForwardAppendRequest
-	35,  // 121: api.v1.ReplicationService.AddMember:input_type -> api.v1.AddMemberRequest
-	37,  // 122: api.v1.ReplicationService.RemoveMember:input_type -> api.v1.RemoveMemberRequest
-	39,  // 123: api.v1.ReplicationService.TransferLeadership:input_type -> api.v1.TransferLeadershipRequest
-	3,   // 124: api.v1.EngineService.Append:output_type -> api.v1.AppendResponse
-	5,   // 125: api.v1.EngineService.AppendBatch:output_type -> api.v1.AppendBatchResponse
-	93,  // 126: api.v1.EngineService.Checkpoint:output_type -> api.v1.CheckpointResponse
-	95,  // 127: api.v1.EngineService.EventStream:output_type -> api.v1.EventStreamAck
-	97,  // 128: api.v1.EngineService.PollJobs:output_type -> api.v1.PollJobsResponse
-	100, // 129: api.v1.EngineService.RegisterWorkerSession:output_type -> api.v1.RegisterWorkerSessionResponse
-	102, // 130: api.v1.EngineService.PollJob:output_type -> api.v1.PollJobResponse
-	105, // 131: api.v1.EngineService.RenewJobLease:output_type -> api.v1.RenewJobLeaseResponse
-	107, // 132: api.v1.EngineService.ReportWorkerCapacity:output_type -> api.v1.ReportWorkerCapacityResponse
-	109, // 133: api.v1.EngineService.CompleteJob:output_type -> api.v1.CompleteJobResponse
-	7,   // 134: api.v1.EngineService.ReadByRunID:output_type -> api.v1.ReadByRunIDResponse
-	9,   // 135: api.v1.EngineService.FindByStepKey:output_type -> api.v1.FindByStepKeyResponse
-	11,  // 136: api.v1.EngineService.GetRun:output_type -> api.v1.GetRunResponse
-	13,  // 137: api.v1.EngineService.ListRoutingWorkers:output_type -> api.v1.ListRoutingWorkersResponse
-	17,  // 138: api.v1.EngineService.Tail:output_type -> api.v1.TailResponse
-	42,  // 139: api.v1.EngineService.GetEntityState:output_type -> api.v1.GetEntityStateResponse
-	44,  // 140: api.v1.EngineService.PutEntityState:output_type -> api.v1.PutEntityStateResponse
-	47,  // 141: api.v1.EngineService.GetApproval:output_type -> api.v1.GetApprovalResponse
-	49,  // 142: api.v1.EngineService.ListApprovals:output_type -> api.v1.EngineListApprovalsResponse
-	52,  // 143: api.v1.EngineService.GetSignal:output_type -> api.v1.GetSignalResponse
-	54,  // 144: api.v1.EngineService.LookupSignal:output_type -> api.v1.LookupSignalResponse
-	56,  // 145: api.v1.EngineService.ListSignals:output_type -> api.v1.ListSignalsResponse
-	59,  // 146: api.v1.EngineService.GetTimer:output_type -> api.v1.GetTimerResponse
-	61,  // 147: api.v1.EngineService.ListTimers:output_type -> api.v1.ListTimersResponse
-	63,  // 148: api.v1.EngineService.ListDueTimers:output_type -> api.v1.ListDueTimersResponse
-	66,  // 149: api.v1.EngineService.GetJob:output_type -> api.v1.GetJobResponse
-	68,  // 150: api.v1.EngineService.ListJobsByRun:output_type -> api.v1.ListJobsByRunResponse
-	70,  // 151: api.v1.EngineService.ListJobsByBatch:output_type -> api.v1.ListJobsByBatchResponse
-	73,  // 152: api.v1.EngineService.GetBatch:output_type -> api.v1.GetBatchResponse
-	76,  // 153: api.v1.EngineService.GetSession:output_type -> api.v1.GetSessionResponse
-	78,  // 154: api.v1.EngineService.ListSessions:output_type -> api.v1.ListSessionsResponse
-	81,  // 155: api.v1.EngineService.GetMessage:output_type -> api.v1.GetMessageResponse
-	83,  // 156: api.v1.EngineService.ListMessagesByCorrelation:output_type -> api.v1.ListMessagesByCorrelationResponse
-	85,  // 157: api.v1.EngineService.ListRuns:output_type -> api.v1.ListRunsResponse
-	90,  // 158: api.v1.EngineService.GetRunStats:output_type -> api.v1.GetRunStatsResponse
-	88,  // 159: api.v1.EngineService.ListEvents:output_type -> api.v1.ListEventsResponse
-	19,  // 160: api.v1.EngineService.GetStatus:output_type -> api.v1.GetStatusResponse
-	21,  // 161: api.v1.ReplicationService.Store:output_type -> api.v1.StoreResponse
-	23,  // 162: api.v1.ReplicationService.GetRecords:output_type -> api.v1.GetRecordsResponse
-	25,  // 163: api.v1.ReplicationService.Seal:output_type -> api.v1.SealResponse
-	27,  // 164: api.v1.ReplicationService.Heartbeat:output_type -> api.v1.HeartbeatResponse
-	30,  // 165: api.v1.ReplicationService.RequestVote:output_type -> api.v1.VoteResponse
-	32,  // 166: api.v1.ReplicationService.AnnounceLeader:output_type -> api.v1.AnnounceLeaderResponse
-	34,  // 167: api.v1.ReplicationService.ForwardAppend:output_type -> api.v1.ForwardAppendResponse
-	34,  // 168: api.v1.ReplicationService.ForwardAppendV2:output_type -> api.v1.ForwardAppendResponse
-	36,  // 169: api.v1.ReplicationService.AddMember:output_type -> api.v1.AddMemberResponse
-	38,  // 170: api.v1.ReplicationService.RemoveMember:output_type -> api.v1.RemoveMemberResponse
-	40,  // 171: api.v1.ReplicationService.TransferLeadership:output_type -> api.v1.TransferLeadershipResponse
-	124, // [124:172] is the sub-list for method output_type
-	76,  // [76:124] is the sub-list for method input_type
-	76,  // [76:76] is the sub-list for extension type_name
-	76,  // [76:76] is the sub-list for extension extendee
-	0,   // [0:76] is the sub-list for field type_name
+	97,  // 66: api.v1.CheckpointRequest.checkpoint:type_name -> api.v1.DurableStepCheckpoint
+	6,   // 67: api.v1.ActivationErrorDetail.code:type_name -> api.v1.ActivationErrorCode
+	101, // 68: api.v1.ActivationPayload.reference:type_name -> api.v1.ImmutablePayloadReference
+	102, // 69: api.v1.ActivationOutboxIntent.payload:type_name -> api.v1.ActivationPayload
+	102, // 70: api.v1.ActivationEvidence.payload:type_name -> api.v1.ActivationPayload
+	1,   // 71: api.v1.BeginActivationRequest.kind:type_name -> api.v1.ActivationKind
+	3,   // 72: api.v1.BeginActivationRequest.recovery_policy:type_name -> api.v1.ActivationRecoveryPolicy
+	6,   // 73: api.v1.ActivationConflictReceipt.error_code:type_name -> api.v1.ActivationErrorCode
+	102, // 74: api.v1.ActivationUnknownOutcomeReceipt.error_data:type_name -> api.v1.ActivationPayload
+	2,   // 75: api.v1.BeginActivationResponse.outcome:type_name -> api.v1.BeginActivationOutcome
+	102, // 76: api.v1.BeginActivationResponse.replay_result:type_name -> api.v1.ActivationPayload
+	108, // 77: api.v1.BeginActivationResponse.conflict:type_name -> api.v1.ActivationConflictReceipt
+	109, // 78: api.v1.BeginActivationResponse.wait:type_name -> api.v1.ActivationWaitReceipt
+	110, // 79: api.v1.BeginActivationResponse.unknown_outcome:type_name -> api.v1.ActivationUnknownOutcomeReceipt
+	102, // 80: api.v1.CompleteActivationRequest.output:type_name -> api.v1.ActivationPayload
+	103, // 81: api.v1.CompleteActivationRequest.state_mutations:type_name -> api.v1.ActivationStateMutation
+	104, // 82: api.v1.CompleteActivationRequest.outbox_intents:type_name -> api.v1.ActivationOutboxIntent
+	105, // 83: api.v1.CompleteActivationRequest.usage:type_name -> api.v1.ActivationUsage
+	106, // 84: api.v1.CompleteActivationRequest.evidence:type_name -> api.v1.ActivationEvidence
+	102, // 85: api.v1.FailActivationRequest.error_data:type_name -> api.v1.ActivationPayload
+	4,   // 86: api.v1.FailActivationRequest.external_outcome_certainty:type_name -> api.v1.ActivationExternalOutcomeCertainty
+	106, // 87: api.v1.FailActivationRequest.evidence:type_name -> api.v1.ActivationEvidence
+	5,   // 88: api.v1.FailActivationResponse.status:type_name -> api.v1.ActivationStatus
+	1,   // 89: api.v1.ActivationStartedRecord.kind:type_name -> api.v1.ActivationKind
+	3,   // 90: api.v1.ActivationStartedRecord.recovery_policy:type_name -> api.v1.ActivationRecoveryPolicy
+	102, // 91: api.v1.ActivationCompletedRecord.output:type_name -> api.v1.ActivationPayload
+	103, // 92: api.v1.ActivationCompletedRecord.state_mutations:type_name -> api.v1.ActivationStateMutation
+	104, // 93: api.v1.ActivationCompletedRecord.outbox_intents:type_name -> api.v1.ActivationOutboxIntent
+	105, // 94: api.v1.ActivationCompletedRecord.usage:type_name -> api.v1.ActivationUsage
+	106, // 95: api.v1.ActivationCompletedRecord.evidence:type_name -> api.v1.ActivationEvidence
+	102, // 96: api.v1.ActivationFailedRecord.error_data:type_name -> api.v1.ActivationPayload
+	4,   // 97: api.v1.ActivationFailedRecord.external_outcome_certainty:type_name -> api.v1.ActivationExternalOutcomeCertainty
+	106, // 98: api.v1.ActivationFailedRecord.evidence:type_name -> api.v1.ActivationEvidence
+	118, // 99: api.v1.ActivationUnknownOutcomeRecord.failure:type_name -> api.v1.ActivationFailedRecord
+	5,   // 100: api.v1.ActivationSnapshotRecord.status:type_name -> api.v1.ActivationStatus
+	116, // 101: api.v1.ActivationSnapshotRecord.current_attempt:type_name -> api.v1.ActivationStartedRecord
+	117, // 102: api.v1.ActivationSnapshotRecord.completion:type_name -> api.v1.ActivationCompletedRecord
+	118, // 103: api.v1.ActivationSnapshotRecord.failure:type_name -> api.v1.ActivationFailedRecord
+	119, // 104: api.v1.ActivationSnapshotRecord.suspension:type_name -> api.v1.ActivationSuspendedRecord
+	120, // 105: api.v1.ActivationSnapshotRecord.cancellation:type_name -> api.v1.ActivationCancelledRecord
+	116, // 106: api.v1.ActivationJournalRecord.started:type_name -> api.v1.ActivationStartedRecord
+	117, // 107: api.v1.ActivationJournalRecord.completed:type_name -> api.v1.ActivationCompletedRecord
+	118, // 108: api.v1.ActivationJournalRecord.failed:type_name -> api.v1.ActivationFailedRecord
+	119, // 109: api.v1.ActivationJournalRecord.suspended:type_name -> api.v1.ActivationSuspendedRecord
+	120, // 110: api.v1.ActivationJournalRecord.cancelled:type_name -> api.v1.ActivationCancelledRecord
+	122, // 111: api.v1.ActivationJournalRecord.snapshot:type_name -> api.v1.ActivationSnapshotRecord
+	121, // 112: api.v1.ActivationJournalRecord.unknown_outcome:type_name -> api.v1.ActivationUnknownOutcomeRecord
+	133, // 113: api.v1.PollJobsResponse.jobs:type_name -> api.v1.JobAssignment
+	128, // 114: api.v1.RegisterWorkerSessionRequest.slot_policy:type_name -> api.v1.WorkerSlotPolicy
+	150, // 115: api.v1.RegisterWorkerSessionRequest.capabilities:type_name -> api.v1.WorkerCapability
+	151, // 116: api.v1.RegisterWorkerSessionRequest.components:type_name -> api.v1.ComponentInfo
+	128, // 117: api.v1.RegisterWorkerSessionResponse.effective_slot_policy:type_name -> api.v1.WorkerSlotPolicy
+	133, // 118: api.v1.PollJobResponse.job:type_name -> api.v1.JobAssignment
+	152, // 119: api.v1.JobAssignment.component_type:type_name -> api.v1.ComponentType
+	145, // 120: api.v1.JobAssignment.metadata:type_name -> api.v1.JobAssignment.MetadataEntry
+	146, // 121: api.v1.CompleteJobRequest.metadata:type_name -> api.v1.CompleteJobRequest.MetadataEntry
+	8,   // 122: api.v1.EngineService.Append:input_type -> api.v1.AppendRequest
+	10,  // 123: api.v1.EngineService.AppendBatch:input_type -> api.v1.AppendBatchRequest
+	98,  // 124: api.v1.EngineService.Checkpoint:input_type -> api.v1.CheckpointRequest
+	107, // 125: api.v1.EngineService.BeginActivation:input_type -> api.v1.BeginActivationRequest
+	112, // 126: api.v1.EngineService.CompleteActivation:input_type -> api.v1.CompleteActivationRequest
+	114, // 127: api.v1.EngineService.FailActivation:input_type -> api.v1.FailActivationRequest
+	124, // 128: api.v1.EngineService.EventStream:input_type -> api.v1.EventStreamMessage
+	126, // 129: api.v1.EngineService.PollJobs:input_type -> api.v1.PollJobsRequest
+	129, // 130: api.v1.EngineService.RegisterWorkerSession:input_type -> api.v1.RegisterWorkerSessionRequest
+	131, // 131: api.v1.EngineService.PollJob:input_type -> api.v1.PollJobRequest
+	134, // 132: api.v1.EngineService.RenewJobLease:input_type -> api.v1.RenewJobLeaseRequest
+	136, // 133: api.v1.EngineService.ReportWorkerCapacity:input_type -> api.v1.ReportWorkerCapacityRequest
+	138, // 134: api.v1.EngineService.CompleteJob:input_type -> api.v1.CompleteJobRequest
+	12,  // 135: api.v1.EngineService.ReadByRunID:input_type -> api.v1.ReadByRunIDRequest
+	14,  // 136: api.v1.EngineService.FindByStepKey:input_type -> api.v1.FindByStepKeyRequest
+	16,  // 137: api.v1.EngineService.GetRun:input_type -> api.v1.GetRunRequest
+	18,  // 138: api.v1.EngineService.ListRoutingWorkers:input_type -> api.v1.ListRoutingWorkersRequest
+	22,  // 139: api.v1.EngineService.Tail:input_type -> api.v1.TailRequest
+	47,  // 140: api.v1.EngineService.GetEntityState:input_type -> api.v1.GetEntityStateRequest
+	49,  // 141: api.v1.EngineService.PutEntityState:input_type -> api.v1.PutEntityStateRequest
+	52,  // 142: api.v1.EngineService.GetApproval:input_type -> api.v1.GetApprovalRequest
+	54,  // 143: api.v1.EngineService.ListApprovals:input_type -> api.v1.EngineListApprovalsRequest
+	57,  // 144: api.v1.EngineService.GetSignal:input_type -> api.v1.GetSignalRequest
+	59,  // 145: api.v1.EngineService.LookupSignal:input_type -> api.v1.LookupSignalRequest
+	61,  // 146: api.v1.EngineService.ListSignals:input_type -> api.v1.ListSignalsRequest
+	64,  // 147: api.v1.EngineService.GetTimer:input_type -> api.v1.GetTimerRequest
+	66,  // 148: api.v1.EngineService.ListTimers:input_type -> api.v1.ListTimersRequest
+	68,  // 149: api.v1.EngineService.ListDueTimers:input_type -> api.v1.ListDueTimersRequest
+	71,  // 150: api.v1.EngineService.GetJob:input_type -> api.v1.GetJobRequest
+	73,  // 151: api.v1.EngineService.ListJobsByRun:input_type -> api.v1.ListJobsByRunRequest
+	75,  // 152: api.v1.EngineService.ListJobsByBatch:input_type -> api.v1.ListJobsByBatchRequest
+	78,  // 153: api.v1.EngineService.GetBatch:input_type -> api.v1.GetBatchRequest
+	81,  // 154: api.v1.EngineService.GetSession:input_type -> api.v1.GetSessionRequest
+	83,  // 155: api.v1.EngineService.ListSessions:input_type -> api.v1.ListSessionsRequest
+	86,  // 156: api.v1.EngineService.GetMessage:input_type -> api.v1.GetMessageRequest
+	88,  // 157: api.v1.EngineService.ListMessagesByCorrelation:input_type -> api.v1.ListMessagesByCorrelationRequest
+	90,  // 158: api.v1.EngineService.ListRuns:input_type -> api.v1.ListRunsRequest
+	95,  // 159: api.v1.EngineService.GetRunStats:input_type -> api.v1.GetRunStatsRequest
+	92,  // 160: api.v1.EngineService.ListEvents:input_type -> api.v1.ListEventsRequest
+	24,  // 161: api.v1.EngineService.GetStatus:input_type -> api.v1.GetStatusRequest
+	26,  // 162: api.v1.ReplicationService.Store:input_type -> api.v1.StoreRequest
+	28,  // 163: api.v1.ReplicationService.GetRecords:input_type -> api.v1.GetRecordsRequest
+	30,  // 164: api.v1.ReplicationService.Seal:input_type -> api.v1.SealRequest
+	32,  // 165: api.v1.ReplicationService.Heartbeat:input_type -> api.v1.HeartbeatRequest
+	35,  // 166: api.v1.ReplicationService.RequestVote:input_type -> api.v1.VoteRequest
+	37,  // 167: api.v1.ReplicationService.AnnounceLeader:input_type -> api.v1.AnnounceLeaderRequest
+	39,  // 168: api.v1.ReplicationService.ForwardAppend:input_type -> api.v1.ForwardAppendRequest
+	39,  // 169: api.v1.ReplicationService.ForwardAppendV2:input_type -> api.v1.ForwardAppendRequest
+	41,  // 170: api.v1.ReplicationService.AddMember:input_type -> api.v1.AddMemberRequest
+	43,  // 171: api.v1.ReplicationService.RemoveMember:input_type -> api.v1.RemoveMemberRequest
+	45,  // 172: api.v1.ReplicationService.TransferLeadership:input_type -> api.v1.TransferLeadershipRequest
+	9,   // 173: api.v1.EngineService.Append:output_type -> api.v1.AppendResponse
+	11,  // 174: api.v1.EngineService.AppendBatch:output_type -> api.v1.AppendBatchResponse
+	99,  // 175: api.v1.EngineService.Checkpoint:output_type -> api.v1.CheckpointResponse
+	111, // 176: api.v1.EngineService.BeginActivation:output_type -> api.v1.BeginActivationResponse
+	113, // 177: api.v1.EngineService.CompleteActivation:output_type -> api.v1.CompleteActivationResponse
+	115, // 178: api.v1.EngineService.FailActivation:output_type -> api.v1.FailActivationResponse
+	125, // 179: api.v1.EngineService.EventStream:output_type -> api.v1.EventStreamAck
+	127, // 180: api.v1.EngineService.PollJobs:output_type -> api.v1.PollJobsResponse
+	130, // 181: api.v1.EngineService.RegisterWorkerSession:output_type -> api.v1.RegisterWorkerSessionResponse
+	132, // 182: api.v1.EngineService.PollJob:output_type -> api.v1.PollJobResponse
+	135, // 183: api.v1.EngineService.RenewJobLease:output_type -> api.v1.RenewJobLeaseResponse
+	137, // 184: api.v1.EngineService.ReportWorkerCapacity:output_type -> api.v1.ReportWorkerCapacityResponse
+	139, // 185: api.v1.EngineService.CompleteJob:output_type -> api.v1.CompleteJobResponse
+	13,  // 186: api.v1.EngineService.ReadByRunID:output_type -> api.v1.ReadByRunIDResponse
+	15,  // 187: api.v1.EngineService.FindByStepKey:output_type -> api.v1.FindByStepKeyResponse
+	17,  // 188: api.v1.EngineService.GetRun:output_type -> api.v1.GetRunResponse
+	19,  // 189: api.v1.EngineService.ListRoutingWorkers:output_type -> api.v1.ListRoutingWorkersResponse
+	23,  // 190: api.v1.EngineService.Tail:output_type -> api.v1.TailResponse
+	48,  // 191: api.v1.EngineService.GetEntityState:output_type -> api.v1.GetEntityStateResponse
+	50,  // 192: api.v1.EngineService.PutEntityState:output_type -> api.v1.PutEntityStateResponse
+	53,  // 193: api.v1.EngineService.GetApproval:output_type -> api.v1.GetApprovalResponse
+	55,  // 194: api.v1.EngineService.ListApprovals:output_type -> api.v1.EngineListApprovalsResponse
+	58,  // 195: api.v1.EngineService.GetSignal:output_type -> api.v1.GetSignalResponse
+	60,  // 196: api.v1.EngineService.LookupSignal:output_type -> api.v1.LookupSignalResponse
+	62,  // 197: api.v1.EngineService.ListSignals:output_type -> api.v1.ListSignalsResponse
+	65,  // 198: api.v1.EngineService.GetTimer:output_type -> api.v1.GetTimerResponse
+	67,  // 199: api.v1.EngineService.ListTimers:output_type -> api.v1.ListTimersResponse
+	69,  // 200: api.v1.EngineService.ListDueTimers:output_type -> api.v1.ListDueTimersResponse
+	72,  // 201: api.v1.EngineService.GetJob:output_type -> api.v1.GetJobResponse
+	74,  // 202: api.v1.EngineService.ListJobsByRun:output_type -> api.v1.ListJobsByRunResponse
+	76,  // 203: api.v1.EngineService.ListJobsByBatch:output_type -> api.v1.ListJobsByBatchResponse
+	79,  // 204: api.v1.EngineService.GetBatch:output_type -> api.v1.GetBatchResponse
+	82,  // 205: api.v1.EngineService.GetSession:output_type -> api.v1.GetSessionResponse
+	84,  // 206: api.v1.EngineService.ListSessions:output_type -> api.v1.ListSessionsResponse
+	87,  // 207: api.v1.EngineService.GetMessage:output_type -> api.v1.GetMessageResponse
+	89,  // 208: api.v1.EngineService.ListMessagesByCorrelation:output_type -> api.v1.ListMessagesByCorrelationResponse
+	91,  // 209: api.v1.EngineService.ListRuns:output_type -> api.v1.ListRunsResponse
+	96,  // 210: api.v1.EngineService.GetRunStats:output_type -> api.v1.GetRunStatsResponse
+	94,  // 211: api.v1.EngineService.ListEvents:output_type -> api.v1.ListEventsResponse
+	25,  // 212: api.v1.EngineService.GetStatus:output_type -> api.v1.GetStatusResponse
+	27,  // 213: api.v1.ReplicationService.Store:output_type -> api.v1.StoreResponse
+	29,  // 214: api.v1.ReplicationService.GetRecords:output_type -> api.v1.GetRecordsResponse
+	31,  // 215: api.v1.ReplicationService.Seal:output_type -> api.v1.SealResponse
+	33,  // 216: api.v1.ReplicationService.Heartbeat:output_type -> api.v1.HeartbeatResponse
+	36,  // 217: api.v1.ReplicationService.RequestVote:output_type -> api.v1.VoteResponse
+	38,  // 218: api.v1.ReplicationService.AnnounceLeader:output_type -> api.v1.AnnounceLeaderResponse
+	40,  // 219: api.v1.ReplicationService.ForwardAppend:output_type -> api.v1.ForwardAppendResponse
+	40,  // 220: api.v1.ReplicationService.ForwardAppendV2:output_type -> api.v1.ForwardAppendResponse
+	42,  // 221: api.v1.ReplicationService.AddMember:output_type -> api.v1.AddMemberResponse
+	44,  // 222: api.v1.ReplicationService.RemoveMember:output_type -> api.v1.RemoveMemberResponse
+	46,  // 223: api.v1.ReplicationService.TransferLeadership:output_type -> api.v1.TransferLeadershipResponse
+	173, // [173:224] is the sub-list for method output_type
+	122, // [122:173] is the sub-list for method input_type
+	122, // [122:122] is the sub-list for extension type_name
+	122, // [122:122] is the sub-list for extension extendee
+	0,   // [0:122] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_engine_proto_init() }
@@ -9472,15 +12512,28 @@ func file_api_v1_engine_proto_init() {
 	file_api_v1_engine_proto_msgTypes[84].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[85].OneofWrappers = []any{}
 	file_api_v1_engine_proto_msgTypes[88].OneofWrappers = []any{}
-	file_api_v1_engine_proto_msgTypes[95].OneofWrappers = []any{}
-	file_api_v1_engine_proto_msgTypes[107].OneofWrappers = []any{}
+	file_api_v1_engine_proto_msgTypes[95].OneofWrappers = []any{
+		(*ActivationPayload_InlineData)(nil),
+		(*ActivationPayload_Reference)(nil),
+	}
+	file_api_v1_engine_proto_msgTypes[116].OneofWrappers = []any{
+		(*ActivationJournalRecord_Started)(nil),
+		(*ActivationJournalRecord_Completed)(nil),
+		(*ActivationJournalRecord_Failed)(nil),
+		(*ActivationJournalRecord_Suspended)(nil),
+		(*ActivationJournalRecord_Cancelled)(nil),
+		(*ActivationJournalRecord_Snapshot)(nil),
+		(*ActivationJournalRecord_UnknownOutcome)(nil),
+	}
+	file_api_v1_engine_proto_msgTypes[119].OneofWrappers = []any{}
+	file_api_v1_engine_proto_msgTypes[131].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_engine_proto_rawDesc), len(file_api_v1_engine_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   116,
+			NumEnums:      7,
+			NumMessages:   140,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

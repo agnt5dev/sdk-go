@@ -22,6 +22,9 @@ const (
 	EngineService_Append_FullMethodName                    = "/api.v1.EngineService/Append"
 	EngineService_AppendBatch_FullMethodName               = "/api.v1.EngineService/AppendBatch"
 	EngineService_Checkpoint_FullMethodName                = "/api.v1.EngineService/Checkpoint"
+	EngineService_BeginActivation_FullMethodName           = "/api.v1.EngineService/BeginActivation"
+	EngineService_CompleteActivation_FullMethodName        = "/api.v1.EngineService/CompleteActivation"
+	EngineService_FailActivation_FullMethodName            = "/api.v1.EngineService/FailActivation"
 	EngineService_EventStream_FullMethodName               = "/api.v1.EngineService/EventStream"
 	EngineService_PollJobs_FullMethodName                  = "/api.v1.EngineService/PollJobs"
 	EngineService_RegisterWorkerSession_FullMethodName     = "/api.v1.EngineService/RegisterWorkerSession"
@@ -75,6 +78,14 @@ type EngineServiceClient interface {
 	// On STEP_STARTED, looks up prior completion by step_key and returns cached output
 	// if found. On STEP_COMPLETED/STEP_FAILED, appends a record to the journal.
 	Checkpoint(ctx context.Context, in *CheckpointRequest, opts ...grpc.CallOption) (*CheckpointResponse, error)
+	// BeginActivation atomically admits or replays one logical durable activation.
+	// The journal aggregate, not a projection, decides the returned outcome.
+	BeginActivation(ctx context.Context, in *BeginActivationRequest, opts ...grpc.CallOption) (*BeginActivationResponse, error)
+	// CompleteActivation commits one fenced logical result together with its state
+	// mutations and durable outbox intents.
+	CompleteActivation(ctx context.Context, in *CompleteActivationRequest, opts ...grpc.CallOption) (*CompleteActivationResponse, error)
+	// FailActivation records one fenced failure and its retry/uncertainty decision.
+	FailActivation(ctx context.Context, in *FailActivationRequest, opts ...grpc.CallOption) (*FailActivationResponse, error)
 	// EventStream accepts a stream of ephemeral events (tokens, progress, logs)
 	// from SDK workers. No journal persistence — real-time SSE delivery only.
 	EventStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[EventStreamMessage, EventStreamAck], error)
@@ -170,6 +181,36 @@ func (c *engineServiceClient) Checkpoint(ctx context.Context, in *CheckpointRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CheckpointResponse)
 	err := c.cc.Invoke(ctx, EngineService_Checkpoint_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) BeginActivation(ctx context.Context, in *BeginActivationRequest, opts ...grpc.CallOption) (*BeginActivationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BeginActivationResponse)
+	err := c.cc.Invoke(ctx, EngineService_BeginActivation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) CompleteActivation(ctx context.Context, in *CompleteActivationRequest, opts ...grpc.CallOption) (*CompleteActivationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteActivationResponse)
+	err := c.cc.Invoke(ctx, EngineService_CompleteActivation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *engineServiceClient) FailActivation(ctx context.Context, in *FailActivationRequest, opts ...grpc.CallOption) (*FailActivationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FailActivationResponse)
+	err := c.cc.Invoke(ctx, EngineService_FailActivation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -545,6 +586,14 @@ type EngineServiceServer interface {
 	// On STEP_STARTED, looks up prior completion by step_key and returns cached output
 	// if found. On STEP_COMPLETED/STEP_FAILED, appends a record to the journal.
 	Checkpoint(context.Context, *CheckpointRequest) (*CheckpointResponse, error)
+	// BeginActivation atomically admits or replays one logical durable activation.
+	// The journal aggregate, not a projection, decides the returned outcome.
+	BeginActivation(context.Context, *BeginActivationRequest) (*BeginActivationResponse, error)
+	// CompleteActivation commits one fenced logical result together with its state
+	// mutations and durable outbox intents.
+	CompleteActivation(context.Context, *CompleteActivationRequest) (*CompleteActivationResponse, error)
+	// FailActivation records one fenced failure and its retry/uncertainty decision.
+	FailActivation(context.Context, *FailActivationRequest) (*FailActivationResponse, error)
 	// EventStream accepts a stream of ephemeral events (tokens, progress, logs)
 	// from SDK workers. No journal persistence — real-time SSE delivery only.
 	EventStream(grpc.ClientStreamingServer[EventStreamMessage, EventStreamAck]) error
@@ -624,6 +673,15 @@ func (UnimplementedEngineServiceServer) AppendBatch(context.Context, *AppendBatc
 }
 func (UnimplementedEngineServiceServer) Checkpoint(context.Context, *CheckpointRequest) (*CheckpointResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Checkpoint not implemented")
+}
+func (UnimplementedEngineServiceServer) BeginActivation(context.Context, *BeginActivationRequest) (*BeginActivationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BeginActivation not implemented")
+}
+func (UnimplementedEngineServiceServer) CompleteActivation(context.Context, *CompleteActivationRequest) (*CompleteActivationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteActivation not implemented")
+}
+func (UnimplementedEngineServiceServer) FailActivation(context.Context, *FailActivationRequest) (*FailActivationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method FailActivation not implemented")
 }
 func (UnimplementedEngineServiceServer) EventStream(grpc.ClientStreamingServer[EventStreamMessage, EventStreamAck]) error {
 	return status.Error(codes.Unimplemented, "method EventStream not implemented")
@@ -798,6 +856,60 @@ func _EngineService_Checkpoint_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(EngineServiceServer).Checkpoint(ctx, req.(*CheckpointRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_BeginActivation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BeginActivationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).BeginActivation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_BeginActivation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).BeginActivation(ctx, req.(*BeginActivationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_CompleteActivation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteActivationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).CompleteActivation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_CompleteActivation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).CompleteActivation(ctx, req.(*CompleteActivationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _EngineService_FailActivation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FailActivationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EngineServiceServer).FailActivation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EngineService_FailActivation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EngineServiceServer).FailActivation(ctx, req.(*FailActivationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1414,6 +1526,18 @@ var EngineService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Checkpoint",
 			Handler:    _EngineService_Checkpoint_Handler,
+		},
+		{
+			MethodName: "BeginActivation",
+			Handler:    _EngineService_BeginActivation_Handler,
+		},
+		{
+			MethodName: "CompleteActivation",
+			Handler:    _EngineService_CompleteActivation_Handler,
+		},
+		{
+			MethodName: "FailActivation",
+			Handler:    _EngineService_FailActivation_Handler,
 		},
 		{
 			MethodName: "PollJobs",
