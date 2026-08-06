@@ -8871,6 +8871,7 @@ type SuspendActivationRequest struct {
 	InputDigest      []byte                 `protobuf:"bytes,8,opt,name=input_digest,json=inputDigest,proto3" json:"input_digest,omitempty"`
 	DefinitionDigest []byte                 `protobuf:"bytes,9,opt,name=definition_digest,json=definitionDigest,proto3" json:"definition_digest,omitempty"`
 	Continuation     []byte                 `protobuf:"bytes,10,opt,name=continuation,proto3" json:"continuation,omitempty"`
+	DelayMs          int64                  `protobuf:"varint,11,opt,name=delay_ms,json=delayMs,proto3" json:"delay_ms,omitempty"` // Requested duration; runtime derives ready_at_ms
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -8973,6 +8974,13 @@ func (x *SuspendActivationRequest) GetContinuation() []byte {
 		return x.Continuation
 	}
 	return nil
+}
+
+func (x *SuspendActivationRequest) GetDelayMs() int64 {
+	if x != nil {
+		return x.DelayMs
+	}
+	return 0
 }
 
 // SuspendActivationResponse acknowledges the canonical suspension offset and
@@ -12142,7 +12150,7 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
 	"\aattempt\x18\x04 \x01(\rR\aattempt\x120\n" +
 	"\x06status\x18\x05 \x01(\x0e2\x18.api.v1.ActivationStatusR\x06status\x126\n" +
-	"\x17accepted_journal_offset\x18\x06 \x01(\x04R\x15acceptedJournalOffset\"\xe1\x02\n" +
+	"\x17accepted_journal_offset\x18\x06 \x01(\x04R\x15acceptedJournalOffset\"\xfc\x02\n" +
 	"\x18SuspendActivationRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
@@ -12156,7 +12164,8 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\finput_digest\x18\b \x01(\fR\vinputDigest\x12+\n" +
 	"\x11definition_digest\x18\t \x01(\fR\x10definitionDigest\x12\"\n" +
 	"\fcontinuation\x18\n" +
-	" \x01(\fR\fcontinuation\"\xe5\x01\n" +
+	" \x01(\fR\fcontinuation\x12\x19\n" +
+	"\bdelay_ms\x18\v \x01(\x03R\adelayMs\"\xe5\x01\n" +
 	"\x19SuspendActivationResponse\x12\x1a\n" +
 	"\baccepted\x18\x01 \x01(\bR\baccepted\x12\x1a\n" +
 	"\breplayed\x18\x02 \x01(\bR\breplayed\x12#\n" +
