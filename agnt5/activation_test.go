@@ -333,6 +333,28 @@ func TestActivationRPCErrorPreservesRequiredChildRecoveryFailure(t *testing.T) {
 	}
 }
 
+func TestActivationRPCRetryOnlyAcceptsUntypedTransientStatus(t *testing.T) {
+	if !isRetryableActivationRPCError(status.Error(codes.Unavailable, "activation is not yet visible on this replica")) {
+		t.Fatal("untyped unavailable status must be retried with the exact activation command")
+	}
+
+	typed, err := status.New(codes.Unavailable, "typed correctness failure").WithDetails(
+		&pb.ActivationErrorDetail{
+			Code:    pb.ActivationErrorCode_ACTIVATION_ERROR_CODE_UNKNOWN_WRITE_OUTCOME,
+			Message: "write outcome is unknown",
+		},
+	)
+	if err != nil {
+		t.Fatalf("status details: %v", err)
+	}
+	if isRetryableActivationRPCError(typed.Err()) {
+		t.Fatal("typed activation failures must remain journal-authoritative")
+	}
+	if isRetryableActivationRPCError(status.Error(codes.AlreadyExists, "payload conflict")) {
+		t.Fatal("semantic conflicts must not be retried")
+	}
+}
+
 func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	preferred := NewWorker("svc", WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="))
 	supported, required := preferred.protocolRegistrationCapabilities()

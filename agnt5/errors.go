@@ -3,6 +3,7 @@ package agnt5
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 	"google.golang.org/grpc/codes"
@@ -98,6 +99,40 @@ func (e *ActivationError) Is(target error) bool {
 
 func newActivationError(code ActivationErrorCode, message, activationID string, attempt uint32, cause error) error {
 	return &ActivationError{Code: code, Message: message, ActivationID: activationID, Attempt: attempt, Cause: cause}
+}
+
+func isRetryableActivationRPCError(err error) bool {
+	grpcStatus, ok := status.FromError(err)
+	if !ok {
+		return false
+	}
+	for _, detail := range grpcStatus.Details() {
+		if _, ok := detail.(*pb.ActivationErrorDetail); ok {
+			return false
+		}
+	}
+	if grpcStatus.Code() == codes.Unavailable || grpcStatus.Code() == codes.DeadlineExceeded || grpcStatus.Code() == codes.Unknown {
+		return true
+	}
+	message := strings.ToLower(grpcStatus.Message())
+	for _, fragment := range []string{
+		"no sequencer available",
+		"this node is not the sequencer",
+		"stale epoch",
+		"future epoch",
+		"epoch ahead",
+		"not partition owner",
+		"partition not writable",
+		"quorum not reached",
+		"no connected peers for quorum replication",
+		"not connected for catch-up",
+		"catch-up failed",
+	} {
+		if strings.Contains(message, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 func activationRPCError(operation string, err error) error {

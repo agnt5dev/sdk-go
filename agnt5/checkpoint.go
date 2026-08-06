@@ -70,6 +70,19 @@ type engineEventWriter struct {
 	streamCount  int64
 }
 
+const activationRPCAttempts = 6
+
+func waitActivationRPCRetry(ctx context.Context, attempt int) bool {
+	timer := time.NewTimer(time.Duration(attempt+1) * 100 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
 func newEngineEventWriter(client pb.EngineServiceClient) *engineEventWriter {
 	return &engineEventWriter{client: client}
 }
@@ -303,33 +316,48 @@ func (w *engineEventWriter) BeginActivation(ctx context.Context, req *pb.BeginAc
 	if w == nil || w.client == nil {
 		return nil, newActivationError(ActivationErrorDurabilityUnavailable, "activation client is not configured", "", 0, nil)
 	}
-	resp, err := w.client.BeginActivation(ctx, req)
-	if err != nil {
-		return nil, activationRPCError("BeginActivation", err)
+	for attempt := 0; attempt < activationRPCAttempts; attempt++ {
+		resp, err := w.client.BeginActivation(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		if attempt+1 >= activationRPCAttempts || !isRetryableActivationRPCError(err) || !waitActivationRPCRetry(ctx, attempt) {
+			return nil, activationRPCError("BeginActivation", err)
+		}
 	}
-	return resp, nil
+	panic("activation retry loop must return")
 }
 
 func (w *engineEventWriter) CompleteActivation(ctx context.Context, req *pb.CompleteActivationRequest) (*pb.CompleteActivationResponse, error) {
 	if w == nil || w.client == nil {
 		return nil, newActivationError(ActivationErrorDurabilityUnavailable, "activation client is not configured", req.GetActivationId(), req.GetAttempt(), nil)
 	}
-	resp, err := w.client.CompleteActivation(ctx, req)
-	if err != nil {
-		return nil, activationRPCError("CompleteActivation", err)
+	for attempt := 0; attempt < activationRPCAttempts; attempt++ {
+		resp, err := w.client.CompleteActivation(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		if attempt+1 >= activationRPCAttempts || !isRetryableActivationRPCError(err) || !waitActivationRPCRetry(ctx, attempt) {
+			return nil, activationRPCError("CompleteActivation", err)
+		}
 	}
-	return resp, nil
+	panic("activation retry loop must return")
 }
 
 func (w *engineEventWriter) FailActivation(ctx context.Context, req *pb.FailActivationRequest) (*pb.FailActivationResponse, error) {
 	if w == nil || w.client == nil {
 		return nil, newActivationError(ActivationErrorDurabilityUnavailable, "activation client is not configured", req.GetActivationId(), req.GetAttempt(), nil)
 	}
-	resp, err := w.client.FailActivation(ctx, req)
-	if err != nil {
-		return nil, activationRPCError("FailActivation", err)
+	for attempt := 0; attempt < activationRPCAttempts; attempt++ {
+		resp, err := w.client.FailActivation(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		if attempt+1 >= activationRPCAttempts || !isRetryableActivationRPCError(err) || !waitActivationRPCRetry(ctx, attempt) {
+			return nil, activationRPCError("FailActivation", err)
+		}
 	}
-	return resp, nil
+	panic("activation retry loop must return")
 }
 
 func (w *Worker) writeEvent(ctx context.Context, event journalEvent) error {
