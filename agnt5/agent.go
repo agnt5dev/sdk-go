@@ -400,7 +400,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				continue
 			}
 
-			output, err := tool.Handler(iterationContext, cloneAnyMap(call.Arguments))
+			output, err := invokeAgentTool(iterationContext, tool, call.ID, call.Arguments)
 			if err != nil {
 				record.Error = err.Error()
 				toolCalls = append(toolCalls, record)

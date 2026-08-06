@@ -7,7 +7,10 @@ import (
 
 type contextKey uint8
 
-const stateAuthorityContextKey contextKey = iota
+const (
+	stateAuthorityContextKey contextKey = iota
+	activationExecutionContextKey
+)
 
 // Context is passed to Go component handlers.
 type Context struct {
@@ -267,6 +270,26 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 	}
 	child.logger = &Logger{ctx: child}
 	return child
+}
+
+func (c *Context) withActivationExecution(execution ActivationExecution) *Context {
+	child := c.withParentCorrelationID(c.parentCID)
+	child.Context = context.WithValue(c.Context, activationExecutionContextKey, execution)
+	return child
+}
+
+// ActivationFromContext returns the current durable activation and downstream key.
+func ActivationFromContext(ctx context.Context) (ActivationExecution, bool) {
+	if ctx == nil {
+		return ActivationExecution{}, false
+	}
+	execution, ok := ctx.Value(activationExecutionContextKey).(ActivationExecution)
+	return execution, ok
+}
+
+// Activation returns the current durable activation for this component context.
+func (c *Context) Activation() (ActivationExecution, bool) {
+	return ActivationFromContext(c)
 }
 
 func (c *Context) managesAgent(name string) bool {

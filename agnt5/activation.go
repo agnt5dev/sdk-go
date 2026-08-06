@@ -28,6 +28,41 @@ const (
 	activationDefinitionConfigMetadata  = "activation_definition_config"
 )
 
+// RecoveryPolicy controls how interrupted durable work is settled.
+type RecoveryPolicy string
+
+const (
+	RecoveryPolicyIdempotentRetry RecoveryPolicy = "idempotent_retry"
+	RecoveryPolicyDurableSteps    RecoveryPolicy = "durable_steps"
+	RecoveryPolicyUnknownOutcome  RecoveryPolicy = "unknown_outcome"
+	RecoveryPolicyCompensate      RecoveryPolicy = "compensate"
+	RecoveryPolicyFail            RecoveryPolicy = "fail"
+)
+
+// ActivationExecution is exposed while one durable unit is running.
+type ActivationExecution struct {
+	ActivationID   string
+	Attempt        uint32
+	IdempotencyKey string
+}
+
+func recoveryPolicyProto(policy RecoveryPolicy) (pb.ActivationRecoveryPolicy, error) {
+	switch policy {
+	case RecoveryPolicyIdempotentRetry:
+		return pb.ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_IDEMPOTENT_RETRY, nil
+	case RecoveryPolicyDurableSteps:
+		return pb.ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_DURABLE_STEPS, nil
+	case RecoveryPolicyUnknownOutcome:
+		return pb.ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_UNKNOWN_OUTCOME, nil
+	case RecoveryPolicyCompensate:
+		return pb.ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_COMPENSATE, nil
+	case RecoveryPolicyFail:
+		return pb.ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_FAIL, nil
+	default:
+		return pb.ActivationRecoveryPolicy_ACTIVATION_RECOVERY_POLICY_UNSPECIFIED, fmt.Errorf("agnt5: unsupported recovery policy %q", policy)
+	}
+}
+
 type activationPlan struct {
 	stableKey        string
 	inputDigest      []byte
