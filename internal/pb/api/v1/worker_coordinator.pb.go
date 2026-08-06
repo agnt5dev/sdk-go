@@ -5556,6 +5556,117 @@ func (x *StepCheckpoint) GetResult() []byte {
 	return nil
 }
 
+// WorkerSuspension is a nonterminal durable execution result. The runtime
+// validates the activation authority and atomically records the activation
+// suspension, run pause, and timer generation before acknowledging the worker.
+type WorkerSuspension struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ActivationId     string                 `protobuf:"bytes,1,opt,name=activation_id,json=activationId,proto3" json:"activation_id,omitempty"`
+	Attempt          uint32                 `protobuf:"varint,2,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	FenceToken       []byte                 `protobuf:"bytes,3,opt,name=fence_token,json=fenceToken,proto3" json:"fence_token,omitempty"`
+	TimerKey         string                 `protobuf:"bytes,4,opt,name=timer_key,json=timerKey,proto3" json:"timer_key,omitempty"`
+	ReadyAtMs        int64                  `protobuf:"varint,5,opt,name=ready_at_ms,json=readyAtMs,proto3" json:"ready_at_ms,omitempty"`
+	InputDigest      []byte                 `protobuf:"bytes,6,opt,name=input_digest,json=inputDigest,proto3" json:"input_digest,omitempty"`
+	DefinitionDigest []byte                 `protobuf:"bytes,7,opt,name=definition_digest,json=definitionDigest,proto3" json:"definition_digest,omitempty"`
+	Continuation     []byte                 `protobuf:"bytes,8,opt,name=continuation,proto3" json:"continuation,omitempty"`
+	DelayMs          int64                  `protobuf:"varint,9,opt,name=delay_ms,json=delayMs,proto3" json:"delay_ms,omitempty"` // Requested duration; runtime derives ready_at_ms
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *WorkerSuspension) Reset() {
+	*x = WorkerSuspension{}
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkerSuspension) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkerSuspension) ProtoMessage() {}
+
+func (x *WorkerSuspension) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkerSuspension.ProtoReflect.Descriptor instead.
+func (*WorkerSuspension) Descriptor() ([]byte, []int) {
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *WorkerSuspension) GetActivationId() string {
+	if x != nil {
+		return x.ActivationId
+	}
+	return ""
+}
+
+func (x *WorkerSuspension) GetAttempt() uint32 {
+	if x != nil {
+		return x.Attempt
+	}
+	return 0
+}
+
+func (x *WorkerSuspension) GetFenceToken() []byte {
+	if x != nil {
+		return x.FenceToken
+	}
+	return nil
+}
+
+func (x *WorkerSuspension) GetTimerKey() string {
+	if x != nil {
+		return x.TimerKey
+	}
+	return ""
+}
+
+func (x *WorkerSuspension) GetReadyAtMs() int64 {
+	if x != nil {
+		return x.ReadyAtMs
+	}
+	return 0
+}
+
+func (x *WorkerSuspension) GetInputDigest() []byte {
+	if x != nil {
+		return x.InputDigest
+	}
+	return nil
+}
+
+func (x *WorkerSuspension) GetDefinitionDigest() []byte {
+	if x != nil {
+		return x.DefinitionDigest
+	}
+	return nil
+}
+
+func (x *WorkerSuspension) GetContinuation() []byte {
+	if x != nil {
+		return x.Continuation
+	}
+	return nil
+}
+
+func (x *WorkerSuspension) GetDelayMs() int64 {
+	if x != nil {
+		return x.DelayMs
+	}
+	return 0
+}
+
 // Response from component dispatch (extensible for all types)
 // Used for Worker → WC → EE communication
 type DispatchComponentResponse struct {
@@ -5567,6 +5678,7 @@ type DispatchComponentResponse struct {
 	//	*DispatchComponentResponse_OutputData
 	//	*DispatchComponentResponse_StateUpdate
 	//	*DispatchComponentResponse_FlowContinuation
+	//	*DispatchComponentResponse_WorkerSuspension
 	Result       isDispatchComponentResponse_Result `protobuf_oneof:"result"`
 	ErrorMessage string                             `protobuf:"bytes,6,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`                                               // Error message if failed
 	Metadata     map[string]string                  `protobuf:"bytes,7,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Response metadata
@@ -5605,7 +5717,7 @@ type DispatchComponentResponse struct {
 
 func (x *DispatchComponentResponse) Reset() {
 	*x = DispatchComponentResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[63]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5617,7 +5729,7 @@ func (x *DispatchComponentResponse) String() string {
 func (*DispatchComponentResponse) ProtoMessage() {}
 
 func (x *DispatchComponentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[63]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5630,7 +5742,7 @@ func (x *DispatchComponentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DispatchComponentResponse.ProtoReflect.Descriptor instead.
 func (*DispatchComponentResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{63}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *DispatchComponentResponse) GetInvocationId() string {
@@ -5676,6 +5788,15 @@ func (x *DispatchComponentResponse) GetFlowContinuation() *FlowContinuation {
 	if x != nil {
 		if x, ok := x.Result.(*DispatchComponentResponse_FlowContinuation); ok {
 			return x.FlowContinuation
+		}
+	}
+	return nil
+}
+
+func (x *DispatchComponentResponse) GetWorkerSuspension() *WorkerSuspension {
+	if x != nil {
+		if x, ok := x.Result.(*DispatchComponentResponse_WorkerSuspension); ok {
+			return x.WorkerSuspension
 		}
 	}
 	return nil
@@ -5753,11 +5874,17 @@ type DispatchComponentResponse_FlowContinuation struct {
 	FlowContinuation *FlowContinuation `protobuf:"bytes,5,opt,name=flow_continuation,json=flowContinuation,proto3,oneof"` // Flow next step
 }
 
+type DispatchComponentResponse_WorkerSuspension struct {
+	WorkerSuspension *WorkerSuspension `protobuf:"bytes,14,opt,name=worker_suspension,json=workerSuspension,proto3,oneof"` // Durable nonterminal wait
+}
+
 func (*DispatchComponentResponse_OutputData) isDispatchComponentResponse_Result() {}
 
 func (*DispatchComponentResponse_StateUpdate) isDispatchComponentResponse_Result() {}
 
 func (*DispatchComponentResponse_FlowContinuation) isDispatchComponentResponse_Result() {}
+
+func (*DispatchComponentResponse_WorkerSuspension) isDispatchComponentResponse_Result() {}
 
 // Cancellation request sent from coordinator to worker (v1.1)
 type CancelExecutionRequest struct {
@@ -5770,7 +5897,7 @@ type CancelExecutionRequest struct {
 
 func (x *CancelExecutionRequest) Reset() {
 	*x = CancelExecutionRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[64]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5782,7 +5909,7 @@ func (x *CancelExecutionRequest) String() string {
 func (*CancelExecutionRequest) ProtoMessage() {}
 
 func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[64]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5795,7 +5922,7 @@ func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelExecutionRequest.ProtoReflect.Descriptor instead.
 func (*CancelExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{64}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *CancelExecutionRequest) GetInvocationId() string {
@@ -5824,7 +5951,7 @@ type StateUpdate struct {
 
 func (x *StateUpdate) Reset() {
 	*x = StateUpdate{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[65]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5836,7 +5963,7 @@ func (x *StateUpdate) String() string {
 func (*StateUpdate) ProtoMessage() {}
 
 func (x *StateUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[65]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5849,7 +5976,7 @@ func (x *StateUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateUpdate.ProtoReflect.Descriptor instead.
 func (*StateUpdate) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{65}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *StateUpdate) GetNewState() []byte {
@@ -5887,7 +6014,7 @@ type StateTransition struct {
 
 func (x *StateTransition) Reset() {
 	*x = StateTransition{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[66]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5899,7 +6026,7 @@ func (x *StateTransition) String() string {
 func (*StateTransition) ProtoMessage() {}
 
 func (x *StateTransition) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[66]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5912,7 +6039,7 @@ func (x *StateTransition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateTransition.ProtoReflect.Descriptor instead.
 func (*StateTransition) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{66}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *StateTransition) GetOperation() string {
@@ -5963,7 +6090,7 @@ type FlowContinuation struct {
 
 func (x *FlowContinuation) Reset() {
 	*x = FlowContinuation{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[67]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5975,7 +6102,7 @@ func (x *FlowContinuation) String() string {
 func (*FlowContinuation) ProtoMessage() {}
 
 func (x *FlowContinuation) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[67]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5988,7 +6115,7 @@ func (x *FlowContinuation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlowContinuation.ProtoReflect.Descriptor instead.
 func (*FlowContinuation) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{67}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *FlowContinuation) GetNextStep() string {
@@ -6035,7 +6162,7 @@ type WorkflowCheckpoint struct {
 
 func (x *WorkflowCheckpoint) Reset() {
 	*x = WorkflowCheckpoint{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[68]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6047,7 +6174,7 @@ func (x *WorkflowCheckpoint) String() string {
 func (*WorkflowCheckpoint) ProtoMessage() {}
 
 func (x *WorkflowCheckpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[68]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6060,7 +6187,7 @@ func (x *WorkflowCheckpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkflowCheckpoint.ProtoReflect.Descriptor instead.
 func (*WorkflowCheckpoint) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{68}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *WorkflowCheckpoint) GetInvocationId() string {
@@ -6118,7 +6245,7 @@ type CheckpointAck struct {
 
 func (x *CheckpointAck) Reset() {
 	*x = CheckpointAck{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[69]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6130,7 +6257,7 @@ func (x *CheckpointAck) String() string {
 func (*CheckpointAck) ProtoMessage() {}
 
 func (x *CheckpointAck) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[69]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6143,7 +6270,7 @@ func (x *CheckpointAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckpointAck.ProtoReflect.Descriptor instead.
 func (*CheckpointAck) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{69}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *CheckpointAck) GetRunId() string {
@@ -6188,7 +6315,7 @@ type HealthCheck struct {
 
 func (x *HealthCheck) Reset() {
 	*x = HealthCheck{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[70]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6200,7 +6327,7 @@ func (x *HealthCheck) String() string {
 func (*HealthCheck) ProtoMessage() {}
 
 func (x *HealthCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[70]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6213,7 +6340,7 @@ func (x *HealthCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheck.ProtoReflect.Descriptor instead.
 func (*HealthCheck) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{70}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *HealthCheck) GetTimestamp() int64 {
@@ -6264,7 +6391,7 @@ type SendSignalRequest struct {
 
 func (x *SendSignalRequest) Reset() {
 	*x = SendSignalRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[71]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6276,7 +6403,7 @@ func (x *SendSignalRequest) String() string {
 func (*SendSignalRequest) ProtoMessage() {}
 
 func (x *SendSignalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[71]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6289,7 +6416,7 @@ func (x *SendSignalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendSignalRequest.ProtoReflect.Descriptor instead.
 func (*SendSignalRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{71}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *SendSignalRequest) GetRunId() string {
@@ -6336,7 +6463,7 @@ type SendSignalResponse struct {
 
 func (x *SendSignalResponse) Reset() {
 	*x = SendSignalResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[72]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6348,7 +6475,7 @@ func (x *SendSignalResponse) String() string {
 func (*SendSignalResponse) ProtoMessage() {}
 
 func (x *SendSignalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[72]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6361,7 +6488,7 @@ func (x *SendSignalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendSignalResponse.ProtoReflect.Descriptor instead.
 func (*SendSignalResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{72}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *SendSignalResponse) GetEventId() string {
@@ -6384,7 +6511,7 @@ type AcknowledgeSignalRequest struct {
 
 func (x *AcknowledgeSignalRequest) Reset() {
 	*x = AcknowledgeSignalRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[73]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6396,7 +6523,7 @@ func (x *AcknowledgeSignalRequest) String() string {
 func (*AcknowledgeSignalRequest) ProtoMessage() {}
 
 func (x *AcknowledgeSignalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[73]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6409,7 +6536,7 @@ func (x *AcknowledgeSignalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcknowledgeSignalRequest.ProtoReflect.Descriptor instead.
 func (*AcknowledgeSignalRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{73}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *AcknowledgeSignalRequest) GetRunId() string {
@@ -6456,7 +6583,7 @@ type AcknowledgeSignalResponse struct {
 
 func (x *AcknowledgeSignalResponse) Reset() {
 	*x = AcknowledgeSignalResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[74]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6468,7 +6595,7 @@ func (x *AcknowledgeSignalResponse) String() string {
 func (*AcknowledgeSignalResponse) ProtoMessage() {}
 
 func (x *AcknowledgeSignalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[74]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6481,7 +6608,7 @@ func (x *AcknowledgeSignalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AcknowledgeSignalResponse.ProtoReflect.Descriptor instead.
 func (*AcknowledgeSignalResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{74}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *AcknowledgeSignalResponse) GetEventId() string {
@@ -6505,7 +6632,7 @@ type WaitSignalRequest struct {
 
 func (x *WaitSignalRequest) Reset() {
 	*x = WaitSignalRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[75]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6517,7 +6644,7 @@ func (x *WaitSignalRequest) String() string {
 func (*WaitSignalRequest) ProtoMessage() {}
 
 func (x *WaitSignalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[75]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6530,7 +6657,7 @@ func (x *WaitSignalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WaitSignalRequest.ProtoReflect.Descriptor instead.
 func (*WaitSignalRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{75}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *WaitSignalRequest) GetRunId() string {
@@ -6589,7 +6716,7 @@ type WaitSignalResponse struct {
 
 func (x *WaitSignalResponse) Reset() {
 	*x = WaitSignalResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[76]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6601,7 +6728,7 @@ func (x *WaitSignalResponse) String() string {
 func (*WaitSignalResponse) ProtoMessage() {}
 
 func (x *WaitSignalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[76]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6614,7 +6741,7 @@ func (x *WaitSignalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WaitSignalResponse.ProtoReflect.Descriptor instead.
 func (*WaitSignalResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{76}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *WaitSignalResponse) GetDelivered() bool {
@@ -6674,7 +6801,7 @@ type RequestApprovalRequest struct {
 
 func (x *RequestApprovalRequest) Reset() {
 	*x = RequestApprovalRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[77]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6686,7 +6813,7 @@ func (x *RequestApprovalRequest) String() string {
 func (*RequestApprovalRequest) ProtoMessage() {}
 
 func (x *RequestApprovalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[77]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6699,7 +6826,7 @@ func (x *RequestApprovalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestApprovalRequest.ProtoReflect.Descriptor instead.
 func (*RequestApprovalRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{77}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *RequestApprovalRequest) GetRunId() string {
@@ -6762,7 +6889,7 @@ type RequestApprovalResponse struct {
 
 func (x *RequestApprovalResponse) Reset() {
 	*x = RequestApprovalResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[78]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6774,7 +6901,7 @@ func (x *RequestApprovalResponse) String() string {
 func (*RequestApprovalResponse) ProtoMessage() {}
 
 func (x *RequestApprovalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[78]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6787,7 +6914,7 @@ func (x *RequestApprovalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestApprovalResponse.ProtoReflect.Descriptor instead.
 func (*RequestApprovalResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{78}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *RequestApprovalResponse) GetApprovalId() string {
@@ -6826,7 +6953,7 @@ type ResolveApprovalRequest struct {
 
 func (x *ResolveApprovalRequest) Reset() {
 	*x = ResolveApprovalRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[79]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6838,7 +6965,7 @@ func (x *ResolveApprovalRequest) String() string {
 func (*ResolveApprovalRequest) ProtoMessage() {}
 
 func (x *ResolveApprovalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[79]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6851,7 +6978,7 @@ func (x *ResolveApprovalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveApprovalRequest.ProtoReflect.Descriptor instead.
 func (*ResolveApprovalRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{79}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *ResolveApprovalRequest) GetApprovalId() string {
@@ -6912,7 +7039,7 @@ type ResolveApprovalResponse struct {
 
 func (x *ResolveApprovalResponse) Reset() {
 	*x = ResolveApprovalResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[80]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6924,7 +7051,7 @@ func (x *ResolveApprovalResponse) String() string {
 func (*ResolveApprovalResponse) ProtoMessage() {}
 
 func (x *ResolveApprovalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[80]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6937,7 +7064,7 @@ func (x *ResolveApprovalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveApprovalResponse.ProtoReflect.Descriptor instead.
 func (*ResolveApprovalResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{80}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ResolveApprovalResponse) GetEventId() string {
@@ -6957,7 +7084,7 @@ type ListApprovalsRequest struct {
 
 func (x *ListApprovalsRequest) Reset() {
 	*x = ListApprovalsRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[81]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6969,7 +7096,7 @@ func (x *ListApprovalsRequest) String() string {
 func (*ListApprovalsRequest) ProtoMessage() {}
 
 func (x *ListApprovalsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[81]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6982,7 +7109,7 @@ func (x *ListApprovalsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApprovalsRequest.ProtoReflect.Descriptor instead.
 func (*ListApprovalsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{81}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *ListApprovalsRequest) GetRunId() string {
@@ -7018,7 +7145,7 @@ type ApprovalView struct {
 
 func (x *ApprovalView) Reset() {
 	*x = ApprovalView{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[82]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7030,7 +7157,7 @@ func (x *ApprovalView) String() string {
 func (*ApprovalView) ProtoMessage() {}
 
 func (x *ApprovalView) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[82]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7043,7 +7170,7 @@ func (x *ApprovalView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApprovalView.ProtoReflect.Descriptor instead.
 func (*ApprovalView) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{82}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *ApprovalView) GetApprovalId() string {
@@ -7132,7 +7259,7 @@ type ListApprovalsResponse struct {
 
 func (x *ListApprovalsResponse) Reset() {
 	*x = ListApprovalsResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[83]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7144,7 +7271,7 @@ func (x *ListApprovalsResponse) String() string {
 func (*ListApprovalsResponse) ProtoMessage() {}
 
 func (x *ListApprovalsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[83]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7157,7 +7284,7 @@ func (x *ListApprovalsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListApprovalsResponse.ProtoReflect.Descriptor instead.
 func (*ListApprovalsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{83}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *ListApprovalsResponse) GetApprovals() []*ApprovalView {
@@ -7181,7 +7308,7 @@ type ScheduleTimerRequest struct {
 
 func (x *ScheduleTimerRequest) Reset() {
 	*x = ScheduleTimerRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[84]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7193,7 +7320,7 @@ func (x *ScheduleTimerRequest) String() string {
 func (*ScheduleTimerRequest) ProtoMessage() {}
 
 func (x *ScheduleTimerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[84]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7206,7 +7333,7 @@ func (x *ScheduleTimerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduleTimerRequest.ProtoReflect.Descriptor instead.
 func (*ScheduleTimerRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{84}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *ScheduleTimerRequest) GetRunId() string {
@@ -7261,7 +7388,7 @@ type ScheduleTimerResponse struct {
 
 func (x *ScheduleTimerResponse) Reset() {
 	*x = ScheduleTimerResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[85]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7273,7 +7400,7 @@ func (x *ScheduleTimerResponse) String() string {
 func (*ScheduleTimerResponse) ProtoMessage() {}
 
 func (x *ScheduleTimerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[85]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7286,7 +7413,7 @@ func (x *ScheduleTimerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScheduleTimerResponse.ProtoReflect.Descriptor instead.
 func (*ScheduleTimerResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{85}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ScheduleTimerResponse) GetEventId() string {
@@ -7315,7 +7442,7 @@ type CancelTimerRequest struct {
 
 func (x *CancelTimerRequest) Reset() {
 	*x = CancelTimerRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[86]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7327,7 +7454,7 @@ func (x *CancelTimerRequest) String() string {
 func (*CancelTimerRequest) ProtoMessage() {}
 
 func (x *CancelTimerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[86]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7340,7 +7467,7 @@ func (x *CancelTimerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelTimerRequest.ProtoReflect.Descriptor instead.
 func (*CancelTimerRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{86}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *CancelTimerRequest) GetRunId() string {
@@ -7380,7 +7507,7 @@ type CancelTimerResponse struct {
 
 func (x *CancelTimerResponse) Reset() {
 	*x = CancelTimerResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[87]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7392,7 +7519,7 @@ func (x *CancelTimerResponse) String() string {
 func (*CancelTimerResponse) ProtoMessage() {}
 
 func (x *CancelTimerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[87]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7405,7 +7532,7 @@ func (x *CancelTimerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelTimerResponse.ProtoReflect.Descriptor instead.
 func (*CancelTimerResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{87}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *CancelTimerResponse) GetEventId() string {
@@ -7424,7 +7551,7 @@ type ListPendingWaitsRequest struct {
 
 func (x *ListPendingWaitsRequest) Reset() {
 	*x = ListPendingWaitsRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[88]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7436,7 +7563,7 @@ func (x *ListPendingWaitsRequest) String() string {
 func (*ListPendingWaitsRequest) ProtoMessage() {}
 
 func (x *ListPendingWaitsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[88]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7449,7 +7576,7 @@ func (x *ListPendingWaitsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPendingWaitsRequest.ProtoReflect.Descriptor instead.
 func (*ListPendingWaitsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{88}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *ListPendingWaitsRequest) GetRunId() string {
@@ -7469,7 +7596,7 @@ type ListPendingWaitsResponse struct {
 
 func (x *ListPendingWaitsResponse) Reset() {
 	*x = ListPendingWaitsResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[89]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7481,7 +7608,7 @@ func (x *ListPendingWaitsResponse) String() string {
 func (*ListPendingWaitsResponse) ProtoMessage() {}
 
 func (x *ListPendingWaitsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[89]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7494,7 +7621,7 @@ func (x *ListPendingWaitsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPendingWaitsResponse.ProtoReflect.Descriptor instead.
 func (*ListPendingWaitsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{89}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *ListPendingWaitsResponse) GetSignals() []*PendingSignal {
@@ -7522,7 +7649,7 @@ type PendingSignal struct {
 
 func (x *PendingSignal) Reset() {
 	*x = PendingSignal{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[90]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7534,7 +7661,7 @@ func (x *PendingSignal) String() string {
 func (*PendingSignal) ProtoMessage() {}
 
 func (x *PendingSignal) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[90]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7547,7 +7674,7 @@ func (x *PendingSignal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingSignal.ProtoReflect.Descriptor instead.
 func (*PendingSignal) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{90}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *PendingSignal) GetSignalName() string {
@@ -7583,7 +7710,7 @@ type PendingTimer struct {
 
 func (x *PendingTimer) Reset() {
 	*x = PendingTimer{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[91]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7595,7 +7722,7 @@ func (x *PendingTimer) String() string {
 func (*PendingTimer) ProtoMessage() {}
 
 func (x *PendingTimer) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[91]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7608,7 +7735,7 @@ func (x *PendingTimer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingTimer.ProtoReflect.Descriptor instead.
 func (*PendingTimer) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{91}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *PendingTimer) GetTimerKey() string {
@@ -7651,7 +7778,7 @@ type HealthResponse struct {
 
 func (x *HealthResponse) Reset() {
 	*x = HealthResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[92]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7663,7 +7790,7 @@ func (x *HealthResponse) String() string {
 func (*HealthResponse) ProtoMessage() {}
 
 func (x *HealthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[92]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7676,7 +7803,7 @@ func (x *HealthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthResponse.ProtoReflect.Descriptor instead.
 func (*HealthResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{92}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *HealthResponse) GetTimestamp() int64 {
@@ -7711,7 +7838,7 @@ type UnregisterService struct {
 
 func (x *UnregisterService) Reset() {
 	*x = UnregisterService{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[93]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7723,7 +7850,7 @@ func (x *UnregisterService) String() string {
 func (*UnregisterService) ProtoMessage() {}
 
 func (x *UnregisterService) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[93]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7736,7 +7863,7 @@ func (x *UnregisterService) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnregisterService.ProtoReflect.Descriptor instead.
 func (*UnregisterService) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{93}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *UnregisterService) GetReason() string {
@@ -7768,7 +7895,7 @@ type ForwardDispatchRequest struct {
 
 func (x *ForwardDispatchRequest) Reset() {
 	*x = ForwardDispatchRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[94]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7780,7 +7907,7 @@ func (x *ForwardDispatchRequest) String() string {
 func (*ForwardDispatchRequest) ProtoMessage() {}
 
 func (x *ForwardDispatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[94]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7793,7 +7920,7 @@ func (x *ForwardDispatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForwardDispatchRequest.ProtoReflect.Descriptor instead.
 func (*ForwardDispatchRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{94}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *ForwardDispatchRequest) GetDispatchRequest() *DispatchComponentRequest {
@@ -7835,7 +7962,7 @@ type ForwardDispatchAck struct {
 
 func (x *ForwardDispatchAck) Reset() {
 	*x = ForwardDispatchAck{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[95]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7847,7 +7974,7 @@ func (x *ForwardDispatchAck) String() string {
 func (*ForwardDispatchAck) ProtoMessage() {}
 
 func (x *ForwardDispatchAck) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[95]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7860,7 +7987,7 @@ func (x *ForwardDispatchAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForwardDispatchAck.ProtoReflect.Descriptor instead.
 func (*ForwardDispatchAck) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{95}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *ForwardDispatchAck) GetAccepted() bool {
@@ -7922,7 +8049,7 @@ type ReleaseActiveDispatchRequest struct {
 
 func (x *ReleaseActiveDispatchRequest) Reset() {
 	*x = ReleaseActiveDispatchRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[96]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7934,7 +8061,7 @@ func (x *ReleaseActiveDispatchRequest) String() string {
 func (*ReleaseActiveDispatchRequest) ProtoMessage() {}
 
 func (x *ReleaseActiveDispatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[96]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7947,7 +8074,7 @@ func (x *ReleaseActiveDispatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseActiveDispatchRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseActiveDispatchRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{96}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *ReleaseActiveDispatchRequest) GetInvocationId() string {
@@ -7990,7 +8117,7 @@ type ReleaseActiveDispatchAck struct {
 
 func (x *ReleaseActiveDispatchAck) Reset() {
 	*x = ReleaseActiveDispatchAck{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[97]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8002,7 +8129,7 @@ func (x *ReleaseActiveDispatchAck) String() string {
 func (*ReleaseActiveDispatchAck) ProtoMessage() {}
 
 func (x *ReleaseActiveDispatchAck) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[97]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8015,7 +8142,7 @@ func (x *ReleaseActiveDispatchAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseActiveDispatchAck.ProtoReflect.Descriptor instead.
 func (*ReleaseActiveDispatchAck) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{97}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *ReleaseActiveDispatchAck) GetReleased() bool {
@@ -8068,7 +8195,7 @@ type WriteJournalEventRequest struct {
 
 func (x *WriteJournalEventRequest) Reset() {
 	*x = WriteJournalEventRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[98]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8080,7 +8207,7 @@ func (x *WriteJournalEventRequest) String() string {
 func (*WriteJournalEventRequest) ProtoMessage() {}
 
 func (x *WriteJournalEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[98]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8093,7 +8220,7 @@ func (x *WriteJournalEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteJournalEventRequest.ProtoReflect.Descriptor instead.
 func (*WriteJournalEventRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{98}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *WriteJournalEventRequest) GetRunId() string {
@@ -8181,7 +8308,7 @@ type WriteJournalEventResponse struct {
 
 func (x *WriteJournalEventResponse) Reset() {
 	*x = WriteJournalEventResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[99]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8193,7 +8320,7 @@ func (x *WriteJournalEventResponse) String() string {
 func (*WriteJournalEventResponse) ProtoMessage() {}
 
 func (x *WriteJournalEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[99]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8206,7 +8333,7 @@ func (x *WriteJournalEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteJournalEventResponse.ProtoReflect.Descriptor instead.
 func (*WriteJournalEventResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{99}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *WriteJournalEventResponse) GetSequenceNum() int64 {
@@ -8240,7 +8367,7 @@ type WriteJournalEventsBatchRequest struct {
 
 func (x *WriteJournalEventsBatchRequest) Reset() {
 	*x = WriteJournalEventsBatchRequest{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[100]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8252,7 +8379,7 @@ func (x *WriteJournalEventsBatchRequest) String() string {
 func (*WriteJournalEventsBatchRequest) ProtoMessage() {}
 
 func (x *WriteJournalEventsBatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[100]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8265,7 +8392,7 @@ func (x *WriteJournalEventsBatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteJournalEventsBatchRequest.ProtoReflect.Descriptor instead.
 func (*WriteJournalEventsBatchRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{100}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *WriteJournalEventsBatchRequest) GetEvents() []*WriteJournalEventRequest {
@@ -8290,7 +8417,7 @@ type WriteJournalEventsBatchResponse struct {
 
 func (x *WriteJournalEventsBatchResponse) Reset() {
 	*x = WriteJournalEventsBatchResponse{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[101]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8302,7 +8429,7 @@ func (x *WriteJournalEventsBatchResponse) String() string {
 func (*WriteJournalEventsBatchResponse) ProtoMessage() {}
 
 func (x *WriteJournalEventsBatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[101]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8315,7 +8442,7 @@ func (x *WriteJournalEventsBatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteJournalEventsBatchResponse.ProtoReflect.Descriptor instead.
 func (*WriteJournalEventsBatchResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{101}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *WriteJournalEventsBatchResponse) GetWrittenCount() int32 {
@@ -8350,7 +8477,7 @@ type WriteJournalEventError struct {
 
 func (x *WriteJournalEventError) Reset() {
 	*x = WriteJournalEventError{}
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[102]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8362,7 +8489,7 @@ func (x *WriteJournalEventError) String() string {
 func (*WriteJournalEventError) ProtoMessage() {}
 
 func (x *WriteJournalEventError) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_worker_coordinator_proto_msgTypes[102]
+	mi := &file_api_v1_worker_coordinator_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8375,7 +8502,7 @@ func (x *WriteJournalEventError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteJournalEventError.ProtoReflect.Descriptor instead.
 func (*WriteJournalEventError) Descriptor() ([]byte, []int) {
-	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{102}
+	return file_api_v1_worker_coordinator_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *WriteJournalEventError) GetIndex() int32 {
@@ -8899,14 +9026,26 @@ const file_api_v1_worker_coordinator_proto_rawDesc = "" +
 	"\aattempt\x18\x04 \x01(\x05R\aattempt\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\x05 \x01(\tR\tupdatedAt\x12\x16\n" +
-	"\x06result\x18\x06 \x01(\fR\x06result\"\xfe\x04\n" +
+	"\x06result\x18\x06 \x01(\fR\x06result\"\xbe\x02\n" +
+	"\x10WorkerSuspension\x12#\n" +
+	"\ractivation_id\x18\x01 \x01(\tR\factivationId\x12\x18\n" +
+	"\aattempt\x18\x02 \x01(\rR\aattempt\x12\x1f\n" +
+	"\vfence_token\x18\x03 \x01(\fR\n" +
+	"fenceToken\x12\x1b\n" +
+	"\ttimer_key\x18\x04 \x01(\tR\btimerKey\x12\x1e\n" +
+	"\vready_at_ms\x18\x05 \x01(\x03R\treadyAtMs\x12!\n" +
+	"\finput_digest\x18\x06 \x01(\fR\vinputDigest\x12+\n" +
+	"\x11definition_digest\x18\a \x01(\fR\x10definitionDigest\x12\"\n" +
+	"\fcontinuation\x18\b \x01(\fR\fcontinuation\x12\x19\n" +
+	"\bdelay_ms\x18\t \x01(\x03R\adelayMs\"\xc7\x05\n" +
 	"\x19DispatchComponentResponse\x12#\n" +
 	"\rinvocation_id\x18\x01 \x01(\tR\finvocationId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12!\n" +
 	"\voutput_data\x18\x03 \x01(\fH\x00R\n" +
 	"outputData\x128\n" +
 	"\fstate_update\x18\x04 \x01(\v2\x13.api.v1.StateUpdateH\x00R\vstateUpdate\x12G\n" +
-	"\x11flow_continuation\x18\x05 \x01(\v2\x18.api.v1.FlowContinuationH\x00R\x10flowContinuation\x12#\n" +
+	"\x11flow_continuation\x18\x05 \x01(\v2\x18.api.v1.FlowContinuationH\x00R\x10flowContinuation\x12G\n" +
+	"\x11worker_suspension\x18\x0e \x01(\v2\x18.api.v1.WorkerSuspensionH\x00R\x10workerSuspension\x12#\n" +
 	"\rerror_message\x18\x06 \x01(\tR\ferrorMessage\x12K\n" +
 	"\bmetadata\x18\a \x03(\v2/.api.v1.DispatchComponentResponse.MetadataEntryR\bmetadata\x12\x1d\n" +
 	"\n" +
@@ -9196,7 +9335,7 @@ func file_api_v1_worker_coordinator_proto_rawDescGZIP() []byte {
 }
 
 var file_api_v1_worker_coordinator_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_api_v1_worker_coordinator_proto_msgTypes = make([]protoimpl.MessageInfo, 123)
+var file_api_v1_worker_coordinator_proto_msgTypes = make([]protoimpl.MessageInfo, 124)
 var file_api_v1_worker_coordinator_proto_goTypes = []any{
 	(WorkerStatus)(0),                        // 0: api.v1.WorkerStatus
 	(RuntimeMessageType)(0),                  // 1: api.v1.RuntimeMessageType
@@ -9266,95 +9405,96 @@ var file_api_v1_worker_coordinator_proto_goTypes = []any{
 	(*ComponentSchema)(nil),                  // 65: api.v1.ComponentSchema
 	(*DispatchComponentRequest)(nil),         // 66: api.v1.DispatchComponentRequest
 	(*StepCheckpoint)(nil),                   // 67: api.v1.StepCheckpoint
-	(*DispatchComponentResponse)(nil),        // 68: api.v1.DispatchComponentResponse
-	(*CancelExecutionRequest)(nil),           // 69: api.v1.CancelExecutionRequest
-	(*StateUpdate)(nil),                      // 70: api.v1.StateUpdate
-	(*StateTransition)(nil),                  // 71: api.v1.StateTransition
-	(*FlowContinuation)(nil),                 // 72: api.v1.FlowContinuation
-	(*WorkflowCheckpoint)(nil),               // 73: api.v1.WorkflowCheckpoint
-	(*CheckpointAck)(nil),                    // 74: api.v1.CheckpointAck
-	(*HealthCheck)(nil),                      // 75: api.v1.HealthCheck
-	(*SendSignalRequest)(nil),                // 76: api.v1.SendSignalRequest
-	(*SendSignalResponse)(nil),               // 77: api.v1.SendSignalResponse
-	(*AcknowledgeSignalRequest)(nil),         // 78: api.v1.AcknowledgeSignalRequest
-	(*AcknowledgeSignalResponse)(nil),        // 79: api.v1.AcknowledgeSignalResponse
-	(*WaitSignalRequest)(nil),                // 80: api.v1.WaitSignalRequest
-	(*WaitSignalResponse)(nil),               // 81: api.v1.WaitSignalResponse
-	(*RequestApprovalRequest)(nil),           // 82: api.v1.RequestApprovalRequest
-	(*RequestApprovalResponse)(nil),          // 83: api.v1.RequestApprovalResponse
-	(*ResolveApprovalRequest)(nil),           // 84: api.v1.ResolveApprovalRequest
-	(*ResolveApprovalResponse)(nil),          // 85: api.v1.ResolveApprovalResponse
-	(*ListApprovalsRequest)(nil),             // 86: api.v1.ListApprovalsRequest
-	(*ApprovalView)(nil),                     // 87: api.v1.ApprovalView
-	(*ListApprovalsResponse)(nil),            // 88: api.v1.ListApprovalsResponse
-	(*ScheduleTimerRequest)(nil),             // 89: api.v1.ScheduleTimerRequest
-	(*ScheduleTimerResponse)(nil),            // 90: api.v1.ScheduleTimerResponse
-	(*CancelTimerRequest)(nil),               // 91: api.v1.CancelTimerRequest
-	(*CancelTimerResponse)(nil),              // 92: api.v1.CancelTimerResponse
-	(*ListPendingWaitsRequest)(nil),          // 93: api.v1.ListPendingWaitsRequest
-	(*ListPendingWaitsResponse)(nil),         // 94: api.v1.ListPendingWaitsResponse
-	(*PendingSignal)(nil),                    // 95: api.v1.PendingSignal
-	(*PendingTimer)(nil),                     // 96: api.v1.PendingTimer
-	(*HealthResponse)(nil),                   // 97: api.v1.HealthResponse
-	(*UnregisterService)(nil),                // 98: api.v1.UnregisterService
-	(*ForwardDispatchRequest)(nil),           // 99: api.v1.ForwardDispatchRequest
-	(*ForwardDispatchAck)(nil),               // 100: api.v1.ForwardDispatchAck
-	(*ReleaseActiveDispatchRequest)(nil),     // 101: api.v1.ReleaseActiveDispatchRequest
-	(*ReleaseActiveDispatchAck)(nil),         // 102: api.v1.ReleaseActiveDispatchAck
-	(*WriteJournalEventRequest)(nil),         // 103: api.v1.WriteJournalEventRequest
-	(*WriteJournalEventResponse)(nil),        // 104: api.v1.WriteJournalEventResponse
-	(*WriteJournalEventsBatchRequest)(nil),   // 105: api.v1.WriteJournalEventsBatchRequest
-	(*WriteJournalEventsBatchResponse)(nil),  // 106: api.v1.WriteJournalEventsBatchResponse
-	(*WriteJournalEventError)(nil),           // 107: api.v1.WriteJournalEventError
-	nil,                                      // 108: api.v1.WorkerInfo.MetadataEntry
-	nil,                                      // 109: api.v1.ServiceMessage.MetadataEntry
-	nil,                                      // 110: api.v1.RuntimeMessage.MetadataEntry
-	nil,                                      // 111: api.v1.ToolDefinitionData.MetadataEntry
-	nil,                                      // 112: api.v1.ToolDeploymentData.MetadataEntry
-	nil,                                      // 113: api.v1.AgentVersionData.MetadataEntry
-	nil,                                      // 114: api.v1.RunCheckpointRequest.MetadataEntry
-	nil,                                      // 115: api.v1.RunFailRequest.MetadataEntry
-	nil,                                      // 116: api.v1.SignalWaitRequest.MetadataEntry
-	nil,                                      // 117: api.v1.TimerSleepRequest.MetadataEntry
-	nil,                                      // 118: api.v1.TaskSpawnRequest.MetadataEntry
-	nil,                                      // 119: api.v1.RegisterService.MetadataEntry
-	nil,                                      // 120: api.v1.ComponentInfo.ConfigEntry
-	nil,                                      // 121: api.v1.ComponentInfo.MetadataEntry
-	nil,                                      // 122: api.v1.ComponentSchema.PropertiesEntry
-	nil,                                      // 123: api.v1.DispatchComponentRequest.MetadataEntry
-	nil,                                      // 124: api.v1.DispatchComponentResponse.MetadataEntry
-	nil,                                      // 125: api.v1.WorkflowCheckpoint.MetadataEntry
-	nil,                                      // 126: api.v1.HealthCheck.MetricsEntry
-	nil,                                      // 127: api.v1.WriteJournalEventRequest.MetadataEntry
-	(*timestamppb.Timestamp)(nil),            // 128: google.protobuf.Timestamp
-	(WorkerMode)(0),                          // 129: api.v1.WorkerMode
-	(*WorkerCapability)(nil),                 // 130: api.v1.WorkerCapability
-	(ComponentType)(0),                       // 131: api.v1.ComponentType
-	(Priority)(0),                            // 132: api.v1.Priority
-	(*RetryPolicy)(nil),                      // 133: api.v1.RetryPolicy
+	(*WorkerSuspension)(nil),                 // 68: api.v1.WorkerSuspension
+	(*DispatchComponentResponse)(nil),        // 69: api.v1.DispatchComponentResponse
+	(*CancelExecutionRequest)(nil),           // 70: api.v1.CancelExecutionRequest
+	(*StateUpdate)(nil),                      // 71: api.v1.StateUpdate
+	(*StateTransition)(nil),                  // 72: api.v1.StateTransition
+	(*FlowContinuation)(nil),                 // 73: api.v1.FlowContinuation
+	(*WorkflowCheckpoint)(nil),               // 74: api.v1.WorkflowCheckpoint
+	(*CheckpointAck)(nil),                    // 75: api.v1.CheckpointAck
+	(*HealthCheck)(nil),                      // 76: api.v1.HealthCheck
+	(*SendSignalRequest)(nil),                // 77: api.v1.SendSignalRequest
+	(*SendSignalResponse)(nil),               // 78: api.v1.SendSignalResponse
+	(*AcknowledgeSignalRequest)(nil),         // 79: api.v1.AcknowledgeSignalRequest
+	(*AcknowledgeSignalResponse)(nil),        // 80: api.v1.AcknowledgeSignalResponse
+	(*WaitSignalRequest)(nil),                // 81: api.v1.WaitSignalRequest
+	(*WaitSignalResponse)(nil),               // 82: api.v1.WaitSignalResponse
+	(*RequestApprovalRequest)(nil),           // 83: api.v1.RequestApprovalRequest
+	(*RequestApprovalResponse)(nil),          // 84: api.v1.RequestApprovalResponse
+	(*ResolveApprovalRequest)(nil),           // 85: api.v1.ResolveApprovalRequest
+	(*ResolveApprovalResponse)(nil),          // 86: api.v1.ResolveApprovalResponse
+	(*ListApprovalsRequest)(nil),             // 87: api.v1.ListApprovalsRequest
+	(*ApprovalView)(nil),                     // 88: api.v1.ApprovalView
+	(*ListApprovalsResponse)(nil),            // 89: api.v1.ListApprovalsResponse
+	(*ScheduleTimerRequest)(nil),             // 90: api.v1.ScheduleTimerRequest
+	(*ScheduleTimerResponse)(nil),            // 91: api.v1.ScheduleTimerResponse
+	(*CancelTimerRequest)(nil),               // 92: api.v1.CancelTimerRequest
+	(*CancelTimerResponse)(nil),              // 93: api.v1.CancelTimerResponse
+	(*ListPendingWaitsRequest)(nil),          // 94: api.v1.ListPendingWaitsRequest
+	(*ListPendingWaitsResponse)(nil),         // 95: api.v1.ListPendingWaitsResponse
+	(*PendingSignal)(nil),                    // 96: api.v1.PendingSignal
+	(*PendingTimer)(nil),                     // 97: api.v1.PendingTimer
+	(*HealthResponse)(nil),                   // 98: api.v1.HealthResponse
+	(*UnregisterService)(nil),                // 99: api.v1.UnregisterService
+	(*ForwardDispatchRequest)(nil),           // 100: api.v1.ForwardDispatchRequest
+	(*ForwardDispatchAck)(nil),               // 101: api.v1.ForwardDispatchAck
+	(*ReleaseActiveDispatchRequest)(nil),     // 102: api.v1.ReleaseActiveDispatchRequest
+	(*ReleaseActiveDispatchAck)(nil),         // 103: api.v1.ReleaseActiveDispatchAck
+	(*WriteJournalEventRequest)(nil),         // 104: api.v1.WriteJournalEventRequest
+	(*WriteJournalEventResponse)(nil),        // 105: api.v1.WriteJournalEventResponse
+	(*WriteJournalEventsBatchRequest)(nil),   // 106: api.v1.WriteJournalEventsBatchRequest
+	(*WriteJournalEventsBatchResponse)(nil),  // 107: api.v1.WriteJournalEventsBatchResponse
+	(*WriteJournalEventError)(nil),           // 108: api.v1.WriteJournalEventError
+	nil,                                      // 109: api.v1.WorkerInfo.MetadataEntry
+	nil,                                      // 110: api.v1.ServiceMessage.MetadataEntry
+	nil,                                      // 111: api.v1.RuntimeMessage.MetadataEntry
+	nil,                                      // 112: api.v1.ToolDefinitionData.MetadataEntry
+	nil,                                      // 113: api.v1.ToolDeploymentData.MetadataEntry
+	nil,                                      // 114: api.v1.AgentVersionData.MetadataEntry
+	nil,                                      // 115: api.v1.RunCheckpointRequest.MetadataEntry
+	nil,                                      // 116: api.v1.RunFailRequest.MetadataEntry
+	nil,                                      // 117: api.v1.SignalWaitRequest.MetadataEntry
+	nil,                                      // 118: api.v1.TimerSleepRequest.MetadataEntry
+	nil,                                      // 119: api.v1.TaskSpawnRequest.MetadataEntry
+	nil,                                      // 120: api.v1.RegisterService.MetadataEntry
+	nil,                                      // 121: api.v1.ComponentInfo.ConfigEntry
+	nil,                                      // 122: api.v1.ComponentInfo.MetadataEntry
+	nil,                                      // 123: api.v1.ComponentSchema.PropertiesEntry
+	nil,                                      // 124: api.v1.DispatchComponentRequest.MetadataEntry
+	nil,                                      // 125: api.v1.DispatchComponentResponse.MetadataEntry
+	nil,                                      // 126: api.v1.WorkflowCheckpoint.MetadataEntry
+	nil,                                      // 127: api.v1.HealthCheck.MetricsEntry
+	nil,                                      // 128: api.v1.WriteJournalEventRequest.MetadataEntry
+	(*timestamppb.Timestamp)(nil),            // 129: google.protobuf.Timestamp
+	(WorkerMode)(0),                          // 130: api.v1.WorkerMode
+	(*WorkerCapability)(nil),                 // 131: api.v1.WorkerCapability
+	(ComponentType)(0),                       // 132: api.v1.ComponentType
+	(Priority)(0),                            // 133: api.v1.Priority
+	(*RetryPolicy)(nil),                      // 134: api.v1.RetryPolicy
 }
 var file_api_v1_worker_coordinator_proto_depIdxs = []int32{
 	7,   // 0: api.v1.ListWorkersResponse.workers:type_name -> api.v1.WorkerInfo
 	64,  // 1: api.v1.WorkerInfo.components:type_name -> api.v1.ComponentInfo
 	0,   // 2: api.v1.WorkerInfo.status:type_name -> api.v1.WorkerStatus
-	108, // 3: api.v1.WorkerInfo.metadata:type_name -> api.v1.WorkerInfo.MetadataEntry
-	109, // 4: api.v1.ServiceMessage.metadata:type_name -> api.v1.ServiceMessage.MetadataEntry
+	109, // 3: api.v1.WorkerInfo.metadata:type_name -> api.v1.WorkerInfo.MetadataEntry
+	110, // 4: api.v1.ServiceMessage.metadata:type_name -> api.v1.ServiceMessage.MetadataEntry
 	60,  // 5: api.v1.ServiceMessage.register_service:type_name -> api.v1.RegisterService
 	62,  // 6: api.v1.ServiceMessage.get_service_components:type_name -> api.v1.GetServiceComponents
-	68,  // 7: api.v1.ServiceMessage.function_response:type_name -> api.v1.DispatchComponentResponse
-	75,  // 8: api.v1.ServiceMessage.health_check:type_name -> api.v1.HealthCheck
-	98,  // 9: api.v1.ServiceMessage.unregister_service:type_name -> api.v1.UnregisterService
+	69,  // 7: api.v1.ServiceMessage.function_response:type_name -> api.v1.DispatchComponentResponse
+	76,  // 8: api.v1.ServiceMessage.health_check:type_name -> api.v1.HealthCheck
+	99,  // 9: api.v1.ServiceMessage.unregister_service:type_name -> api.v1.UnregisterService
 	11,  // 10: api.v1.ServiceMessage.runtime_service:type_name -> api.v1.RuntimeServiceRequest
-	73,  // 11: api.v1.ServiceMessage.workflow_checkpoint:type_name -> api.v1.WorkflowCheckpoint
+	74,  // 11: api.v1.ServiceMessage.workflow_checkpoint:type_name -> api.v1.WorkflowCheckpoint
 	1,   // 12: api.v1.RuntimeMessage.message_type:type_name -> api.v1.RuntimeMessageType
-	110, // 13: api.v1.RuntimeMessage.metadata:type_name -> api.v1.RuntimeMessage.MetadataEntry
+	111, // 13: api.v1.RuntimeMessage.metadata:type_name -> api.v1.RuntimeMessage.MetadataEntry
 	61,  // 14: api.v1.RuntimeMessage.register_service_response:type_name -> api.v1.RegisterServiceResponse
 	62,  // 15: api.v1.RuntimeMessage.get_components:type_name -> api.v1.GetServiceComponents
 	66,  // 16: api.v1.RuntimeMessage.dispatch_component:type_name -> api.v1.DispatchComponentRequest
-	97,  // 17: api.v1.RuntimeMessage.health_response:type_name -> api.v1.HealthResponse
+	98,  // 17: api.v1.RuntimeMessage.health_response:type_name -> api.v1.HealthResponse
 	12,  // 18: api.v1.RuntimeMessage.runtime_service_response:type_name -> api.v1.RuntimeServiceResponse
-	69,  // 19: api.v1.RuntimeMessage.cancel_execution:type_name -> api.v1.CancelExecutionRequest
-	74,  // 20: api.v1.RuntimeMessage.checkpoint_ack:type_name -> api.v1.CheckpointAck
+	70,  // 19: api.v1.RuntimeMessage.cancel_execution:type_name -> api.v1.CancelExecutionRequest
+	75,  // 20: api.v1.RuntimeMessage.checkpoint_ack:type_name -> api.v1.CheckpointAck
 	10,  // 21: api.v1.RuntimeMessage.coordinator_draining:type_name -> api.v1.CoordinatorDraining
 	36,  // 22: api.v1.RuntimeServiceRequest.entity_state_load:type_name -> api.v1.EntityStateLoadRequest
 	38,  // 23: api.v1.RuntimeServiceRequest.entity_state_save:type_name -> api.v1.EntityStateSaveRequest
@@ -9398,25 +9538,25 @@ var file_api_v1_worker_coordinator_proto_depIdxs = []int32{
 	45,  // 61: api.v1.RuntimeServiceResponse.session_get:type_name -> api.v1.SessionGetResult
 	47,  // 62: api.v1.RuntimeServiceResponse.message_send:type_name -> api.v1.MessageSendResult
 	49,  // 63: api.v1.RuntimeServiceResponse.message_list:type_name -> api.v1.MessageListResult
-	111, // 64: api.v1.ToolDefinitionData.metadata:type_name -> api.v1.ToolDefinitionData.MetadataEntry
-	128, // 65: api.v1.ToolDefinitionData.created_at:type_name -> google.protobuf.Timestamp
-	128, // 66: api.v1.ToolDefinitionData.updated_at:type_name -> google.protobuf.Timestamp
+	112, // 64: api.v1.ToolDefinitionData.metadata:type_name -> api.v1.ToolDefinitionData.MetadataEntry
+	129, // 65: api.v1.ToolDefinitionData.created_at:type_name -> google.protobuf.Timestamp
+	129, // 66: api.v1.ToolDefinitionData.updated_at:type_name -> google.protobuf.Timestamp
 	13,  // 67: api.v1.ToolRegisterRequest.definition:type_name -> api.v1.ToolDefinitionData
 	13,  // 68: api.v1.ToolRegisterResult.definition:type_name -> api.v1.ToolDefinitionData
 	17,  // 69: api.v1.ToolGetRequest.name_version:type_name -> api.v1.ToolNameVersionSelector
 	13,  // 70: api.v1.ToolGetResult.definition:type_name -> api.v1.ToolDefinitionData
 	13,  // 71: api.v1.ToolListResult.definitions:type_name -> api.v1.ToolDefinitionData
-	112, // 72: api.v1.ToolDeploymentData.metadata:type_name -> api.v1.ToolDeploymentData.MetadataEntry
-	128, // 73: api.v1.ToolDeploymentData.created_at:type_name -> google.protobuf.Timestamp
-	128, // 74: api.v1.ToolDeploymentData.updated_at:type_name -> google.protobuf.Timestamp
+	113, // 72: api.v1.ToolDeploymentData.metadata:type_name -> api.v1.ToolDeploymentData.MetadataEntry
+	129, // 73: api.v1.ToolDeploymentData.created_at:type_name -> google.protobuf.Timestamp
+	129, // 74: api.v1.ToolDeploymentData.updated_at:type_name -> google.protobuf.Timestamp
 	21,  // 75: api.v1.ToolDeploymentUpsertRequest.deployment:type_name -> api.v1.ToolDeploymentData
 	21,  // 76: api.v1.ToolDeploymentUpsertResult.deployment:type_name -> api.v1.ToolDeploymentData
 	21,  // 77: api.v1.ToolDeploymentListResult.deployments:type_name -> api.v1.ToolDeploymentData
-	128, // 78: api.v1.AgentDefinitionData.created_at:type_name -> google.protobuf.Timestamp
-	128, // 79: api.v1.AgentDefinitionData.updated_at:type_name -> google.protobuf.Timestamp
-	113, // 80: api.v1.AgentVersionData.metadata:type_name -> api.v1.AgentVersionData.MetadataEntry
-	128, // 81: api.v1.AgentVersionData.created_at:type_name -> google.protobuf.Timestamp
-	128, // 82: api.v1.AgentVersionData.updated_at:type_name -> google.protobuf.Timestamp
+	129, // 78: api.v1.AgentDefinitionData.created_at:type_name -> google.protobuf.Timestamp
+	129, // 79: api.v1.AgentDefinitionData.updated_at:type_name -> google.protobuf.Timestamp
+	114, // 80: api.v1.AgentVersionData.metadata:type_name -> api.v1.AgentVersionData.MetadataEntry
+	129, // 81: api.v1.AgentVersionData.created_at:type_name -> google.protobuf.Timestamp
+	129, // 82: api.v1.AgentVersionData.updated_at:type_name -> google.protobuf.Timestamp
 	26,  // 83: api.v1.AgentRegisterRequest.agent:type_name -> api.v1.AgentDefinitionData
 	27,  // 84: api.v1.AgentRegisterRequest.version:type_name -> api.v1.AgentVersionData
 	26,  // 85: api.v1.AgentRegisterResult.agent:type_name -> api.v1.AgentDefinitionData
@@ -9424,81 +9564,82 @@ var file_api_v1_worker_coordinator_proto_depIdxs = []int32{
 	27,  // 87: api.v1.AgentVersionGetResult.version:type_name -> api.v1.AgentVersionData
 	26,  // 88: api.v1.AgentListResult.agents:type_name -> api.v1.AgentDefinitionData
 	27,  // 89: api.v1.AgentResolveActiveVersionResult.version:type_name -> api.v1.AgentVersionData
-	114, // 90: api.v1.RunCheckpointRequest.metadata:type_name -> api.v1.RunCheckpointRequest.MetadataEntry
+	115, // 90: api.v1.RunCheckpointRequest.metadata:type_name -> api.v1.RunCheckpointRequest.MetadataEntry
 	67,  // 91: api.v1.RunCheckpointResult.checkpoint:type_name -> api.v1.StepCheckpoint
-	115, // 92: api.v1.RunFailRequest.metadata:type_name -> api.v1.RunFailRequest.MetadataEntry
-	116, // 93: api.v1.SignalWaitRequest.metadata:type_name -> api.v1.SignalWaitRequest.MetadataEntry
-	128, // 94: api.v1.SignalWaitResult.received_at:type_name -> google.protobuf.Timestamp
-	128, // 95: api.v1.TimerSleepRequest.fire_at:type_name -> google.protobuf.Timestamp
-	117, // 96: api.v1.TimerSleepRequest.metadata:type_name -> api.v1.TimerSleepRequest.MetadataEntry
-	128, // 97: api.v1.TimerSleepResult.scheduled_for:type_name -> google.protobuf.Timestamp
-	128, // 98: api.v1.TimerSleepResult.completed_at:type_name -> google.protobuf.Timestamp
-	118, // 99: api.v1.TaskSpawnRequest.metadata:type_name -> api.v1.TaskSpawnRequest.MetadataEntry
-	128, // 100: api.v1.TaskSpawnResult.enqueued_at:type_name -> google.protobuf.Timestamp
+	116, // 92: api.v1.RunFailRequest.metadata:type_name -> api.v1.RunFailRequest.MetadataEntry
+	117, // 93: api.v1.SignalWaitRequest.metadata:type_name -> api.v1.SignalWaitRequest.MetadataEntry
+	129, // 94: api.v1.SignalWaitResult.received_at:type_name -> google.protobuf.Timestamp
+	129, // 95: api.v1.TimerSleepRequest.fire_at:type_name -> google.protobuf.Timestamp
+	118, // 96: api.v1.TimerSleepRequest.metadata:type_name -> api.v1.TimerSleepRequest.MetadataEntry
+	129, // 97: api.v1.TimerSleepResult.scheduled_for:type_name -> google.protobuf.Timestamp
+	129, // 98: api.v1.TimerSleepResult.completed_at:type_name -> google.protobuf.Timestamp
+	119, // 99: api.v1.TaskSpawnRequest.metadata:type_name -> api.v1.TaskSpawnRequest.MetadataEntry
+	129, // 100: api.v1.TaskSpawnResult.enqueued_at:type_name -> google.protobuf.Timestamp
 	64,  // 101: api.v1.RegisterService.components:type_name -> api.v1.ComponentInfo
-	119, // 102: api.v1.RegisterService.metadata:type_name -> api.v1.RegisterService.MetadataEntry
-	129, // 103: api.v1.RegisterService.mode:type_name -> api.v1.WorkerMode
-	130, // 104: api.v1.RegisterService.capabilities:type_name -> api.v1.WorkerCapability
+	120, // 102: api.v1.RegisterService.metadata:type_name -> api.v1.RegisterService.MetadataEntry
+	130, // 103: api.v1.RegisterService.mode:type_name -> api.v1.WorkerMode
+	131, // 104: api.v1.RegisterService.capabilities:type_name -> api.v1.WorkerCapability
 	64,  // 105: api.v1.GetServiceComponents.components:type_name -> api.v1.ComponentInfo
-	131, // 106: api.v1.ComponentInfo.component_type:type_name -> api.v1.ComponentType
+	132, // 106: api.v1.ComponentInfo.component_type:type_name -> api.v1.ComponentType
 	65,  // 107: api.v1.ComponentInfo.input_schema:type_name -> api.v1.ComponentSchema
 	65,  // 108: api.v1.ComponentInfo.output_schema:type_name -> api.v1.ComponentSchema
-	120, // 109: api.v1.ComponentInfo.config:type_name -> api.v1.ComponentInfo.ConfigEntry
-	121, // 110: api.v1.ComponentInfo.metadata:type_name -> api.v1.ComponentInfo.MetadataEntry
+	121, // 109: api.v1.ComponentInfo.config:type_name -> api.v1.ComponentInfo.ConfigEntry
+	122, // 110: api.v1.ComponentInfo.metadata:type_name -> api.v1.ComponentInfo.MetadataEntry
 	63,  // 111: api.v1.ComponentInfo.triggers:type_name -> api.v1.TriggerSpec
-	122, // 112: api.v1.ComponentSchema.properties:type_name -> api.v1.ComponentSchema.PropertiesEntry
+	123, // 112: api.v1.ComponentSchema.properties:type_name -> api.v1.ComponentSchema.PropertiesEntry
 	65,  // 113: api.v1.ComponentSchema.items:type_name -> api.v1.ComponentSchema
-	131, // 114: api.v1.DispatchComponentRequest.component_type:type_name -> api.v1.ComponentType
-	123, // 115: api.v1.DispatchComponentRequest.metadata:type_name -> api.v1.DispatchComponentRequest.MetadataEntry
+	132, // 114: api.v1.DispatchComponentRequest.component_type:type_name -> api.v1.ComponentType
+	124, // 115: api.v1.DispatchComponentRequest.metadata:type_name -> api.v1.DispatchComponentRequest.MetadataEntry
 	67,  // 116: api.v1.DispatchComponentRequest.step_checkpoints:type_name -> api.v1.StepCheckpoint
-	132, // 117: api.v1.DispatchComponentRequest.priority:type_name -> api.v1.Priority
-	133, // 118: api.v1.DispatchComponentRequest.retry_policy:type_name -> api.v1.RetryPolicy
-	70,  // 119: api.v1.DispatchComponentResponse.state_update:type_name -> api.v1.StateUpdate
-	72,  // 120: api.v1.DispatchComponentResponse.flow_continuation:type_name -> api.v1.FlowContinuation
-	124, // 121: api.v1.DispatchComponentResponse.metadata:type_name -> api.v1.DispatchComponentResponse.MetadataEntry
-	71,  // 122: api.v1.StateUpdate.transitions:type_name -> api.v1.StateTransition
-	125, // 123: api.v1.WorkflowCheckpoint.metadata:type_name -> api.v1.WorkflowCheckpoint.MetadataEntry
-	4,   // 124: api.v1.HealthCheck.status:type_name -> api.v1.WorkerHealthStatus
-	126, // 125: api.v1.HealthCheck.metrics:type_name -> api.v1.HealthCheck.MetricsEntry
-	128, // 126: api.v1.WaitSignalResponse.received_at:type_name -> google.protobuf.Timestamp
-	128, // 127: api.v1.RequestApprovalResponse.expires_at:type_name -> google.protobuf.Timestamp
-	3,   // 128: api.v1.ResolveApprovalRequest.decision:type_name -> api.v1.ApprovalDecisionType
-	128, // 129: api.v1.ApprovalView.requested_at:type_name -> google.protobuf.Timestamp
-	128, // 130: api.v1.ApprovalView.expires_at:type_name -> google.protobuf.Timestamp
-	3,   // 131: api.v1.ApprovalView.decision:type_name -> api.v1.ApprovalDecisionType
-	128, // 132: api.v1.ApprovalView.decided_at:type_name -> google.protobuf.Timestamp
-	87,  // 133: api.v1.ListApprovalsResponse.approvals:type_name -> api.v1.ApprovalView
-	128, // 134: api.v1.ScheduleTimerResponse.fire_at:type_name -> google.protobuf.Timestamp
-	95,  // 135: api.v1.ListPendingWaitsResponse.signals:type_name -> api.v1.PendingSignal
-	96,  // 136: api.v1.ListPendingWaitsResponse.timers:type_name -> api.v1.PendingTimer
-	128, // 137: api.v1.PendingSignal.received_at:type_name -> google.protobuf.Timestamp
-	128, // 138: api.v1.PendingTimer.fire_at:type_name -> google.protobuf.Timestamp
-	66,  // 139: api.v1.ForwardDispatchRequest.dispatch_request:type_name -> api.v1.DispatchComponentRequest
-	127, // 140: api.v1.WriteJournalEventRequest.metadata:type_name -> api.v1.WriteJournalEventRequest.MetadataEntry
-	103, // 141: api.v1.WriteJournalEventsBatchRequest.events:type_name -> api.v1.WriteJournalEventRequest
-	107, // 142: api.v1.WriteJournalEventsBatchResponse.errors:type_name -> api.v1.WriteJournalEventError
-	65,  // 143: api.v1.ComponentSchema.PropertiesEntry.value:type_name -> api.v1.ComponentSchema
-	8,   // 144: api.v1.WorkerCoordinatorService.WorkerStream:input_type -> api.v1.ServiceMessage
-	5,   // 145: api.v1.WorkerCoordinatorService.ListWorkers:input_type -> api.v1.ListWorkersRequest
-	66,  // 146: api.v1.WorkerCoordinatorService.DispatchComponent:input_type -> api.v1.DispatchComponentRequest
-	66,  // 147: api.v1.WorkerCoordinatorService.DispatchComponentStream:input_type -> api.v1.DispatchComponentRequest
-	99,  // 148: api.v1.WorkerCoordinatorService.ForwardDispatch:input_type -> api.v1.ForwardDispatchRequest
-	99,  // 149: api.v1.WorkerCoordinatorService.ForwardDispatchStream:input_type -> api.v1.ForwardDispatchRequest
-	99,  // 150: api.v1.WorkerCoordinatorService.ForwardDispatchFireAndForget:input_type -> api.v1.ForwardDispatchRequest
-	101, // 151: api.v1.WorkerCoordinatorService.ReleaseActiveDispatch:input_type -> api.v1.ReleaseActiveDispatchRequest
-	9,   // 152: api.v1.WorkerCoordinatorService.WorkerStream:output_type -> api.v1.RuntimeMessage
-	6,   // 153: api.v1.WorkerCoordinatorService.ListWorkers:output_type -> api.v1.ListWorkersResponse
-	68,  // 154: api.v1.WorkerCoordinatorService.DispatchComponent:output_type -> api.v1.DispatchComponentResponse
-	68,  // 155: api.v1.WorkerCoordinatorService.DispatchComponentStream:output_type -> api.v1.DispatchComponentResponse
-	68,  // 156: api.v1.WorkerCoordinatorService.ForwardDispatch:output_type -> api.v1.DispatchComponentResponse
-	68,  // 157: api.v1.WorkerCoordinatorService.ForwardDispatchStream:output_type -> api.v1.DispatchComponentResponse
-	100, // 158: api.v1.WorkerCoordinatorService.ForwardDispatchFireAndForget:output_type -> api.v1.ForwardDispatchAck
-	102, // 159: api.v1.WorkerCoordinatorService.ReleaseActiveDispatch:output_type -> api.v1.ReleaseActiveDispatchAck
-	152, // [152:160] is the sub-list for method output_type
-	144, // [144:152] is the sub-list for method input_type
-	144, // [144:144] is the sub-list for extension type_name
-	144, // [144:144] is the sub-list for extension extendee
-	0,   // [0:144] is the sub-list for field type_name
+	133, // 117: api.v1.DispatchComponentRequest.priority:type_name -> api.v1.Priority
+	134, // 118: api.v1.DispatchComponentRequest.retry_policy:type_name -> api.v1.RetryPolicy
+	71,  // 119: api.v1.DispatchComponentResponse.state_update:type_name -> api.v1.StateUpdate
+	73,  // 120: api.v1.DispatchComponentResponse.flow_continuation:type_name -> api.v1.FlowContinuation
+	68,  // 121: api.v1.DispatchComponentResponse.worker_suspension:type_name -> api.v1.WorkerSuspension
+	125, // 122: api.v1.DispatchComponentResponse.metadata:type_name -> api.v1.DispatchComponentResponse.MetadataEntry
+	72,  // 123: api.v1.StateUpdate.transitions:type_name -> api.v1.StateTransition
+	126, // 124: api.v1.WorkflowCheckpoint.metadata:type_name -> api.v1.WorkflowCheckpoint.MetadataEntry
+	4,   // 125: api.v1.HealthCheck.status:type_name -> api.v1.WorkerHealthStatus
+	127, // 126: api.v1.HealthCheck.metrics:type_name -> api.v1.HealthCheck.MetricsEntry
+	129, // 127: api.v1.WaitSignalResponse.received_at:type_name -> google.protobuf.Timestamp
+	129, // 128: api.v1.RequestApprovalResponse.expires_at:type_name -> google.protobuf.Timestamp
+	3,   // 129: api.v1.ResolveApprovalRequest.decision:type_name -> api.v1.ApprovalDecisionType
+	129, // 130: api.v1.ApprovalView.requested_at:type_name -> google.protobuf.Timestamp
+	129, // 131: api.v1.ApprovalView.expires_at:type_name -> google.protobuf.Timestamp
+	3,   // 132: api.v1.ApprovalView.decision:type_name -> api.v1.ApprovalDecisionType
+	129, // 133: api.v1.ApprovalView.decided_at:type_name -> google.protobuf.Timestamp
+	88,  // 134: api.v1.ListApprovalsResponse.approvals:type_name -> api.v1.ApprovalView
+	129, // 135: api.v1.ScheduleTimerResponse.fire_at:type_name -> google.protobuf.Timestamp
+	96,  // 136: api.v1.ListPendingWaitsResponse.signals:type_name -> api.v1.PendingSignal
+	97,  // 137: api.v1.ListPendingWaitsResponse.timers:type_name -> api.v1.PendingTimer
+	129, // 138: api.v1.PendingSignal.received_at:type_name -> google.protobuf.Timestamp
+	129, // 139: api.v1.PendingTimer.fire_at:type_name -> google.protobuf.Timestamp
+	66,  // 140: api.v1.ForwardDispatchRequest.dispatch_request:type_name -> api.v1.DispatchComponentRequest
+	128, // 141: api.v1.WriteJournalEventRequest.metadata:type_name -> api.v1.WriteJournalEventRequest.MetadataEntry
+	104, // 142: api.v1.WriteJournalEventsBatchRequest.events:type_name -> api.v1.WriteJournalEventRequest
+	108, // 143: api.v1.WriteJournalEventsBatchResponse.errors:type_name -> api.v1.WriteJournalEventError
+	65,  // 144: api.v1.ComponentSchema.PropertiesEntry.value:type_name -> api.v1.ComponentSchema
+	8,   // 145: api.v1.WorkerCoordinatorService.WorkerStream:input_type -> api.v1.ServiceMessage
+	5,   // 146: api.v1.WorkerCoordinatorService.ListWorkers:input_type -> api.v1.ListWorkersRequest
+	66,  // 147: api.v1.WorkerCoordinatorService.DispatchComponent:input_type -> api.v1.DispatchComponentRequest
+	66,  // 148: api.v1.WorkerCoordinatorService.DispatchComponentStream:input_type -> api.v1.DispatchComponentRequest
+	100, // 149: api.v1.WorkerCoordinatorService.ForwardDispatch:input_type -> api.v1.ForwardDispatchRequest
+	100, // 150: api.v1.WorkerCoordinatorService.ForwardDispatchStream:input_type -> api.v1.ForwardDispatchRequest
+	100, // 151: api.v1.WorkerCoordinatorService.ForwardDispatchFireAndForget:input_type -> api.v1.ForwardDispatchRequest
+	102, // 152: api.v1.WorkerCoordinatorService.ReleaseActiveDispatch:input_type -> api.v1.ReleaseActiveDispatchRequest
+	9,   // 153: api.v1.WorkerCoordinatorService.WorkerStream:output_type -> api.v1.RuntimeMessage
+	6,   // 154: api.v1.WorkerCoordinatorService.ListWorkers:output_type -> api.v1.ListWorkersResponse
+	69,  // 155: api.v1.WorkerCoordinatorService.DispatchComponent:output_type -> api.v1.DispatchComponentResponse
+	69,  // 156: api.v1.WorkerCoordinatorService.DispatchComponentStream:output_type -> api.v1.DispatchComponentResponse
+	69,  // 157: api.v1.WorkerCoordinatorService.ForwardDispatch:output_type -> api.v1.DispatchComponentResponse
+	69,  // 158: api.v1.WorkerCoordinatorService.ForwardDispatchStream:output_type -> api.v1.DispatchComponentResponse
+	101, // 159: api.v1.WorkerCoordinatorService.ForwardDispatchFireAndForget:output_type -> api.v1.ForwardDispatchAck
+	103, // 160: api.v1.WorkerCoordinatorService.ReleaseActiveDispatch:output_type -> api.v1.ReleaseActiveDispatchAck
+	153, // [153:161] is the sub-list for method output_type
+	145, // [145:153] is the sub-list for method input_type
+	145, // [145:145] is the sub-list for extension type_name
+	145, // [145:145] is the sub-list for extension extendee
+	0,   // [0:145] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_worker_coordinator_proto_init() }
@@ -9578,19 +9719,20 @@ func file_api_v1_worker_coordinator_proto_init() {
 	}
 	file_api_v1_worker_coordinator_proto_msgTypes[59].OneofWrappers = []any{}
 	file_api_v1_worker_coordinator_proto_msgTypes[60].OneofWrappers = []any{}
-	file_api_v1_worker_coordinator_proto_msgTypes[63].OneofWrappers = []any{
+	file_api_v1_worker_coordinator_proto_msgTypes[64].OneofWrappers = []any{
 		(*DispatchComponentResponse_OutputData)(nil),
 		(*DispatchComponentResponse_StateUpdate)(nil),
 		(*DispatchComponentResponse_FlowContinuation)(nil),
+		(*DispatchComponentResponse_WorkerSuspension)(nil),
 	}
-	file_api_v1_worker_coordinator_proto_msgTypes[70].OneofWrappers = []any{}
+	file_api_v1_worker_coordinator_proto_msgTypes[71].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_worker_coordinator_proto_rawDesc), len(file_api_v1_worker_coordinator_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   123,
+			NumMessages:   124,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
