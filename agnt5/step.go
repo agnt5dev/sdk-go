@@ -326,11 +326,12 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		)
 	}
 
-	expectedActivationID := activationID(ctx.projectID, ctx.RunID(), ctx.Metadata("parent_activation_id"), pb.ActivationKind_ACTIVATION_KIND_STEP, plan.stableKey)
+	parentActivationID := parentActivationID(ctx)
+	expectedActivationID := activationID(ctx.projectID, ctx.RunID(), parentActivationID, pb.ActivationKind_ACTIVATION_KIND_STEP, plan.stableKey)
 	begin, err := ctx.activationWriter.BeginActivation(ctx, &pb.BeginActivationRequest{
 		ProjectId:          ctx.projectID,
 		RunId:              ctx.RunID(),
-		ParentActivationId: ctx.Metadata("parent_activation_id"),
+		ParentActivationId: parentActivationID,
 		Kind:               pb.ActivationKind_ACTIVATION_KIND_STEP,
 		StableKey:          plan.stableKey,
 		InputDigest:        cloneBytes(plan.inputDigest),

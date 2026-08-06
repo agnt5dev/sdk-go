@@ -39,6 +39,25 @@ const (
 	RecoveryPolicyFail            RecoveryPolicy = "fail"
 )
 
+// ChildJoinPolicy controls whether a delegated child blocks parent success.
+type ChildJoinPolicy string
+
+const (
+	ChildJoinPolicyRequired ChildJoinPolicy = "required"
+	ChildJoinPolicyDetached ChildJoinPolicy = "detached"
+)
+
+func childJoinPolicyProto(policy ChildJoinPolicy) (pb.ChildJoinPolicy, error) {
+	switch policy {
+	case ChildJoinPolicyRequired:
+		return pb.ChildJoinPolicy_CHILD_JOIN_POLICY_REQUIRED, nil
+	case ChildJoinPolicyDetached:
+		return pb.ChildJoinPolicy_CHILD_JOIN_POLICY_DETACHED, nil
+	default:
+		return pb.ChildJoinPolicy_CHILD_JOIN_POLICY_UNSPECIFIED, fmt.Errorf("agnt5: unsupported child join policy %q", policy)
+	}
+}
+
 // ActivationExecution is exposed while one durable unit is running.
 type ActivationExecution struct {
 	ActivationID   string
@@ -222,6 +241,25 @@ func activationDefinitionDigest(artifact []byte, component, version string, cano
 		h.Write(value)
 	}
 	return h.Sum(nil)
+}
+
+func childActivationDefinitionDigest(parentDefinition []byte, childName string) []byte {
+	h := sha256.New()
+	h.Write([]byte("agnt5.activation.child-definition.v1\x00"))
+	for _, value := range [][]byte{parentDefinition, []byte(childName)} {
+		var length [8]byte
+		binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+		h.Write(length[:])
+		h.Write(value)
+	}
+	return h.Sum(nil)
+}
+
+func parentActivationID(ctx *Context) string {
+	if execution, ok := ctx.Activation(); ok {
+		return execution.ActivationID
+	}
+	return ctx.Metadata("parent_activation_id")
 }
 
 func activationID(projectID, runID, parentID string, kind pb.ActivationKind, stableKey string) string {

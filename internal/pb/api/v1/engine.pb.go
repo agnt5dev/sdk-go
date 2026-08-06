@@ -267,6 +267,58 @@ func (ActivationRecoveryPolicy) EnumDescriptor() ([]byte, []int) {
 	return file_api_v1_engine_proto_rawDescGZIP(), []int{3}
 }
 
+// ChildJoinPolicy controls whether a child is part of the parent's terminal
+// obligation. Required children must settle before the parent can succeed;
+// detached children own an independent terminal obligation.
+type ChildJoinPolicy int32
+
+const (
+	ChildJoinPolicy_CHILD_JOIN_POLICY_UNSPECIFIED ChildJoinPolicy = 0
+	ChildJoinPolicy_CHILD_JOIN_POLICY_REQUIRED    ChildJoinPolicy = 1
+	ChildJoinPolicy_CHILD_JOIN_POLICY_DETACHED    ChildJoinPolicy = 2
+)
+
+// Enum value maps for ChildJoinPolicy.
+var (
+	ChildJoinPolicy_name = map[int32]string{
+		0: "CHILD_JOIN_POLICY_UNSPECIFIED",
+		1: "CHILD_JOIN_POLICY_REQUIRED",
+		2: "CHILD_JOIN_POLICY_DETACHED",
+	}
+	ChildJoinPolicy_value = map[string]int32{
+		"CHILD_JOIN_POLICY_UNSPECIFIED": 0,
+		"CHILD_JOIN_POLICY_REQUIRED":    1,
+		"CHILD_JOIN_POLICY_DETACHED":    2,
+	}
+)
+
+func (x ChildJoinPolicy) Enum() *ChildJoinPolicy {
+	p := new(ChildJoinPolicy)
+	*p = x
+	return p
+}
+
+func (x ChildJoinPolicy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ChildJoinPolicy) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_v1_engine_proto_enumTypes[4].Descriptor()
+}
+
+func (ChildJoinPolicy) Type() protoreflect.EnumType {
+	return &file_api_v1_engine_proto_enumTypes[4]
+}
+
+func (x ChildJoinPolicy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ChildJoinPolicy.Descriptor instead.
+func (ChildJoinPolicy) EnumDescriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{4}
+}
+
 // ActivationExternalOutcomeCertainty describes whether an external effect is known.
 type ActivationExternalOutcomeCertainty int32
 
@@ -304,11 +356,11 @@ func (x ActivationExternalOutcomeCertainty) String() string {
 }
 
 func (ActivationExternalOutcomeCertainty) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_engine_proto_enumTypes[4].Descriptor()
+	return file_api_v1_engine_proto_enumTypes[5].Descriptor()
 }
 
 func (ActivationExternalOutcomeCertainty) Type() protoreflect.EnumType {
-	return &file_api_v1_engine_proto_enumTypes[4]
+	return &file_api_v1_engine_proto_enumTypes[5]
 }
 
 func (x ActivationExternalOutcomeCertainty) Number() protoreflect.EnumNumber {
@@ -317,7 +369,7 @@ func (x ActivationExternalOutcomeCertainty) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ActivationExternalOutcomeCertainty.Descriptor instead.
 func (ActivationExternalOutcomeCertainty) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{4}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{5}
 }
 
 // ActivationStatus is the durable aggregate status.
@@ -369,11 +421,11 @@ func (x ActivationStatus) String() string {
 }
 
 func (ActivationStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_engine_proto_enumTypes[5].Descriptor()
+	return file_api_v1_engine_proto_enumTypes[6].Descriptor()
 }
 
 func (ActivationStatus) Type() protoreflect.EnumType {
-	return &file_api_v1_engine_proto_enumTypes[5]
+	return &file_api_v1_engine_proto_enumTypes[6]
 }
 
 func (x ActivationStatus) Number() protoreflect.EnumNumber {
@@ -382,7 +434,7 @@ func (x ActivationStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ActivationStatus.Descriptor instead.
 func (ActivationStatus) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{5}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{6}
 }
 
 // ActivationErrorCode is stable across runtime and SDK implementations.
@@ -440,11 +492,11 @@ func (x ActivationErrorCode) String() string {
 }
 
 func (ActivationErrorCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_engine_proto_enumTypes[6].Descriptor()
+	return file_api_v1_engine_proto_enumTypes[7].Descriptor()
 }
 
 func (ActivationErrorCode) Type() protoreflect.EnumType {
-	return &file_api_v1_engine_proto_enumTypes[6]
+	return &file_api_v1_engine_proto_enumTypes[7]
 }
 
 func (x ActivationErrorCode) Number() protoreflect.EnumNumber {
@@ -453,7 +505,7 @@ func (x ActivationErrorCode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ActivationErrorCode.Descriptor instead.
 func (ActivationErrorCode) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{6}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{7}
 }
 
 // LeaseRenewalOutcome distinguishes a committed renewal from a definite loss
@@ -498,11 +550,11 @@ func (x LeaseRenewalOutcome) String() string {
 }
 
 func (LeaseRenewalOutcome) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_v1_engine_proto_enumTypes[7].Descriptor()
+	return file_api_v1_engine_proto_enumTypes[8].Descriptor()
 }
 
 func (LeaseRenewalOutcome) Type() protoreflect.EnumType {
-	return &file_api_v1_engine_proto_enumTypes[7]
+	return &file_api_v1_engine_proto_enumTypes[8]
 }
 
 func (x LeaseRenewalOutcome) Number() protoreflect.EnumNumber {
@@ -511,7 +563,7 @@ func (x LeaseRenewalOutcome) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LeaseRenewalOutcome.Descriptor instead.
 func (LeaseRenewalOutcome) EnumDescriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{7}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{8}
 }
 
 // Record is the fundamental unit stored in the journal log.
@@ -8011,6 +8063,85 @@ func (x *ActivationEvidence) GetSha256() []byte {
 	return nil
 }
 
+// ChildActivationLinkage is immutable spawn identity for a delegated child.
+// child_run_id and child_session_id are allocated before the spawn is
+// admitted, so replay and recovery reattach to the same logical child.
+type ChildActivationLinkage struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	ChildKey              string                 `protobuf:"bytes,1,opt,name=child_key,json=childKey,proto3" json:"child_key,omitempty"`
+	ChildRunId            string                 `protobuf:"bytes,2,opt,name=child_run_id,json=childRunId,proto3" json:"child_run_id,omitempty"`
+	ChildSessionId        string                 `protobuf:"bytes,3,opt,name=child_session_id,json=childSessionId,proto3" json:"child_session_id,omitempty"`
+	ChildDefinitionDigest []byte                 `protobuf:"bytes,4,opt,name=child_definition_digest,json=childDefinitionDigest,proto3" json:"child_definition_digest,omitempty"`
+	JoinPolicy            ChildJoinPolicy        `protobuf:"varint,5,opt,name=join_policy,json=joinPolicy,proto3,enum=api.v1.ChildJoinPolicy" json:"join_policy,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ChildActivationLinkage) Reset() {
+	*x = ChildActivationLinkage{}
+	mi := &file_api_v1_engine_proto_msgTypes[100]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChildActivationLinkage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChildActivationLinkage) ProtoMessage() {}
+
+func (x *ChildActivationLinkage) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v1_engine_proto_msgTypes[100]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChildActivationLinkage.ProtoReflect.Descriptor instead.
+func (*ChildActivationLinkage) Descriptor() ([]byte, []int) {
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{100}
+}
+
+func (x *ChildActivationLinkage) GetChildKey() string {
+	if x != nil {
+		return x.ChildKey
+	}
+	return ""
+}
+
+func (x *ChildActivationLinkage) GetChildRunId() string {
+	if x != nil {
+		return x.ChildRunId
+	}
+	return ""
+}
+
+func (x *ChildActivationLinkage) GetChildSessionId() string {
+	if x != nil {
+		return x.ChildSessionId
+	}
+	return ""
+}
+
+func (x *ChildActivationLinkage) GetChildDefinitionDigest() []byte {
+	if x != nil {
+		return x.ChildDefinitionDigest
+	}
+	return nil
+}
+
+func (x *ChildActivationLinkage) GetJoinPolicy() ChildJoinPolicy {
+	if x != nil {
+		return x.JoinPolicy
+	}
+	return ChildJoinPolicy_CHILD_JOIN_POLICY_UNSPECIFIED
+}
+
 // BeginActivationRequest identifies one logical activation independently of attempts.
 type BeginActivationRequest struct {
 	state              protoimpl.MessageState   `protogen:"open.v1"`
@@ -8025,13 +8156,14 @@ type BeginActivationRequest struct {
 	WorkerSessionId    string                   `protobuf:"bytes,9,opt,name=worker_session_id,json=workerSessionId,proto3" json:"worker_session_id,omitempty"`
 	RunAuthority       []byte                   `protobuf:"bytes,10,opt,name=run_authority,json=runAuthority,proto3" json:"run_authority,omitempty"`
 	LeaseAuthority     []byte                   `protobuf:"bytes,11,opt,name=lease_authority,json=leaseAuthority,proto3" json:"lease_authority,omitempty"`
+	Child              *ChildActivationLinkage  `protobuf:"bytes,12,opt,name=child,proto3" json:"child,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *BeginActivationRequest) Reset() {
 	*x = BeginActivationRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[100]
+	mi := &file_api_v1_engine_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8043,7 +8175,7 @@ func (x *BeginActivationRequest) String() string {
 func (*BeginActivationRequest) ProtoMessage() {}
 
 func (x *BeginActivationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[100]
+	mi := &file_api_v1_engine_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8056,7 +8188,7 @@ func (x *BeginActivationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginActivationRequest.ProtoReflect.Descriptor instead.
 func (*BeginActivationRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{100}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *BeginActivationRequest) GetProjectId() string {
@@ -8136,6 +8268,13 @@ func (x *BeginActivationRequest) GetLeaseAuthority() []byte {
 	return nil
 }
 
+func (x *BeginActivationRequest) GetChild() *ChildActivationLinkage {
+	if x != nil {
+		return x.Child
+	}
+	return nil
+}
+
 // ActivationConflictReceipt describes deterministic-key reuse with new semantics.
 type ActivationConflictReceipt struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
@@ -8151,7 +8290,7 @@ type ActivationConflictReceipt struct {
 
 func (x *ActivationConflictReceipt) Reset() {
 	*x = ActivationConflictReceipt{}
-	mi := &file_api_v1_engine_proto_msgTypes[101]
+	mi := &file_api_v1_engine_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8163,7 +8302,7 @@ func (x *ActivationConflictReceipt) String() string {
 func (*ActivationConflictReceipt) ProtoMessage() {}
 
 func (x *ActivationConflictReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[101]
+	mi := &file_api_v1_engine_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8176,7 +8315,7 @@ func (x *ActivationConflictReceipt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationConflictReceipt.ProtoReflect.Descriptor instead.
 func (*ActivationConflictReceipt) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{101}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *ActivationConflictReceipt) GetErrorCode() ActivationErrorCode {
@@ -8233,7 +8372,7 @@ type ActivationWaitReceipt struct {
 
 func (x *ActivationWaitReceipt) Reset() {
 	*x = ActivationWaitReceipt{}
-	mi := &file_api_v1_engine_proto_msgTypes[102]
+	mi := &file_api_v1_engine_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8245,7 +8384,7 @@ func (x *ActivationWaitReceipt) String() string {
 func (*ActivationWaitReceipt) ProtoMessage() {}
 
 func (x *ActivationWaitReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[102]
+	mi := &file_api_v1_engine_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8258,7 +8397,7 @@ func (x *ActivationWaitReceipt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationWaitReceipt.ProtoReflect.Descriptor instead.
 func (*ActivationWaitReceipt) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{102}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *ActivationWaitReceipt) GetAttempt() uint32 {
@@ -8294,7 +8433,7 @@ type ActivationUnknownOutcomeReceipt struct {
 
 func (x *ActivationUnknownOutcomeReceipt) Reset() {
 	*x = ActivationUnknownOutcomeReceipt{}
-	mi := &file_api_v1_engine_proto_msgTypes[103]
+	mi := &file_api_v1_engine_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8306,7 +8445,7 @@ func (x *ActivationUnknownOutcomeReceipt) String() string {
 func (*ActivationUnknownOutcomeReceipt) ProtoMessage() {}
 
 func (x *ActivationUnknownOutcomeReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[103]
+	mi := &file_api_v1_engine_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8319,7 +8458,7 @@ func (x *ActivationUnknownOutcomeReceipt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationUnknownOutcomeReceipt.ProtoReflect.Descriptor instead.
 func (*ActivationUnknownOutcomeReceipt) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{103}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *ActivationUnknownOutcomeReceipt) GetErrorCode() string {
@@ -8361,7 +8500,7 @@ type BeginActivationResponse struct {
 
 func (x *BeginActivationResponse) Reset() {
 	*x = BeginActivationResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[104]
+	mi := &file_api_v1_engine_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8373,7 +8512,7 @@ func (x *BeginActivationResponse) String() string {
 func (*BeginActivationResponse) ProtoMessage() {}
 
 func (x *BeginActivationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[104]
+	mi := &file_api_v1_engine_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8386,7 +8525,7 @@ func (x *BeginActivationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginActivationResponse.ProtoReflect.Descriptor instead.
 func (*BeginActivationResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{104}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *BeginActivationResponse) GetOutcome() BeginActivationOutcome {
@@ -8472,7 +8611,7 @@ type CompleteActivationRequest struct {
 
 func (x *CompleteActivationRequest) Reset() {
 	*x = CompleteActivationRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[105]
+	mi := &file_api_v1_engine_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8484,7 +8623,7 @@ func (x *CompleteActivationRequest) String() string {
 func (*CompleteActivationRequest) ProtoMessage() {}
 
 func (x *CompleteActivationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[105]
+	mi := &file_api_v1_engine_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8497,7 +8636,7 @@ func (x *CompleteActivationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteActivationRequest.ProtoReflect.Descriptor instead.
 func (*CompleteActivationRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{105}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *CompleteActivationRequest) GetProjectId() string {
@@ -8591,7 +8730,7 @@ type CompleteActivationResponse struct {
 
 func (x *CompleteActivationResponse) Reset() {
 	*x = CompleteActivationResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[106]
+	mi := &file_api_v1_engine_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8603,7 +8742,7 @@ func (x *CompleteActivationResponse) String() string {
 func (*CompleteActivationResponse) ProtoMessage() {}
 
 func (x *CompleteActivationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[106]
+	mi := &file_api_v1_engine_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8616,7 +8755,7 @@ func (x *CompleteActivationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteActivationResponse.ProtoReflect.Descriptor instead.
 func (*CompleteActivationResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{106}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *CompleteActivationResponse) GetAccepted() bool {
@@ -8673,7 +8812,7 @@ type FailActivationRequest struct {
 
 func (x *FailActivationRequest) Reset() {
 	*x = FailActivationRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[107]
+	mi := &file_api_v1_engine_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8685,7 +8824,7 @@ func (x *FailActivationRequest) String() string {
 func (*FailActivationRequest) ProtoMessage() {}
 
 func (x *FailActivationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[107]
+	mi := &file_api_v1_engine_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8698,7 +8837,7 @@ func (x *FailActivationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailActivationRequest.ProtoReflect.Descriptor instead.
 func (*FailActivationRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{107}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *FailActivationRequest) GetProjectId() string {
@@ -8786,7 +8925,7 @@ type FailActivationResponse struct {
 
 func (x *FailActivationResponse) Reset() {
 	*x = FailActivationResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[108]
+	mi := &file_api_v1_engine_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8798,7 +8937,7 @@ func (x *FailActivationResponse) String() string {
 func (*FailActivationResponse) ProtoMessage() {}
 
 func (x *FailActivationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[108]
+	mi := &file_api_v1_engine_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8811,7 +8950,7 @@ func (x *FailActivationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FailActivationResponse.ProtoReflect.Descriptor instead.
 func (*FailActivationResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{108}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *FailActivationResponse) GetAccepted() bool {
@@ -8878,7 +9017,7 @@ type SuspendActivationRequest struct {
 
 func (x *SuspendActivationRequest) Reset() {
 	*x = SuspendActivationRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[109]
+	mi := &file_api_v1_engine_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8890,7 +9029,7 @@ func (x *SuspendActivationRequest) String() string {
 func (*SuspendActivationRequest) ProtoMessage() {}
 
 func (x *SuspendActivationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[109]
+	mi := &file_api_v1_engine_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8903,7 +9042,7 @@ func (x *SuspendActivationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SuspendActivationRequest.ProtoReflect.Descriptor instead.
 func (*SuspendActivationRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{109}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *SuspendActivationRequest) GetProjectId() string {
@@ -8999,7 +9138,7 @@ type SuspendActivationResponse struct {
 
 func (x *SuspendActivationResponse) Reset() {
 	*x = SuspendActivationResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[110]
+	mi := &file_api_v1_engine_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9011,7 +9150,7 @@ func (x *SuspendActivationResponse) String() string {
 func (*SuspendActivationResponse) ProtoMessage() {}
 
 func (x *SuspendActivationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[110]
+	mi := &file_api_v1_engine_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9024,7 +9163,7 @@ func (x *SuspendActivationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SuspendActivationResponse.ProtoReflect.Descriptor instead.
 func (*SuspendActivationResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{110}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *SuspendActivationResponse) GetAccepted() bool {
@@ -9087,13 +9226,14 @@ type ActivationStartedRecord struct {
 	RunAuthority       []byte                   `protobuf:"bytes,13,opt,name=run_authority,json=runAuthority,proto3" json:"run_authority,omitempty"`
 	LeaseAuthority     []byte                   `protobuf:"bytes,14,opt,name=lease_authority,json=leaseAuthority,proto3" json:"lease_authority,omitempty"`
 	PreviousAttempt    uint32                   `protobuf:"varint,15,opt,name=previous_attempt,json=previousAttempt,proto3" json:"previous_attempt,omitempty"`
+	Child              *ChildActivationLinkage  `protobuf:"bytes,16,opt,name=child,proto3" json:"child,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
 
 func (x *ActivationStartedRecord) Reset() {
 	*x = ActivationStartedRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[111]
+	mi := &file_api_v1_engine_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9105,7 +9245,7 @@ func (x *ActivationStartedRecord) String() string {
 func (*ActivationStartedRecord) ProtoMessage() {}
 
 func (x *ActivationStartedRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[111]
+	mi := &file_api_v1_engine_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9118,7 +9258,7 @@ func (x *ActivationStartedRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationStartedRecord.ProtoReflect.Descriptor instead.
 func (*ActivationStartedRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{111}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *ActivationStartedRecord) GetProjectId() string {
@@ -9226,6 +9366,13 @@ func (x *ActivationStartedRecord) GetPreviousAttempt() uint32 {
 	return 0
 }
 
+func (x *ActivationStartedRecord) GetChild() *ChildActivationLinkage {
+	if x != nil {
+		return x.Child
+	}
+	return nil
+}
+
 // ActivationCompletedRecord is the canonical all-or-nothing completion bundle.
 type ActivationCompletedRecord struct {
 	state          protoimpl.MessageState     `protogen:"open.v1"`
@@ -9246,7 +9393,7 @@ type ActivationCompletedRecord struct {
 
 func (x *ActivationCompletedRecord) Reset() {
 	*x = ActivationCompletedRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[112]
+	mi := &file_api_v1_engine_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9258,7 +9405,7 @@ func (x *ActivationCompletedRecord) String() string {
 func (*ActivationCompletedRecord) ProtoMessage() {}
 
 func (x *ActivationCompletedRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[112]
+	mi := &file_api_v1_engine_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9271,7 +9418,7 @@ func (x *ActivationCompletedRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationCompletedRecord.ProtoReflect.Descriptor instead.
 func (*ActivationCompletedRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{112}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *ActivationCompletedRecord) GetProjectId() string {
@@ -9370,7 +9517,7 @@ type ActivationFailedRecord struct {
 
 func (x *ActivationFailedRecord) Reset() {
 	*x = ActivationFailedRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[113]
+	mi := &file_api_v1_engine_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9382,7 +9529,7 @@ func (x *ActivationFailedRecord) String() string {
 func (*ActivationFailedRecord) ProtoMessage() {}
 
 func (x *ActivationFailedRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[113]
+	mi := &file_api_v1_engine_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9395,7 +9542,7 @@ func (x *ActivationFailedRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationFailedRecord.ProtoReflect.Descriptor instead.
 func (*ActivationFailedRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{113}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *ActivationFailedRecord) GetProjectId() string {
@@ -9488,7 +9635,7 @@ type ActivationSuspendedRecord struct {
 
 func (x *ActivationSuspendedRecord) Reset() {
 	*x = ActivationSuspendedRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[114]
+	mi := &file_api_v1_engine_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9500,7 +9647,7 @@ func (x *ActivationSuspendedRecord) String() string {
 func (*ActivationSuspendedRecord) ProtoMessage() {}
 
 func (x *ActivationSuspendedRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[114]
+	mi := &file_api_v1_engine_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9513,7 +9660,7 @@ func (x *ActivationSuspendedRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationSuspendedRecord.ProtoReflect.Descriptor instead.
 func (*ActivationSuspendedRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{114}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *ActivationSuspendedRecord) GetProjectId() string {
@@ -9607,7 +9754,7 @@ type ActivationCancelledRecord struct {
 
 func (x *ActivationCancelledRecord) Reset() {
 	*x = ActivationCancelledRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[115]
+	mi := &file_api_v1_engine_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9619,7 +9766,7 @@ func (x *ActivationCancelledRecord) String() string {
 func (*ActivationCancelledRecord) ProtoMessage() {}
 
 func (x *ActivationCancelledRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[115]
+	mi := &file_api_v1_engine_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9632,7 +9779,7 @@ func (x *ActivationCancelledRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationCancelledRecord.ProtoReflect.Descriptor instead.
 func (*ActivationCancelledRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{115}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *ActivationCancelledRecord) GetProjectId() string {
@@ -9680,7 +9827,7 @@ type ActivationUnknownOutcomeRecord struct {
 
 func (x *ActivationUnknownOutcomeRecord) Reset() {
 	*x = ActivationUnknownOutcomeRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[116]
+	mi := &file_api_v1_engine_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9692,7 +9839,7 @@ func (x *ActivationUnknownOutcomeRecord) String() string {
 func (*ActivationUnknownOutcomeRecord) ProtoMessage() {}
 
 func (x *ActivationUnknownOutcomeRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[116]
+	mi := &file_api_v1_engine_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9705,7 +9852,7 @@ func (x *ActivationUnknownOutcomeRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationUnknownOutcomeRecord.ProtoReflect.Descriptor instead.
 func (*ActivationUnknownOutcomeRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{116}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *ActivationUnknownOutcomeRecord) GetFailure() *ActivationFailedRecord {
@@ -9734,7 +9881,7 @@ type ActivationSnapshotRecord struct {
 
 func (x *ActivationSnapshotRecord) Reset() {
 	*x = ActivationSnapshotRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[117]
+	mi := &file_api_v1_engine_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9746,7 +9893,7 @@ func (x *ActivationSnapshotRecord) String() string {
 func (*ActivationSnapshotRecord) ProtoMessage() {}
 
 func (x *ActivationSnapshotRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[117]
+	mi := &file_api_v1_engine_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9759,7 +9906,7 @@ func (x *ActivationSnapshotRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationSnapshotRecord.ProtoReflect.Descriptor instead.
 func (*ActivationSnapshotRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{117}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *ActivationSnapshotRecord) GetProjectId() string {
@@ -9854,7 +10001,7 @@ type ActivationJournalRecord struct {
 
 func (x *ActivationJournalRecord) Reset() {
 	*x = ActivationJournalRecord{}
-	mi := &file_api_v1_engine_proto_msgTypes[118]
+	mi := &file_api_v1_engine_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9866,7 +10013,7 @@ func (x *ActivationJournalRecord) String() string {
 func (*ActivationJournalRecord) ProtoMessage() {}
 
 func (x *ActivationJournalRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[118]
+	mi := &file_api_v1_engine_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9879,7 +10026,7 @@ func (x *ActivationJournalRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivationJournalRecord.ProtoReflect.Descriptor instead.
 func (*ActivationJournalRecord) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{118}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *ActivationJournalRecord) GetVersion() uint32 {
@@ -10024,7 +10171,7 @@ type EventStreamMessage struct {
 
 func (x *EventStreamMessage) Reset() {
 	*x = EventStreamMessage{}
-	mi := &file_api_v1_engine_proto_msgTypes[119]
+	mi := &file_api_v1_engine_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10036,7 +10183,7 @@ func (x *EventStreamMessage) String() string {
 func (*EventStreamMessage) ProtoMessage() {}
 
 func (x *EventStreamMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[119]
+	mi := &file_api_v1_engine_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10049,7 +10196,7 @@ func (x *EventStreamMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventStreamMessage.ProtoReflect.Descriptor instead.
 func (*EventStreamMessage) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{119}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *EventStreamMessage) GetRunId() string {
@@ -10120,7 +10267,7 @@ type EventStreamAck struct {
 
 func (x *EventStreamAck) Reset() {
 	*x = EventStreamAck{}
-	mi := &file_api_v1_engine_proto_msgTypes[120]
+	mi := &file_api_v1_engine_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10132,7 +10279,7 @@ func (x *EventStreamAck) String() string {
 func (*EventStreamAck) ProtoMessage() {}
 
 func (x *EventStreamAck) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[120]
+	mi := &file_api_v1_engine_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10145,7 +10292,7 @@ func (x *EventStreamAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventStreamAck.ProtoReflect.Descriptor instead.
 func (*EventStreamAck) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{120}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *EventStreamAck) GetSuccess() bool {
@@ -10183,7 +10330,7 @@ type PollJobsRequest struct {
 
 func (x *PollJobsRequest) Reset() {
 	*x = PollJobsRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[121]
+	mi := &file_api_v1_engine_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10195,7 +10342,7 @@ func (x *PollJobsRequest) String() string {
 func (*PollJobsRequest) ProtoMessage() {}
 
 func (x *PollJobsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[121]
+	mi := &file_api_v1_engine_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10208,7 +10355,7 @@ func (x *PollJobsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobsRequest.ProtoReflect.Descriptor instead.
 func (*PollJobsRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{121}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *PollJobsRequest) GetWorkerId() string {
@@ -10263,7 +10410,7 @@ type PollJobsResponse struct {
 
 func (x *PollJobsResponse) Reset() {
 	*x = PollJobsResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[122]
+	mi := &file_api_v1_engine_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10275,7 +10422,7 @@ func (x *PollJobsResponse) String() string {
 func (*PollJobsResponse) ProtoMessage() {}
 
 func (x *PollJobsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[122]
+	mi := &file_api_v1_engine_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10288,7 +10435,7 @@ func (x *PollJobsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobsResponse.ProtoReflect.Descriptor instead.
 func (*PollJobsResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{122}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *PollJobsResponse) GetJobs() []*JobAssignment {
@@ -10311,7 +10458,7 @@ type WorkerSlotPolicy struct {
 
 func (x *WorkerSlotPolicy) Reset() {
 	*x = WorkerSlotPolicy{}
-	mi := &file_api_v1_engine_proto_msgTypes[123]
+	mi := &file_api_v1_engine_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10323,7 +10470,7 @@ func (x *WorkerSlotPolicy) String() string {
 func (*WorkerSlotPolicy) ProtoMessage() {}
 
 func (x *WorkerSlotPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[123]
+	mi := &file_api_v1_engine_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10336,7 +10483,7 @@ func (x *WorkerSlotPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerSlotPolicy.ProtoReflect.Descriptor instead.
 func (*WorkerSlotPolicy) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{123}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *WorkerSlotPolicy) GetMinSlots() uint32 {
@@ -10396,7 +10543,7 @@ type RegisterWorkerSessionRequest struct {
 
 func (x *RegisterWorkerSessionRequest) Reset() {
 	*x = RegisterWorkerSessionRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[124]
+	mi := &file_api_v1_engine_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10408,7 +10555,7 @@ func (x *RegisterWorkerSessionRequest) String() string {
 func (*RegisterWorkerSessionRequest) ProtoMessage() {}
 
 func (x *RegisterWorkerSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[124]
+	mi := &file_api_v1_engine_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10421,7 +10568,7 @@ func (x *RegisterWorkerSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterWorkerSessionRequest.ProtoReflect.Descriptor instead.
 func (*RegisterWorkerSessionRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{124}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *RegisterWorkerSessionRequest) GetWorkerId() string {
@@ -10521,7 +10668,7 @@ type RegisterWorkerSessionResponse struct {
 
 func (x *RegisterWorkerSessionResponse) Reset() {
 	*x = RegisterWorkerSessionResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[125]
+	mi := &file_api_v1_engine_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10533,7 +10680,7 @@ func (x *RegisterWorkerSessionResponse) String() string {
 func (*RegisterWorkerSessionResponse) ProtoMessage() {}
 
 func (x *RegisterWorkerSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[125]
+	mi := &file_api_v1_engine_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10546,7 +10693,7 @@ func (x *RegisterWorkerSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterWorkerSessionResponse.ProtoReflect.Descriptor instead.
 func (*RegisterWorkerSessionResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{125}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *RegisterWorkerSessionResponse) GetWorkerSessionId() string {
@@ -10596,7 +10743,7 @@ type PollJobRequest struct {
 
 func (x *PollJobRequest) Reset() {
 	*x = PollJobRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[126]
+	mi := &file_api_v1_engine_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10608,7 +10755,7 @@ func (x *PollJobRequest) String() string {
 func (*PollJobRequest) ProtoMessage() {}
 
 func (x *PollJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[126]
+	mi := &file_api_v1_engine_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10621,7 +10768,7 @@ func (x *PollJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobRequest.ProtoReflect.Descriptor instead.
 func (*PollJobRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{126}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *PollJobRequest) GetWorkerId() string {
@@ -10661,7 +10808,7 @@ type PollJobResponse struct {
 
 func (x *PollJobResponse) Reset() {
 	*x = PollJobResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[127]
+	mi := &file_api_v1_engine_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10673,7 +10820,7 @@ func (x *PollJobResponse) String() string {
 func (*PollJobResponse) ProtoMessage() {}
 
 func (x *PollJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[127]
+	mi := &file_api_v1_engine_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10686,7 +10833,7 @@ func (x *PollJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PollJobResponse.ProtoReflect.Descriptor instead.
 func (*PollJobResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{127}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *PollJobResponse) GetJob() *JobAssignment {
@@ -10717,7 +10864,7 @@ type JobAssignment struct {
 
 func (x *JobAssignment) Reset() {
 	*x = JobAssignment{}
-	mi := &file_api_v1_engine_proto_msgTypes[128]
+	mi := &file_api_v1_engine_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10729,7 +10876,7 @@ func (x *JobAssignment) String() string {
 func (*JobAssignment) ProtoMessage() {}
 
 func (x *JobAssignment) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[128]
+	mi := &file_api_v1_engine_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10742,7 +10889,7 @@ func (x *JobAssignment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use JobAssignment.ProtoReflect.Descriptor instead.
 func (*JobAssignment) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{128}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *JobAssignment) GetJobId() string {
@@ -10848,7 +10995,7 @@ type RenewJobLeaseRequest struct {
 
 func (x *RenewJobLeaseRequest) Reset() {
 	*x = RenewJobLeaseRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[129]
+	mi := &file_api_v1_engine_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10860,7 +11007,7 @@ func (x *RenewJobLeaseRequest) String() string {
 func (*RenewJobLeaseRequest) ProtoMessage() {}
 
 func (x *RenewJobLeaseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[129]
+	mi := &file_api_v1_engine_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10873,7 +11020,7 @@ func (x *RenewJobLeaseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewJobLeaseRequest.ProtoReflect.Descriptor instead.
 func (*RenewJobLeaseRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{129}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *RenewJobLeaseRequest) GetWorkerId() string {
@@ -10950,7 +11097,7 @@ type RenewJobLeaseResponse struct {
 
 func (x *RenewJobLeaseResponse) Reset() {
 	*x = RenewJobLeaseResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[130]
+	mi := &file_api_v1_engine_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10962,7 +11109,7 @@ func (x *RenewJobLeaseResponse) String() string {
 func (*RenewJobLeaseResponse) ProtoMessage() {}
 
 func (x *RenewJobLeaseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[130]
+	mi := &file_api_v1_engine_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10975,7 +11122,7 @@ func (x *RenewJobLeaseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenewJobLeaseResponse.ProtoReflect.Descriptor instead.
 func (*RenewJobLeaseResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{130}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *RenewJobLeaseResponse) GetRenewed() bool {
@@ -11016,7 +11163,7 @@ type ReportWorkerCapacityRequest struct {
 
 func (x *ReportWorkerCapacityRequest) Reset() {
 	*x = ReportWorkerCapacityRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[131]
+	mi := &file_api_v1_engine_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11028,7 +11175,7 @@ func (x *ReportWorkerCapacityRequest) String() string {
 func (*ReportWorkerCapacityRequest) ProtoMessage() {}
 
 func (x *ReportWorkerCapacityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[131]
+	mi := &file_api_v1_engine_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11041,7 +11188,7 @@ func (x *ReportWorkerCapacityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportWorkerCapacityRequest.ProtoReflect.Descriptor instead.
 func (*ReportWorkerCapacityRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{131}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *ReportWorkerCapacityRequest) GetWorkerId() string {
@@ -11117,7 +11264,7 @@ type ReportWorkerCapacityResponse struct {
 
 func (x *ReportWorkerCapacityResponse) Reset() {
 	*x = ReportWorkerCapacityResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[132]
+	mi := &file_api_v1_engine_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11129,7 +11276,7 @@ func (x *ReportWorkerCapacityResponse) String() string {
 func (*ReportWorkerCapacityResponse) ProtoMessage() {}
 
 func (x *ReportWorkerCapacityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[132]
+	mi := &file_api_v1_engine_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11142,7 +11289,7 @@ func (x *ReportWorkerCapacityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportWorkerCapacityResponse.ProtoReflect.Descriptor instead.
 func (*ReportWorkerCapacityResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{132}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *ReportWorkerCapacityResponse) GetAccepted() bool {
@@ -11182,7 +11329,7 @@ type CompleteJobRequest struct {
 
 func (x *CompleteJobRequest) Reset() {
 	*x = CompleteJobRequest{}
-	mi := &file_api_v1_engine_proto_msgTypes[133]
+	mi := &file_api_v1_engine_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11194,7 +11341,7 @@ func (x *CompleteJobRequest) String() string {
 func (*CompleteJobRequest) ProtoMessage() {}
 
 func (x *CompleteJobRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[133]
+	mi := &file_api_v1_engine_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11207,7 +11354,7 @@ func (x *CompleteJobRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteJobRequest.ProtoReflect.Descriptor instead.
 func (*CompleteJobRequest) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{133}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *CompleteJobRequest) GetJobId() string {
@@ -11297,7 +11444,7 @@ type CompleteJobResponse struct {
 
 func (x *CompleteJobResponse) Reset() {
 	*x = CompleteJobResponse{}
-	mi := &file_api_v1_engine_proto_msgTypes[134]
+	mi := &file_api_v1_engine_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11309,7 +11456,7 @@ func (x *CompleteJobResponse) String() string {
 func (*CompleteJobResponse) ProtoMessage() {}
 
 func (x *CompleteJobResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_v1_engine_proto_msgTypes[134]
+	mi := &file_api_v1_engine_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11322,7 +11469,7 @@ func (x *CompleteJobResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteJobResponse.ProtoReflect.Descriptor instead.
 func (*CompleteJobResponse) Descriptor() ([]byte, []int) {
-	return file_api_v1_engine_proto_rawDescGZIP(), []int{134}
+	return file_api_v1_engine_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *CompleteJobResponse) GetAcknowledged() bool {
@@ -12062,7 +12209,15 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x12ActivationEvidence\x12#\n" +
 	"\revidence_type\x18\x01 \x01(\tR\fevidenceType\x123\n" +
 	"\apayload\x18\x02 \x01(\v2\x19.api.v1.ActivationPayloadR\apayload\x12\x16\n" +
-	"\x06sha256\x18\x03 \x01(\fR\x06sha256\"\xe0\x03\n" +
+	"\x06sha256\x18\x03 \x01(\fR\x06sha256\"\xf3\x01\n" +
+	"\x16ChildActivationLinkage\x12\x1b\n" +
+	"\tchild_key\x18\x01 \x01(\tR\bchildKey\x12 \n" +
+	"\fchild_run_id\x18\x02 \x01(\tR\n" +
+	"childRunId\x12(\n" +
+	"\x10child_session_id\x18\x03 \x01(\tR\x0echildSessionId\x126\n" +
+	"\x17child_definition_digest\x18\x04 \x01(\fR\x15childDefinitionDigest\x128\n" +
+	"\vjoin_policy\x18\x05 \x01(\x0e2\x17.api.v1.ChildJoinPolicyR\n" +
+	"joinPolicy\"\x96\x04\n" +
 	"\x16BeginActivationRequest\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
@@ -12077,7 +12232,8 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x11worker_session_id\x18\t \x01(\tR\x0fworkerSessionId\x12#\n" +
 	"\rrun_authority\x18\n" +
 	" \x01(\fR\frunAuthority\x12'\n" +
-	"\x0flease_authority\x18\v \x01(\fR\x0eleaseAuthority\"\xd5\x02\n" +
+	"\x0flease_authority\x18\v \x01(\fR\x0eleaseAuthority\x124\n" +
+	"\x05child\x18\f \x01(\v2\x1e.api.v1.ChildActivationLinkageR\x05child\"\xd5\x02\n" +
 	"\x19ActivationConflictReceipt\x12:\n" +
 	"\n" +
 	"error_code\x18\x01 \x01(\x0e2\x1b.api.v1.ActivationErrorCodeR\terrorCode\x122\n" +
@@ -12172,7 +12328,7 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\ractivation_id\x18\x03 \x01(\tR\factivationId\x12\x18\n" +
 	"\aattempt\x18\x04 \x01(\rR\aattempt\x126\n" +
 	"\x17accepted_journal_offset\x18\x05 \x01(\x04R\x15acceptedJournalOffset\x12\x19\n" +
-	"\btimer_id\x18\x06 \x01(\tR\atimerId\"\xec\x04\n" +
+	"\btimer_id\x18\x06 \x01(\tR\atimerId\"\xa2\x05\n" +
 	"\x17ActivationStartedRecord\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
@@ -12192,7 +12348,8 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"\x11worker_session_id\x18\f \x01(\tR\x0fworkerSessionId\x12#\n" +
 	"\rrun_authority\x18\r \x01(\fR\frunAuthority\x12'\n" +
 	"\x0flease_authority\x18\x0e \x01(\fR\x0eleaseAuthority\x12)\n" +
-	"\x10previous_attempt\x18\x0f \x01(\rR\x0fpreviousAttempt\"\x81\x04\n" +
+	"\x10previous_attempt\x18\x0f \x01(\rR\x0fpreviousAttempt\x124\n" +
+	"\x05child\x18\x10 \x01(\v2\x1e.api.v1.ChildActivationLinkageR\x05child\"\x81\x04\n" +
 	"\x19ActivationCompletedRecord\x12\x1d\n" +
 	"\n" +
 	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x15\n" +
@@ -12440,7 +12597,11 @@ const file_api_v1_engine_proto_rawDesc = "" +
 	"(ACTIVATION_RECOVERY_POLICY_DURABLE_STEPS\x10\x02\x12.\n" +
 	"*ACTIVATION_RECOVERY_POLICY_UNKNOWN_OUTCOME\x10\x03\x12)\n" +
 	"%ACTIVATION_RECOVERY_POLICY_COMPENSATE\x10\x04\x12#\n" +
-	"\x1fACTIVATION_RECOVERY_POLICY_FAIL\x10\x05*\xff\x01\n" +
+	"\x1fACTIVATION_RECOVERY_POLICY_FAIL\x10\x05*t\n" +
+	"\x0fChildJoinPolicy\x12!\n" +
+	"\x1dCHILD_JOIN_POLICY_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aCHILD_JOIN_POLICY_REQUIRED\x10\x01\x12\x1e\n" +
+	"\x1aCHILD_JOIN_POLICY_DETACHED\x10\x02*\xff\x01\n" +
 	"\"ActivationExternalOutcomeCertainty\x125\n" +
 	"1ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNSPECIFIED\x10\x00\x123\n" +
 	"/ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_NO_EFFECT\x10\x01\x12:\n" +
@@ -12545,401 +12706,406 @@ func file_api_v1_engine_proto_rawDescGZIP() []byte {
 	return file_api_v1_engine_proto_rawDescData
 }
 
-var file_api_v1_engine_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_api_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 142)
+var file_api_v1_engine_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
+var file_api_v1_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 143)
 var file_api_v1_engine_proto_goTypes = []any{
 	(CheckpointType)(0),                       // 0: api.v1.CheckpointType
 	(ActivationKind)(0),                       // 1: api.v1.ActivationKind
 	(BeginActivationOutcome)(0),               // 2: api.v1.BeginActivationOutcome
 	(ActivationRecoveryPolicy)(0),             // 3: api.v1.ActivationRecoveryPolicy
-	(ActivationExternalOutcomeCertainty)(0),   // 4: api.v1.ActivationExternalOutcomeCertainty
-	(ActivationStatus)(0),                     // 5: api.v1.ActivationStatus
-	(ActivationErrorCode)(0),                  // 6: api.v1.ActivationErrorCode
-	(LeaseRenewalOutcome)(0),                  // 7: api.v1.LeaseRenewalOutcome
-	(*Record)(nil),                            // 8: api.v1.Record
-	(*AppendRequest)(nil),                     // 9: api.v1.AppendRequest
-	(*AppendResponse)(nil),                    // 10: api.v1.AppendResponse
-	(*AppendBatchRequest)(nil),                // 11: api.v1.AppendBatchRequest
-	(*AppendBatchResponse)(nil),               // 12: api.v1.AppendBatchResponse
-	(*ReadByRunIDRequest)(nil),                // 13: api.v1.ReadByRunIDRequest
-	(*ReadByRunIDResponse)(nil),               // 14: api.v1.ReadByRunIDResponse
-	(*FindByStepKeyRequest)(nil),              // 15: api.v1.FindByStepKeyRequest
-	(*FindByStepKeyResponse)(nil),             // 16: api.v1.FindByStepKeyResponse
-	(*GetRunRequest)(nil),                     // 17: api.v1.GetRunRequest
-	(*GetRunResponse)(nil),                    // 18: api.v1.GetRunResponse
-	(*ListRoutingWorkersRequest)(nil),         // 19: api.v1.ListRoutingWorkersRequest
-	(*ListRoutingWorkersResponse)(nil),        // 20: api.v1.ListRoutingWorkersResponse
-	(*Run)(nil),                               // 21: api.v1.Run
-	(*ModelUsage)(nil),                        // 22: api.v1.ModelUsage
-	(*TailRequest)(nil),                       // 23: api.v1.TailRequest
-	(*TailResponse)(nil),                      // 24: api.v1.TailResponse
-	(*GetStatusRequest)(nil),                  // 25: api.v1.GetStatusRequest
-	(*GetStatusResponse)(nil),                 // 26: api.v1.GetStatusResponse
-	(*StoreRequest)(nil),                      // 27: api.v1.StoreRequest
-	(*StoreResponse)(nil),                     // 28: api.v1.StoreResponse
-	(*GetRecordsRequest)(nil),                 // 29: api.v1.GetRecordsRequest
-	(*GetRecordsResponse)(nil),                // 30: api.v1.GetRecordsResponse
-	(*SealRequest)(nil),                       // 31: api.v1.SealRequest
-	(*SealResponse)(nil),                      // 32: api.v1.SealResponse
-	(*HeartbeatRequest)(nil),                  // 33: api.v1.HeartbeatRequest
-	(*HeartbeatResponse)(nil),                 // 34: api.v1.HeartbeatResponse
-	(*PartitionStatus)(nil),                   // 35: api.v1.PartitionStatus
-	(*VoteRequest)(nil),                       // 36: api.v1.VoteRequest
-	(*VoteResponse)(nil),                      // 37: api.v1.VoteResponse
-	(*AnnounceLeaderRequest)(nil),             // 38: api.v1.AnnounceLeaderRequest
-	(*AnnounceLeaderResponse)(nil),            // 39: api.v1.AnnounceLeaderResponse
-	(*ForwardAppendRequest)(nil),              // 40: api.v1.ForwardAppendRequest
-	(*ForwardAppendResponse)(nil),             // 41: api.v1.ForwardAppendResponse
-	(*AddMemberRequest)(nil),                  // 42: api.v1.AddMemberRequest
-	(*AddMemberResponse)(nil),                 // 43: api.v1.AddMemberResponse
-	(*RemoveMemberRequest)(nil),               // 44: api.v1.RemoveMemberRequest
-	(*RemoveMemberResponse)(nil),              // 45: api.v1.RemoveMemberResponse
-	(*TransferLeadershipRequest)(nil),         // 46: api.v1.TransferLeadershipRequest
-	(*TransferLeadershipResponse)(nil),        // 47: api.v1.TransferLeadershipResponse
-	(*GetEntityStateRequest)(nil),             // 48: api.v1.GetEntityStateRequest
-	(*GetEntityStateResponse)(nil),            // 49: api.v1.GetEntityStateResponse
-	(*PutEntityStateRequest)(nil),             // 50: api.v1.PutEntityStateRequest
-	(*PutEntityStateResponse)(nil),            // 51: api.v1.PutEntityStateResponse
-	(*Approval)(nil),                          // 52: api.v1.Approval
-	(*GetApprovalRequest)(nil),                // 53: api.v1.GetApprovalRequest
-	(*GetApprovalResponse)(nil),               // 54: api.v1.GetApprovalResponse
-	(*EngineListApprovalsRequest)(nil),        // 55: api.v1.EngineListApprovalsRequest
-	(*EngineListApprovalsResponse)(nil),       // 56: api.v1.EngineListApprovalsResponse
-	(*Signal)(nil),                            // 57: api.v1.Signal
-	(*GetSignalRequest)(nil),                  // 58: api.v1.GetSignalRequest
-	(*GetSignalResponse)(nil),                 // 59: api.v1.GetSignalResponse
-	(*LookupSignalRequest)(nil),               // 60: api.v1.LookupSignalRequest
-	(*LookupSignalResponse)(nil),              // 61: api.v1.LookupSignalResponse
-	(*ListSignalsRequest)(nil),                // 62: api.v1.ListSignalsRequest
-	(*ListSignalsResponse)(nil),               // 63: api.v1.ListSignalsResponse
-	(*Timer)(nil),                             // 64: api.v1.Timer
-	(*GetTimerRequest)(nil),                   // 65: api.v1.GetTimerRequest
-	(*GetTimerResponse)(nil),                  // 66: api.v1.GetTimerResponse
-	(*ListTimersRequest)(nil),                 // 67: api.v1.ListTimersRequest
-	(*ListTimersResponse)(nil),                // 68: api.v1.ListTimersResponse
-	(*ListDueTimersRequest)(nil),              // 69: api.v1.ListDueTimersRequest
-	(*ListDueTimersResponse)(nil),             // 70: api.v1.ListDueTimersResponse
-	(*Job)(nil),                               // 71: api.v1.Job
-	(*GetJobRequest)(nil),                     // 72: api.v1.GetJobRequest
-	(*GetJobResponse)(nil),                    // 73: api.v1.GetJobResponse
-	(*ListJobsByRunRequest)(nil),              // 74: api.v1.ListJobsByRunRequest
-	(*ListJobsByRunResponse)(nil),             // 75: api.v1.ListJobsByRunResponse
-	(*ListJobsByBatchRequest)(nil),            // 76: api.v1.ListJobsByBatchRequest
-	(*ListJobsByBatchResponse)(nil),           // 77: api.v1.ListJobsByBatchResponse
-	(*Batch)(nil),                             // 78: api.v1.Batch
-	(*GetBatchRequest)(nil),                   // 79: api.v1.GetBatchRequest
-	(*GetBatchResponse)(nil),                  // 80: api.v1.GetBatchResponse
-	(*Session)(nil),                           // 81: api.v1.Session
-	(*GetSessionRequest)(nil),                 // 82: api.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),                // 83: api.v1.GetSessionResponse
-	(*ListSessionsRequest)(nil),               // 84: api.v1.ListSessionsRequest
-	(*ListSessionsResponse)(nil),              // 85: api.v1.ListSessionsResponse
-	(*ChatMessage)(nil),                       // 86: api.v1.ChatMessage
-	(*GetMessageRequest)(nil),                 // 87: api.v1.GetMessageRequest
-	(*GetMessageResponse)(nil),                // 88: api.v1.GetMessageResponse
-	(*ListMessagesByCorrelationRequest)(nil),  // 89: api.v1.ListMessagesByCorrelationRequest
-	(*ListMessagesByCorrelationResponse)(nil), // 90: api.v1.ListMessagesByCorrelationResponse
-	(*ListRunsRequest)(nil),                   // 91: api.v1.ListRunsRequest
-	(*ListRunsResponse)(nil),                  // 92: api.v1.ListRunsResponse
-	(*ListEventsRequest)(nil),                 // 93: api.v1.ListEventsRequest
-	(*EventSummary)(nil),                      // 94: api.v1.EventSummary
-	(*ListEventsResponse)(nil),                // 95: api.v1.ListEventsResponse
-	(*GetRunStatsRequest)(nil),                // 96: api.v1.GetRunStatsRequest
-	(*GetRunStatsResponse)(nil),               // 97: api.v1.GetRunStatsResponse
-	(*DurableStepCheckpoint)(nil),             // 98: api.v1.DurableStepCheckpoint
-	(*CheckpointRequest)(nil),                 // 99: api.v1.CheckpointRequest
-	(*CheckpointResponse)(nil),                // 100: api.v1.CheckpointResponse
-	(*ActivationErrorDetail)(nil),             // 101: api.v1.ActivationErrorDetail
-	(*ImmutablePayloadReference)(nil),         // 102: api.v1.ImmutablePayloadReference
-	(*ActivationPayload)(nil),                 // 103: api.v1.ActivationPayload
-	(*ActivationStateMutation)(nil),           // 104: api.v1.ActivationStateMutation
-	(*ActivationOutboxIntent)(nil),            // 105: api.v1.ActivationOutboxIntent
-	(*ActivationUsage)(nil),                   // 106: api.v1.ActivationUsage
-	(*ActivationEvidence)(nil),                // 107: api.v1.ActivationEvidence
-	(*BeginActivationRequest)(nil),            // 108: api.v1.BeginActivationRequest
-	(*ActivationConflictReceipt)(nil),         // 109: api.v1.ActivationConflictReceipt
-	(*ActivationWaitReceipt)(nil),             // 110: api.v1.ActivationWaitReceipt
-	(*ActivationUnknownOutcomeReceipt)(nil),   // 111: api.v1.ActivationUnknownOutcomeReceipt
-	(*BeginActivationResponse)(nil),           // 112: api.v1.BeginActivationResponse
-	(*CompleteActivationRequest)(nil),         // 113: api.v1.CompleteActivationRequest
-	(*CompleteActivationResponse)(nil),        // 114: api.v1.CompleteActivationResponse
-	(*FailActivationRequest)(nil),             // 115: api.v1.FailActivationRequest
-	(*FailActivationResponse)(nil),            // 116: api.v1.FailActivationResponse
-	(*SuspendActivationRequest)(nil),          // 117: api.v1.SuspendActivationRequest
-	(*SuspendActivationResponse)(nil),         // 118: api.v1.SuspendActivationResponse
-	(*ActivationStartedRecord)(nil),           // 119: api.v1.ActivationStartedRecord
-	(*ActivationCompletedRecord)(nil),         // 120: api.v1.ActivationCompletedRecord
-	(*ActivationFailedRecord)(nil),            // 121: api.v1.ActivationFailedRecord
-	(*ActivationSuspendedRecord)(nil),         // 122: api.v1.ActivationSuspendedRecord
-	(*ActivationCancelledRecord)(nil),         // 123: api.v1.ActivationCancelledRecord
-	(*ActivationUnknownOutcomeRecord)(nil),    // 124: api.v1.ActivationUnknownOutcomeRecord
-	(*ActivationSnapshotRecord)(nil),          // 125: api.v1.ActivationSnapshotRecord
-	(*ActivationJournalRecord)(nil),           // 126: api.v1.ActivationJournalRecord
-	(*EventStreamMessage)(nil),                // 127: api.v1.EventStreamMessage
-	(*EventStreamAck)(nil),                    // 128: api.v1.EventStreamAck
-	(*PollJobsRequest)(nil),                   // 129: api.v1.PollJobsRequest
-	(*PollJobsResponse)(nil),                  // 130: api.v1.PollJobsResponse
-	(*WorkerSlotPolicy)(nil),                  // 131: api.v1.WorkerSlotPolicy
-	(*RegisterWorkerSessionRequest)(nil),      // 132: api.v1.RegisterWorkerSessionRequest
-	(*RegisterWorkerSessionResponse)(nil),     // 133: api.v1.RegisterWorkerSessionResponse
-	(*PollJobRequest)(nil),                    // 134: api.v1.PollJobRequest
-	(*PollJobResponse)(nil),                   // 135: api.v1.PollJobResponse
-	(*JobAssignment)(nil),                     // 136: api.v1.JobAssignment
-	(*RenewJobLeaseRequest)(nil),              // 137: api.v1.RenewJobLeaseRequest
-	(*RenewJobLeaseResponse)(nil),             // 138: api.v1.RenewJobLeaseResponse
-	(*ReportWorkerCapacityRequest)(nil),       // 139: api.v1.ReportWorkerCapacityRequest
-	(*ReportWorkerCapacityResponse)(nil),      // 140: api.v1.ReportWorkerCapacityResponse
-	(*CompleteJobRequest)(nil),                // 141: api.v1.CompleteJobRequest
-	(*CompleteJobResponse)(nil),               // 142: api.v1.CompleteJobResponse
-	nil,                                       // 143: api.v1.Record.MetadataEntry
-	nil,                                       // 144: api.v1.Run.MetadataEntry
-	nil,                                       // 145: api.v1.Job.MetadataEntry
-	nil,                                       // 146: api.v1.GetRunStatsResponse.CountByStatusEntry
-	nil,                                       // 147: api.v1.GetRunStatsResponse.CountByComponentTypeEntry
-	nil,                                       // 148: api.v1.JobAssignment.MetadataEntry
-	nil,                                       // 149: api.v1.CompleteJobRequest.MetadataEntry
-	(*WorkerInfo)(nil),                        // 150: api.v1.WorkerInfo
-	(*timestamppb.Timestamp)(nil),             // 151: google.protobuf.Timestamp
-	(Priority)(0),                             // 152: api.v1.Priority
-	(*WorkerCapability)(nil),                  // 153: api.v1.WorkerCapability
-	(*ComponentInfo)(nil),                     // 154: api.v1.ComponentInfo
-	(ComponentType)(0),                        // 155: api.v1.ComponentType
-	(WorkerMode)(0),                           // 156: api.v1.WorkerMode
+	(ChildJoinPolicy)(0),                      // 4: api.v1.ChildJoinPolicy
+	(ActivationExternalOutcomeCertainty)(0),   // 5: api.v1.ActivationExternalOutcomeCertainty
+	(ActivationStatus)(0),                     // 6: api.v1.ActivationStatus
+	(ActivationErrorCode)(0),                  // 7: api.v1.ActivationErrorCode
+	(LeaseRenewalOutcome)(0),                  // 8: api.v1.LeaseRenewalOutcome
+	(*Record)(nil),                            // 9: api.v1.Record
+	(*AppendRequest)(nil),                     // 10: api.v1.AppendRequest
+	(*AppendResponse)(nil),                    // 11: api.v1.AppendResponse
+	(*AppendBatchRequest)(nil),                // 12: api.v1.AppendBatchRequest
+	(*AppendBatchResponse)(nil),               // 13: api.v1.AppendBatchResponse
+	(*ReadByRunIDRequest)(nil),                // 14: api.v1.ReadByRunIDRequest
+	(*ReadByRunIDResponse)(nil),               // 15: api.v1.ReadByRunIDResponse
+	(*FindByStepKeyRequest)(nil),              // 16: api.v1.FindByStepKeyRequest
+	(*FindByStepKeyResponse)(nil),             // 17: api.v1.FindByStepKeyResponse
+	(*GetRunRequest)(nil),                     // 18: api.v1.GetRunRequest
+	(*GetRunResponse)(nil),                    // 19: api.v1.GetRunResponse
+	(*ListRoutingWorkersRequest)(nil),         // 20: api.v1.ListRoutingWorkersRequest
+	(*ListRoutingWorkersResponse)(nil),        // 21: api.v1.ListRoutingWorkersResponse
+	(*Run)(nil),                               // 22: api.v1.Run
+	(*ModelUsage)(nil),                        // 23: api.v1.ModelUsage
+	(*TailRequest)(nil),                       // 24: api.v1.TailRequest
+	(*TailResponse)(nil),                      // 25: api.v1.TailResponse
+	(*GetStatusRequest)(nil),                  // 26: api.v1.GetStatusRequest
+	(*GetStatusResponse)(nil),                 // 27: api.v1.GetStatusResponse
+	(*StoreRequest)(nil),                      // 28: api.v1.StoreRequest
+	(*StoreResponse)(nil),                     // 29: api.v1.StoreResponse
+	(*GetRecordsRequest)(nil),                 // 30: api.v1.GetRecordsRequest
+	(*GetRecordsResponse)(nil),                // 31: api.v1.GetRecordsResponse
+	(*SealRequest)(nil),                       // 32: api.v1.SealRequest
+	(*SealResponse)(nil),                      // 33: api.v1.SealResponse
+	(*HeartbeatRequest)(nil),                  // 34: api.v1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),                 // 35: api.v1.HeartbeatResponse
+	(*PartitionStatus)(nil),                   // 36: api.v1.PartitionStatus
+	(*VoteRequest)(nil),                       // 37: api.v1.VoteRequest
+	(*VoteResponse)(nil),                      // 38: api.v1.VoteResponse
+	(*AnnounceLeaderRequest)(nil),             // 39: api.v1.AnnounceLeaderRequest
+	(*AnnounceLeaderResponse)(nil),            // 40: api.v1.AnnounceLeaderResponse
+	(*ForwardAppendRequest)(nil),              // 41: api.v1.ForwardAppendRequest
+	(*ForwardAppendResponse)(nil),             // 42: api.v1.ForwardAppendResponse
+	(*AddMemberRequest)(nil),                  // 43: api.v1.AddMemberRequest
+	(*AddMemberResponse)(nil),                 // 44: api.v1.AddMemberResponse
+	(*RemoveMemberRequest)(nil),               // 45: api.v1.RemoveMemberRequest
+	(*RemoveMemberResponse)(nil),              // 46: api.v1.RemoveMemberResponse
+	(*TransferLeadershipRequest)(nil),         // 47: api.v1.TransferLeadershipRequest
+	(*TransferLeadershipResponse)(nil),        // 48: api.v1.TransferLeadershipResponse
+	(*GetEntityStateRequest)(nil),             // 49: api.v1.GetEntityStateRequest
+	(*GetEntityStateResponse)(nil),            // 50: api.v1.GetEntityStateResponse
+	(*PutEntityStateRequest)(nil),             // 51: api.v1.PutEntityStateRequest
+	(*PutEntityStateResponse)(nil),            // 52: api.v1.PutEntityStateResponse
+	(*Approval)(nil),                          // 53: api.v1.Approval
+	(*GetApprovalRequest)(nil),                // 54: api.v1.GetApprovalRequest
+	(*GetApprovalResponse)(nil),               // 55: api.v1.GetApprovalResponse
+	(*EngineListApprovalsRequest)(nil),        // 56: api.v1.EngineListApprovalsRequest
+	(*EngineListApprovalsResponse)(nil),       // 57: api.v1.EngineListApprovalsResponse
+	(*Signal)(nil),                            // 58: api.v1.Signal
+	(*GetSignalRequest)(nil),                  // 59: api.v1.GetSignalRequest
+	(*GetSignalResponse)(nil),                 // 60: api.v1.GetSignalResponse
+	(*LookupSignalRequest)(nil),               // 61: api.v1.LookupSignalRequest
+	(*LookupSignalResponse)(nil),              // 62: api.v1.LookupSignalResponse
+	(*ListSignalsRequest)(nil),                // 63: api.v1.ListSignalsRequest
+	(*ListSignalsResponse)(nil),               // 64: api.v1.ListSignalsResponse
+	(*Timer)(nil),                             // 65: api.v1.Timer
+	(*GetTimerRequest)(nil),                   // 66: api.v1.GetTimerRequest
+	(*GetTimerResponse)(nil),                  // 67: api.v1.GetTimerResponse
+	(*ListTimersRequest)(nil),                 // 68: api.v1.ListTimersRequest
+	(*ListTimersResponse)(nil),                // 69: api.v1.ListTimersResponse
+	(*ListDueTimersRequest)(nil),              // 70: api.v1.ListDueTimersRequest
+	(*ListDueTimersResponse)(nil),             // 71: api.v1.ListDueTimersResponse
+	(*Job)(nil),                               // 72: api.v1.Job
+	(*GetJobRequest)(nil),                     // 73: api.v1.GetJobRequest
+	(*GetJobResponse)(nil),                    // 74: api.v1.GetJobResponse
+	(*ListJobsByRunRequest)(nil),              // 75: api.v1.ListJobsByRunRequest
+	(*ListJobsByRunResponse)(nil),             // 76: api.v1.ListJobsByRunResponse
+	(*ListJobsByBatchRequest)(nil),            // 77: api.v1.ListJobsByBatchRequest
+	(*ListJobsByBatchResponse)(nil),           // 78: api.v1.ListJobsByBatchResponse
+	(*Batch)(nil),                             // 79: api.v1.Batch
+	(*GetBatchRequest)(nil),                   // 80: api.v1.GetBatchRequest
+	(*GetBatchResponse)(nil),                  // 81: api.v1.GetBatchResponse
+	(*Session)(nil),                           // 82: api.v1.Session
+	(*GetSessionRequest)(nil),                 // 83: api.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),                // 84: api.v1.GetSessionResponse
+	(*ListSessionsRequest)(nil),               // 85: api.v1.ListSessionsRequest
+	(*ListSessionsResponse)(nil),              // 86: api.v1.ListSessionsResponse
+	(*ChatMessage)(nil),                       // 87: api.v1.ChatMessage
+	(*GetMessageRequest)(nil),                 // 88: api.v1.GetMessageRequest
+	(*GetMessageResponse)(nil),                // 89: api.v1.GetMessageResponse
+	(*ListMessagesByCorrelationRequest)(nil),  // 90: api.v1.ListMessagesByCorrelationRequest
+	(*ListMessagesByCorrelationResponse)(nil), // 91: api.v1.ListMessagesByCorrelationResponse
+	(*ListRunsRequest)(nil),                   // 92: api.v1.ListRunsRequest
+	(*ListRunsResponse)(nil),                  // 93: api.v1.ListRunsResponse
+	(*ListEventsRequest)(nil),                 // 94: api.v1.ListEventsRequest
+	(*EventSummary)(nil),                      // 95: api.v1.EventSummary
+	(*ListEventsResponse)(nil),                // 96: api.v1.ListEventsResponse
+	(*GetRunStatsRequest)(nil),                // 97: api.v1.GetRunStatsRequest
+	(*GetRunStatsResponse)(nil),               // 98: api.v1.GetRunStatsResponse
+	(*DurableStepCheckpoint)(nil),             // 99: api.v1.DurableStepCheckpoint
+	(*CheckpointRequest)(nil),                 // 100: api.v1.CheckpointRequest
+	(*CheckpointResponse)(nil),                // 101: api.v1.CheckpointResponse
+	(*ActivationErrorDetail)(nil),             // 102: api.v1.ActivationErrorDetail
+	(*ImmutablePayloadReference)(nil),         // 103: api.v1.ImmutablePayloadReference
+	(*ActivationPayload)(nil),                 // 104: api.v1.ActivationPayload
+	(*ActivationStateMutation)(nil),           // 105: api.v1.ActivationStateMutation
+	(*ActivationOutboxIntent)(nil),            // 106: api.v1.ActivationOutboxIntent
+	(*ActivationUsage)(nil),                   // 107: api.v1.ActivationUsage
+	(*ActivationEvidence)(nil),                // 108: api.v1.ActivationEvidence
+	(*ChildActivationLinkage)(nil),            // 109: api.v1.ChildActivationLinkage
+	(*BeginActivationRequest)(nil),            // 110: api.v1.BeginActivationRequest
+	(*ActivationConflictReceipt)(nil),         // 111: api.v1.ActivationConflictReceipt
+	(*ActivationWaitReceipt)(nil),             // 112: api.v1.ActivationWaitReceipt
+	(*ActivationUnknownOutcomeReceipt)(nil),   // 113: api.v1.ActivationUnknownOutcomeReceipt
+	(*BeginActivationResponse)(nil),           // 114: api.v1.BeginActivationResponse
+	(*CompleteActivationRequest)(nil),         // 115: api.v1.CompleteActivationRequest
+	(*CompleteActivationResponse)(nil),        // 116: api.v1.CompleteActivationResponse
+	(*FailActivationRequest)(nil),             // 117: api.v1.FailActivationRequest
+	(*FailActivationResponse)(nil),            // 118: api.v1.FailActivationResponse
+	(*SuspendActivationRequest)(nil),          // 119: api.v1.SuspendActivationRequest
+	(*SuspendActivationResponse)(nil),         // 120: api.v1.SuspendActivationResponse
+	(*ActivationStartedRecord)(nil),           // 121: api.v1.ActivationStartedRecord
+	(*ActivationCompletedRecord)(nil),         // 122: api.v1.ActivationCompletedRecord
+	(*ActivationFailedRecord)(nil),            // 123: api.v1.ActivationFailedRecord
+	(*ActivationSuspendedRecord)(nil),         // 124: api.v1.ActivationSuspendedRecord
+	(*ActivationCancelledRecord)(nil),         // 125: api.v1.ActivationCancelledRecord
+	(*ActivationUnknownOutcomeRecord)(nil),    // 126: api.v1.ActivationUnknownOutcomeRecord
+	(*ActivationSnapshotRecord)(nil),          // 127: api.v1.ActivationSnapshotRecord
+	(*ActivationJournalRecord)(nil),           // 128: api.v1.ActivationJournalRecord
+	(*EventStreamMessage)(nil),                // 129: api.v1.EventStreamMessage
+	(*EventStreamAck)(nil),                    // 130: api.v1.EventStreamAck
+	(*PollJobsRequest)(nil),                   // 131: api.v1.PollJobsRequest
+	(*PollJobsResponse)(nil),                  // 132: api.v1.PollJobsResponse
+	(*WorkerSlotPolicy)(nil),                  // 133: api.v1.WorkerSlotPolicy
+	(*RegisterWorkerSessionRequest)(nil),      // 134: api.v1.RegisterWorkerSessionRequest
+	(*RegisterWorkerSessionResponse)(nil),     // 135: api.v1.RegisterWorkerSessionResponse
+	(*PollJobRequest)(nil),                    // 136: api.v1.PollJobRequest
+	(*PollJobResponse)(nil),                   // 137: api.v1.PollJobResponse
+	(*JobAssignment)(nil),                     // 138: api.v1.JobAssignment
+	(*RenewJobLeaseRequest)(nil),              // 139: api.v1.RenewJobLeaseRequest
+	(*RenewJobLeaseResponse)(nil),             // 140: api.v1.RenewJobLeaseResponse
+	(*ReportWorkerCapacityRequest)(nil),       // 141: api.v1.ReportWorkerCapacityRequest
+	(*ReportWorkerCapacityResponse)(nil),      // 142: api.v1.ReportWorkerCapacityResponse
+	(*CompleteJobRequest)(nil),                // 143: api.v1.CompleteJobRequest
+	(*CompleteJobResponse)(nil),               // 144: api.v1.CompleteJobResponse
+	nil,                                       // 145: api.v1.Record.MetadataEntry
+	nil,                                       // 146: api.v1.Run.MetadataEntry
+	nil,                                       // 147: api.v1.Job.MetadataEntry
+	nil,                                       // 148: api.v1.GetRunStatsResponse.CountByStatusEntry
+	nil,                                       // 149: api.v1.GetRunStatsResponse.CountByComponentTypeEntry
+	nil,                                       // 150: api.v1.JobAssignment.MetadataEntry
+	nil,                                       // 151: api.v1.CompleteJobRequest.MetadataEntry
+	(*WorkerInfo)(nil),                        // 152: api.v1.WorkerInfo
+	(*timestamppb.Timestamp)(nil),             // 153: google.protobuf.Timestamp
+	(Priority)(0),                             // 154: api.v1.Priority
+	(*WorkerCapability)(nil),                  // 155: api.v1.WorkerCapability
+	(*ComponentInfo)(nil),                     // 156: api.v1.ComponentInfo
+	(ComponentType)(0),                        // 157: api.v1.ComponentType
+	(WorkerMode)(0),                           // 158: api.v1.WorkerMode
 }
 var file_api_v1_engine_proto_depIdxs = []int32{
-	143, // 0: api.v1.Record.metadata:type_name -> api.v1.Record.MetadataEntry
-	8,   // 1: api.v1.AppendRequest.record:type_name -> api.v1.Record
-	8,   // 2: api.v1.AppendBatchRequest.records:type_name -> api.v1.Record
-	8,   // 3: api.v1.ReadByRunIDResponse.records:type_name -> api.v1.Record
-	8,   // 4: api.v1.FindByStepKeyResponse.record:type_name -> api.v1.Record
-	21,  // 5: api.v1.GetRunResponse.run:type_name -> api.v1.Run
-	150, // 6: api.v1.ListRoutingWorkersResponse.workers:type_name -> api.v1.WorkerInfo
-	151, // 7: api.v1.Run.submitted_at:type_name -> google.protobuf.Timestamp
-	151, // 8: api.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	151, // 9: api.v1.Run.completed_at:type_name -> google.protobuf.Timestamp
-	151, // 10: api.v1.Run.gateway_received_at:type_name -> google.protobuf.Timestamp
-	151, // 11: api.v1.Run.assigned_at:type_name -> google.protobuf.Timestamp
-	144, // 12: api.v1.Run.metadata:type_name -> api.v1.Run.MetadataEntry
-	152, // 13: api.v1.Run.priority:type_name -> api.v1.Priority
-	22,  // 14: api.v1.Run.model_usage:type_name -> api.v1.ModelUsage
-	8,   // 15: api.v1.TailResponse.record:type_name -> api.v1.Record
-	8,   // 16: api.v1.StoreRequest.records:type_name -> api.v1.Record
-	8,   // 17: api.v1.GetRecordsResponse.records:type_name -> api.v1.Record
-	35,  // 18: api.v1.HeartbeatRequest.partition_statuses:type_name -> api.v1.PartitionStatus
-	35,  // 19: api.v1.HeartbeatResponse.partition_statuses:type_name -> api.v1.PartitionStatus
-	8,   // 20: api.v1.ForwardAppendRequest.records:type_name -> api.v1.Record
-	151, // 21: api.v1.Approval.requested_at:type_name -> google.protobuf.Timestamp
-	151, // 22: api.v1.Approval.expires_at:type_name -> google.protobuf.Timestamp
-	151, // 23: api.v1.Approval.decided_at:type_name -> google.protobuf.Timestamp
-	52,  // 24: api.v1.GetApprovalResponse.approval:type_name -> api.v1.Approval
-	52,  // 25: api.v1.EngineListApprovalsResponse.approvals:type_name -> api.v1.Approval
-	151, // 26: api.v1.Signal.received_at:type_name -> google.protobuf.Timestamp
-	151, // 27: api.v1.Signal.acknowledged_at:type_name -> google.protobuf.Timestamp
-	151, // 28: api.v1.Signal.expires_at:type_name -> google.protobuf.Timestamp
-	57,  // 29: api.v1.GetSignalResponse.signal:type_name -> api.v1.Signal
-	57,  // 30: api.v1.LookupSignalResponse.signal:type_name -> api.v1.Signal
-	57,  // 31: api.v1.ListSignalsResponse.signals:type_name -> api.v1.Signal
-	151, // 32: api.v1.Timer.fire_at:type_name -> google.protobuf.Timestamp
-	151, // 33: api.v1.Timer.fired_at:type_name -> google.protobuf.Timestamp
-	151, // 34: api.v1.Timer.canceled_at:type_name -> google.protobuf.Timestamp
-	151, // 35: api.v1.Timer.expired_at:type_name -> google.protobuf.Timestamp
-	64,  // 36: api.v1.GetTimerResponse.timer:type_name -> api.v1.Timer
-	64,  // 37: api.v1.ListTimersResponse.timers:type_name -> api.v1.Timer
-	64,  // 38: api.v1.ListDueTimersResponse.timers:type_name -> api.v1.Timer
-	145, // 39: api.v1.Job.metadata:type_name -> api.v1.Job.MetadataEntry
-	151, // 40: api.v1.Job.created_at:type_name -> google.protobuf.Timestamp
-	151, // 41: api.v1.Job.claimed_at:type_name -> google.protobuf.Timestamp
-	151, // 42: api.v1.Job.completed_at:type_name -> google.protobuf.Timestamp
-	71,  // 43: api.v1.GetJobResponse.job:type_name -> api.v1.Job
-	71,  // 44: api.v1.ListJobsByRunResponse.jobs:type_name -> api.v1.Job
-	71,  // 45: api.v1.ListJobsByBatchResponse.jobs:type_name -> api.v1.Job
-	151, // 46: api.v1.Batch.submitted_at:type_name -> google.protobuf.Timestamp
-	151, // 47: api.v1.Batch.started_at:type_name -> google.protobuf.Timestamp
-	151, // 48: api.v1.Batch.completed_at:type_name -> google.protobuf.Timestamp
-	78,  // 49: api.v1.GetBatchResponse.batch:type_name -> api.v1.Batch
-	151, // 50: api.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	151, // 51: api.v1.Session.updated_at:type_name -> google.protobuf.Timestamp
-	151, // 52: api.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
-	151, // 53: api.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	81,  // 54: api.v1.GetSessionResponse.session:type_name -> api.v1.Session
-	81,  // 55: api.v1.ListSessionsResponse.sessions:type_name -> api.v1.Session
-	151, // 56: api.v1.ChatMessage.scheduled_at:type_name -> google.protobuf.Timestamp
-	151, // 57: api.v1.ChatMessage.delivered_at:type_name -> google.protobuf.Timestamp
-	151, // 58: api.v1.ChatMessage.created_at:type_name -> google.protobuf.Timestamp
-	86,  // 59: api.v1.GetMessageResponse.message:type_name -> api.v1.ChatMessage
-	86,  // 60: api.v1.ListMessagesByCorrelationResponse.messages:type_name -> api.v1.ChatMessage
-	21,  // 61: api.v1.ListRunsResponse.items:type_name -> api.v1.Run
-	94,  // 62: api.v1.ListEventsResponse.items:type_name -> api.v1.EventSummary
-	146, // 63: api.v1.GetRunStatsResponse.count_by_status:type_name -> api.v1.GetRunStatsResponse.CountByStatusEntry
-	147, // 64: api.v1.GetRunStatsResponse.count_by_component_type:type_name -> api.v1.GetRunStatsResponse.CountByComponentTypeEntry
+	145, // 0: api.v1.Record.metadata:type_name -> api.v1.Record.MetadataEntry
+	9,   // 1: api.v1.AppendRequest.record:type_name -> api.v1.Record
+	9,   // 2: api.v1.AppendBatchRequest.records:type_name -> api.v1.Record
+	9,   // 3: api.v1.ReadByRunIDResponse.records:type_name -> api.v1.Record
+	9,   // 4: api.v1.FindByStepKeyResponse.record:type_name -> api.v1.Record
+	22,  // 5: api.v1.GetRunResponse.run:type_name -> api.v1.Run
+	152, // 6: api.v1.ListRoutingWorkersResponse.workers:type_name -> api.v1.WorkerInfo
+	153, // 7: api.v1.Run.submitted_at:type_name -> google.protobuf.Timestamp
+	153, // 8: api.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	153, // 9: api.v1.Run.completed_at:type_name -> google.protobuf.Timestamp
+	153, // 10: api.v1.Run.gateway_received_at:type_name -> google.protobuf.Timestamp
+	153, // 11: api.v1.Run.assigned_at:type_name -> google.protobuf.Timestamp
+	146, // 12: api.v1.Run.metadata:type_name -> api.v1.Run.MetadataEntry
+	154, // 13: api.v1.Run.priority:type_name -> api.v1.Priority
+	23,  // 14: api.v1.Run.model_usage:type_name -> api.v1.ModelUsage
+	9,   // 15: api.v1.TailResponse.record:type_name -> api.v1.Record
+	9,   // 16: api.v1.StoreRequest.records:type_name -> api.v1.Record
+	9,   // 17: api.v1.GetRecordsResponse.records:type_name -> api.v1.Record
+	36,  // 18: api.v1.HeartbeatRequest.partition_statuses:type_name -> api.v1.PartitionStatus
+	36,  // 19: api.v1.HeartbeatResponse.partition_statuses:type_name -> api.v1.PartitionStatus
+	9,   // 20: api.v1.ForwardAppendRequest.records:type_name -> api.v1.Record
+	153, // 21: api.v1.Approval.requested_at:type_name -> google.protobuf.Timestamp
+	153, // 22: api.v1.Approval.expires_at:type_name -> google.protobuf.Timestamp
+	153, // 23: api.v1.Approval.decided_at:type_name -> google.protobuf.Timestamp
+	53,  // 24: api.v1.GetApprovalResponse.approval:type_name -> api.v1.Approval
+	53,  // 25: api.v1.EngineListApprovalsResponse.approvals:type_name -> api.v1.Approval
+	153, // 26: api.v1.Signal.received_at:type_name -> google.protobuf.Timestamp
+	153, // 27: api.v1.Signal.acknowledged_at:type_name -> google.protobuf.Timestamp
+	153, // 28: api.v1.Signal.expires_at:type_name -> google.protobuf.Timestamp
+	58,  // 29: api.v1.GetSignalResponse.signal:type_name -> api.v1.Signal
+	58,  // 30: api.v1.LookupSignalResponse.signal:type_name -> api.v1.Signal
+	58,  // 31: api.v1.ListSignalsResponse.signals:type_name -> api.v1.Signal
+	153, // 32: api.v1.Timer.fire_at:type_name -> google.protobuf.Timestamp
+	153, // 33: api.v1.Timer.fired_at:type_name -> google.protobuf.Timestamp
+	153, // 34: api.v1.Timer.canceled_at:type_name -> google.protobuf.Timestamp
+	153, // 35: api.v1.Timer.expired_at:type_name -> google.protobuf.Timestamp
+	65,  // 36: api.v1.GetTimerResponse.timer:type_name -> api.v1.Timer
+	65,  // 37: api.v1.ListTimersResponse.timers:type_name -> api.v1.Timer
+	65,  // 38: api.v1.ListDueTimersResponse.timers:type_name -> api.v1.Timer
+	147, // 39: api.v1.Job.metadata:type_name -> api.v1.Job.MetadataEntry
+	153, // 40: api.v1.Job.created_at:type_name -> google.protobuf.Timestamp
+	153, // 41: api.v1.Job.claimed_at:type_name -> google.protobuf.Timestamp
+	153, // 42: api.v1.Job.completed_at:type_name -> google.protobuf.Timestamp
+	72,  // 43: api.v1.GetJobResponse.job:type_name -> api.v1.Job
+	72,  // 44: api.v1.ListJobsByRunResponse.jobs:type_name -> api.v1.Job
+	72,  // 45: api.v1.ListJobsByBatchResponse.jobs:type_name -> api.v1.Job
+	153, // 46: api.v1.Batch.submitted_at:type_name -> google.protobuf.Timestamp
+	153, // 47: api.v1.Batch.started_at:type_name -> google.protobuf.Timestamp
+	153, // 48: api.v1.Batch.completed_at:type_name -> google.protobuf.Timestamp
+	79,  // 49: api.v1.GetBatchResponse.batch:type_name -> api.v1.Batch
+	153, // 50: api.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	153, // 51: api.v1.Session.updated_at:type_name -> google.protobuf.Timestamp
+	153, // 52: api.v1.Session.last_used_at:type_name -> google.protobuf.Timestamp
+	153, // 53: api.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	82,  // 54: api.v1.GetSessionResponse.session:type_name -> api.v1.Session
+	82,  // 55: api.v1.ListSessionsResponse.sessions:type_name -> api.v1.Session
+	153, // 56: api.v1.ChatMessage.scheduled_at:type_name -> google.protobuf.Timestamp
+	153, // 57: api.v1.ChatMessage.delivered_at:type_name -> google.protobuf.Timestamp
+	153, // 58: api.v1.ChatMessage.created_at:type_name -> google.protobuf.Timestamp
+	87,  // 59: api.v1.GetMessageResponse.message:type_name -> api.v1.ChatMessage
+	87,  // 60: api.v1.ListMessagesByCorrelationResponse.messages:type_name -> api.v1.ChatMessage
+	22,  // 61: api.v1.ListRunsResponse.items:type_name -> api.v1.Run
+	95,  // 62: api.v1.ListEventsResponse.items:type_name -> api.v1.EventSummary
+	148, // 63: api.v1.GetRunStatsResponse.count_by_status:type_name -> api.v1.GetRunStatsResponse.CountByStatusEntry
+	149, // 64: api.v1.GetRunStatsResponse.count_by_component_type:type_name -> api.v1.GetRunStatsResponse.CountByComponentTypeEntry
 	0,   // 65: api.v1.DurableStepCheckpoint.type:type_name -> api.v1.CheckpointType
-	98,  // 66: api.v1.CheckpointRequest.checkpoint:type_name -> api.v1.DurableStepCheckpoint
-	6,   // 67: api.v1.ActivationErrorDetail.code:type_name -> api.v1.ActivationErrorCode
-	102, // 68: api.v1.ActivationPayload.reference:type_name -> api.v1.ImmutablePayloadReference
-	103, // 69: api.v1.ActivationOutboxIntent.payload:type_name -> api.v1.ActivationPayload
-	103, // 70: api.v1.ActivationEvidence.payload:type_name -> api.v1.ActivationPayload
-	1,   // 71: api.v1.BeginActivationRequest.kind:type_name -> api.v1.ActivationKind
-	3,   // 72: api.v1.BeginActivationRequest.recovery_policy:type_name -> api.v1.ActivationRecoveryPolicy
-	6,   // 73: api.v1.ActivationConflictReceipt.error_code:type_name -> api.v1.ActivationErrorCode
-	103, // 74: api.v1.ActivationUnknownOutcomeReceipt.error_data:type_name -> api.v1.ActivationPayload
-	2,   // 75: api.v1.BeginActivationResponse.outcome:type_name -> api.v1.BeginActivationOutcome
-	103, // 76: api.v1.BeginActivationResponse.replay_result:type_name -> api.v1.ActivationPayload
-	109, // 77: api.v1.BeginActivationResponse.conflict:type_name -> api.v1.ActivationConflictReceipt
-	110, // 78: api.v1.BeginActivationResponse.wait:type_name -> api.v1.ActivationWaitReceipt
-	111, // 79: api.v1.BeginActivationResponse.unknown_outcome:type_name -> api.v1.ActivationUnknownOutcomeReceipt
-	103, // 80: api.v1.CompleteActivationRequest.output:type_name -> api.v1.ActivationPayload
-	104, // 81: api.v1.CompleteActivationRequest.state_mutations:type_name -> api.v1.ActivationStateMutation
-	105, // 82: api.v1.CompleteActivationRequest.outbox_intents:type_name -> api.v1.ActivationOutboxIntent
-	106, // 83: api.v1.CompleteActivationRequest.usage:type_name -> api.v1.ActivationUsage
-	107, // 84: api.v1.CompleteActivationRequest.evidence:type_name -> api.v1.ActivationEvidence
-	103, // 85: api.v1.FailActivationRequest.error_data:type_name -> api.v1.ActivationPayload
-	4,   // 86: api.v1.FailActivationRequest.external_outcome_certainty:type_name -> api.v1.ActivationExternalOutcomeCertainty
-	107, // 87: api.v1.FailActivationRequest.evidence:type_name -> api.v1.ActivationEvidence
-	5,   // 88: api.v1.FailActivationResponse.status:type_name -> api.v1.ActivationStatus
-	1,   // 89: api.v1.ActivationStartedRecord.kind:type_name -> api.v1.ActivationKind
-	3,   // 90: api.v1.ActivationStartedRecord.recovery_policy:type_name -> api.v1.ActivationRecoveryPolicy
-	103, // 91: api.v1.ActivationCompletedRecord.output:type_name -> api.v1.ActivationPayload
-	104, // 92: api.v1.ActivationCompletedRecord.state_mutations:type_name -> api.v1.ActivationStateMutation
-	105, // 93: api.v1.ActivationCompletedRecord.outbox_intents:type_name -> api.v1.ActivationOutboxIntent
-	106, // 94: api.v1.ActivationCompletedRecord.usage:type_name -> api.v1.ActivationUsage
-	107, // 95: api.v1.ActivationCompletedRecord.evidence:type_name -> api.v1.ActivationEvidence
-	103, // 96: api.v1.ActivationFailedRecord.error_data:type_name -> api.v1.ActivationPayload
-	4,   // 97: api.v1.ActivationFailedRecord.external_outcome_certainty:type_name -> api.v1.ActivationExternalOutcomeCertainty
-	107, // 98: api.v1.ActivationFailedRecord.evidence:type_name -> api.v1.ActivationEvidence
-	121, // 99: api.v1.ActivationUnknownOutcomeRecord.failure:type_name -> api.v1.ActivationFailedRecord
-	5,   // 100: api.v1.ActivationSnapshotRecord.status:type_name -> api.v1.ActivationStatus
-	119, // 101: api.v1.ActivationSnapshotRecord.current_attempt:type_name -> api.v1.ActivationStartedRecord
-	120, // 102: api.v1.ActivationSnapshotRecord.completion:type_name -> api.v1.ActivationCompletedRecord
-	121, // 103: api.v1.ActivationSnapshotRecord.failure:type_name -> api.v1.ActivationFailedRecord
-	122, // 104: api.v1.ActivationSnapshotRecord.suspension:type_name -> api.v1.ActivationSuspendedRecord
-	123, // 105: api.v1.ActivationSnapshotRecord.cancellation:type_name -> api.v1.ActivationCancelledRecord
-	119, // 106: api.v1.ActivationJournalRecord.started:type_name -> api.v1.ActivationStartedRecord
-	120, // 107: api.v1.ActivationJournalRecord.completed:type_name -> api.v1.ActivationCompletedRecord
-	121, // 108: api.v1.ActivationJournalRecord.failed:type_name -> api.v1.ActivationFailedRecord
-	122, // 109: api.v1.ActivationJournalRecord.suspended:type_name -> api.v1.ActivationSuspendedRecord
-	123, // 110: api.v1.ActivationJournalRecord.cancelled:type_name -> api.v1.ActivationCancelledRecord
-	125, // 111: api.v1.ActivationJournalRecord.snapshot:type_name -> api.v1.ActivationSnapshotRecord
-	124, // 112: api.v1.ActivationJournalRecord.unknown_outcome:type_name -> api.v1.ActivationUnknownOutcomeRecord
-	136, // 113: api.v1.PollJobsResponse.jobs:type_name -> api.v1.JobAssignment
-	131, // 114: api.v1.RegisterWorkerSessionRequest.slot_policy:type_name -> api.v1.WorkerSlotPolicy
-	153, // 115: api.v1.RegisterWorkerSessionRequest.capabilities:type_name -> api.v1.WorkerCapability
-	154, // 116: api.v1.RegisterWorkerSessionRequest.components:type_name -> api.v1.ComponentInfo
-	131, // 117: api.v1.RegisterWorkerSessionResponse.effective_slot_policy:type_name -> api.v1.WorkerSlotPolicy
-	136, // 118: api.v1.PollJobResponse.job:type_name -> api.v1.JobAssignment
-	155, // 119: api.v1.JobAssignment.component_type:type_name -> api.v1.ComponentType
-	148, // 120: api.v1.JobAssignment.metadata:type_name -> api.v1.JobAssignment.MetadataEntry
-	156, // 121: api.v1.RenewJobLeaseRequest.mode:type_name -> api.v1.WorkerMode
-	7,   // 122: api.v1.RenewJobLeaseResponse.outcome:type_name -> api.v1.LeaseRenewalOutcome
-	149, // 123: api.v1.CompleteJobRequest.metadata:type_name -> api.v1.CompleteJobRequest.MetadataEntry
-	9,   // 124: api.v1.EngineService.Append:input_type -> api.v1.AppendRequest
-	11,  // 125: api.v1.EngineService.AppendBatch:input_type -> api.v1.AppendBatchRequest
-	99,  // 126: api.v1.EngineService.Checkpoint:input_type -> api.v1.CheckpointRequest
-	108, // 127: api.v1.EngineService.BeginActivation:input_type -> api.v1.BeginActivationRequest
-	113, // 128: api.v1.EngineService.CompleteActivation:input_type -> api.v1.CompleteActivationRequest
-	115, // 129: api.v1.EngineService.FailActivation:input_type -> api.v1.FailActivationRequest
-	117, // 130: api.v1.EngineService.SuspendActivation:input_type -> api.v1.SuspendActivationRequest
-	127, // 131: api.v1.EngineService.EventStream:input_type -> api.v1.EventStreamMessage
-	129, // 132: api.v1.EngineService.PollJobs:input_type -> api.v1.PollJobsRequest
-	132, // 133: api.v1.EngineService.RegisterWorkerSession:input_type -> api.v1.RegisterWorkerSessionRequest
-	134, // 134: api.v1.EngineService.PollJob:input_type -> api.v1.PollJobRequest
-	137, // 135: api.v1.EngineService.RenewJobLease:input_type -> api.v1.RenewJobLeaseRequest
-	139, // 136: api.v1.EngineService.ReportWorkerCapacity:input_type -> api.v1.ReportWorkerCapacityRequest
-	141, // 137: api.v1.EngineService.CompleteJob:input_type -> api.v1.CompleteJobRequest
-	13,  // 138: api.v1.EngineService.ReadByRunID:input_type -> api.v1.ReadByRunIDRequest
-	15,  // 139: api.v1.EngineService.FindByStepKey:input_type -> api.v1.FindByStepKeyRequest
-	17,  // 140: api.v1.EngineService.GetRun:input_type -> api.v1.GetRunRequest
-	19,  // 141: api.v1.EngineService.ListRoutingWorkers:input_type -> api.v1.ListRoutingWorkersRequest
-	23,  // 142: api.v1.EngineService.Tail:input_type -> api.v1.TailRequest
-	48,  // 143: api.v1.EngineService.GetEntityState:input_type -> api.v1.GetEntityStateRequest
-	50,  // 144: api.v1.EngineService.PutEntityState:input_type -> api.v1.PutEntityStateRequest
-	53,  // 145: api.v1.EngineService.GetApproval:input_type -> api.v1.GetApprovalRequest
-	55,  // 146: api.v1.EngineService.ListApprovals:input_type -> api.v1.EngineListApprovalsRequest
-	58,  // 147: api.v1.EngineService.GetSignal:input_type -> api.v1.GetSignalRequest
-	60,  // 148: api.v1.EngineService.LookupSignal:input_type -> api.v1.LookupSignalRequest
-	62,  // 149: api.v1.EngineService.ListSignals:input_type -> api.v1.ListSignalsRequest
-	65,  // 150: api.v1.EngineService.GetTimer:input_type -> api.v1.GetTimerRequest
-	67,  // 151: api.v1.EngineService.ListTimers:input_type -> api.v1.ListTimersRequest
-	69,  // 152: api.v1.EngineService.ListDueTimers:input_type -> api.v1.ListDueTimersRequest
-	72,  // 153: api.v1.EngineService.GetJob:input_type -> api.v1.GetJobRequest
-	74,  // 154: api.v1.EngineService.ListJobsByRun:input_type -> api.v1.ListJobsByRunRequest
-	76,  // 155: api.v1.EngineService.ListJobsByBatch:input_type -> api.v1.ListJobsByBatchRequest
-	79,  // 156: api.v1.EngineService.GetBatch:input_type -> api.v1.GetBatchRequest
-	82,  // 157: api.v1.EngineService.GetSession:input_type -> api.v1.GetSessionRequest
-	84,  // 158: api.v1.EngineService.ListSessions:input_type -> api.v1.ListSessionsRequest
-	87,  // 159: api.v1.EngineService.GetMessage:input_type -> api.v1.GetMessageRequest
-	89,  // 160: api.v1.EngineService.ListMessagesByCorrelation:input_type -> api.v1.ListMessagesByCorrelationRequest
-	91,  // 161: api.v1.EngineService.ListRuns:input_type -> api.v1.ListRunsRequest
-	96,  // 162: api.v1.EngineService.GetRunStats:input_type -> api.v1.GetRunStatsRequest
-	93,  // 163: api.v1.EngineService.ListEvents:input_type -> api.v1.ListEventsRequest
-	25,  // 164: api.v1.EngineService.GetStatus:input_type -> api.v1.GetStatusRequest
-	27,  // 165: api.v1.ReplicationService.Store:input_type -> api.v1.StoreRequest
-	29,  // 166: api.v1.ReplicationService.GetRecords:input_type -> api.v1.GetRecordsRequest
-	31,  // 167: api.v1.ReplicationService.Seal:input_type -> api.v1.SealRequest
-	33,  // 168: api.v1.ReplicationService.Heartbeat:input_type -> api.v1.HeartbeatRequest
-	36,  // 169: api.v1.ReplicationService.RequestVote:input_type -> api.v1.VoteRequest
-	38,  // 170: api.v1.ReplicationService.AnnounceLeader:input_type -> api.v1.AnnounceLeaderRequest
-	40,  // 171: api.v1.ReplicationService.ForwardAppend:input_type -> api.v1.ForwardAppendRequest
-	40,  // 172: api.v1.ReplicationService.ForwardAppendV2:input_type -> api.v1.ForwardAppendRequest
-	42,  // 173: api.v1.ReplicationService.AddMember:input_type -> api.v1.AddMemberRequest
-	44,  // 174: api.v1.ReplicationService.RemoveMember:input_type -> api.v1.RemoveMemberRequest
-	46,  // 175: api.v1.ReplicationService.TransferLeadership:input_type -> api.v1.TransferLeadershipRequest
-	10,  // 176: api.v1.EngineService.Append:output_type -> api.v1.AppendResponse
-	12,  // 177: api.v1.EngineService.AppendBatch:output_type -> api.v1.AppendBatchResponse
-	100, // 178: api.v1.EngineService.Checkpoint:output_type -> api.v1.CheckpointResponse
-	112, // 179: api.v1.EngineService.BeginActivation:output_type -> api.v1.BeginActivationResponse
-	114, // 180: api.v1.EngineService.CompleteActivation:output_type -> api.v1.CompleteActivationResponse
-	116, // 181: api.v1.EngineService.FailActivation:output_type -> api.v1.FailActivationResponse
-	118, // 182: api.v1.EngineService.SuspendActivation:output_type -> api.v1.SuspendActivationResponse
-	128, // 183: api.v1.EngineService.EventStream:output_type -> api.v1.EventStreamAck
-	130, // 184: api.v1.EngineService.PollJobs:output_type -> api.v1.PollJobsResponse
-	133, // 185: api.v1.EngineService.RegisterWorkerSession:output_type -> api.v1.RegisterWorkerSessionResponse
-	135, // 186: api.v1.EngineService.PollJob:output_type -> api.v1.PollJobResponse
-	138, // 187: api.v1.EngineService.RenewJobLease:output_type -> api.v1.RenewJobLeaseResponse
-	140, // 188: api.v1.EngineService.ReportWorkerCapacity:output_type -> api.v1.ReportWorkerCapacityResponse
-	142, // 189: api.v1.EngineService.CompleteJob:output_type -> api.v1.CompleteJobResponse
-	14,  // 190: api.v1.EngineService.ReadByRunID:output_type -> api.v1.ReadByRunIDResponse
-	16,  // 191: api.v1.EngineService.FindByStepKey:output_type -> api.v1.FindByStepKeyResponse
-	18,  // 192: api.v1.EngineService.GetRun:output_type -> api.v1.GetRunResponse
-	20,  // 193: api.v1.EngineService.ListRoutingWorkers:output_type -> api.v1.ListRoutingWorkersResponse
-	24,  // 194: api.v1.EngineService.Tail:output_type -> api.v1.TailResponse
-	49,  // 195: api.v1.EngineService.GetEntityState:output_type -> api.v1.GetEntityStateResponse
-	51,  // 196: api.v1.EngineService.PutEntityState:output_type -> api.v1.PutEntityStateResponse
-	54,  // 197: api.v1.EngineService.GetApproval:output_type -> api.v1.GetApprovalResponse
-	56,  // 198: api.v1.EngineService.ListApprovals:output_type -> api.v1.EngineListApprovalsResponse
-	59,  // 199: api.v1.EngineService.GetSignal:output_type -> api.v1.GetSignalResponse
-	61,  // 200: api.v1.EngineService.LookupSignal:output_type -> api.v1.LookupSignalResponse
-	63,  // 201: api.v1.EngineService.ListSignals:output_type -> api.v1.ListSignalsResponse
-	66,  // 202: api.v1.EngineService.GetTimer:output_type -> api.v1.GetTimerResponse
-	68,  // 203: api.v1.EngineService.ListTimers:output_type -> api.v1.ListTimersResponse
-	70,  // 204: api.v1.EngineService.ListDueTimers:output_type -> api.v1.ListDueTimersResponse
-	73,  // 205: api.v1.EngineService.GetJob:output_type -> api.v1.GetJobResponse
-	75,  // 206: api.v1.EngineService.ListJobsByRun:output_type -> api.v1.ListJobsByRunResponse
-	77,  // 207: api.v1.EngineService.ListJobsByBatch:output_type -> api.v1.ListJobsByBatchResponse
-	80,  // 208: api.v1.EngineService.GetBatch:output_type -> api.v1.GetBatchResponse
-	83,  // 209: api.v1.EngineService.GetSession:output_type -> api.v1.GetSessionResponse
-	85,  // 210: api.v1.EngineService.ListSessions:output_type -> api.v1.ListSessionsResponse
-	88,  // 211: api.v1.EngineService.GetMessage:output_type -> api.v1.GetMessageResponse
-	90,  // 212: api.v1.EngineService.ListMessagesByCorrelation:output_type -> api.v1.ListMessagesByCorrelationResponse
-	92,  // 213: api.v1.EngineService.ListRuns:output_type -> api.v1.ListRunsResponse
-	97,  // 214: api.v1.EngineService.GetRunStats:output_type -> api.v1.GetRunStatsResponse
-	95,  // 215: api.v1.EngineService.ListEvents:output_type -> api.v1.ListEventsResponse
-	26,  // 216: api.v1.EngineService.GetStatus:output_type -> api.v1.GetStatusResponse
-	28,  // 217: api.v1.ReplicationService.Store:output_type -> api.v1.StoreResponse
-	30,  // 218: api.v1.ReplicationService.GetRecords:output_type -> api.v1.GetRecordsResponse
-	32,  // 219: api.v1.ReplicationService.Seal:output_type -> api.v1.SealResponse
-	34,  // 220: api.v1.ReplicationService.Heartbeat:output_type -> api.v1.HeartbeatResponse
-	37,  // 221: api.v1.ReplicationService.RequestVote:output_type -> api.v1.VoteResponse
-	39,  // 222: api.v1.ReplicationService.AnnounceLeader:output_type -> api.v1.AnnounceLeaderResponse
-	41,  // 223: api.v1.ReplicationService.ForwardAppend:output_type -> api.v1.ForwardAppendResponse
-	41,  // 224: api.v1.ReplicationService.ForwardAppendV2:output_type -> api.v1.ForwardAppendResponse
-	43,  // 225: api.v1.ReplicationService.AddMember:output_type -> api.v1.AddMemberResponse
-	45,  // 226: api.v1.ReplicationService.RemoveMember:output_type -> api.v1.RemoveMemberResponse
-	47,  // 227: api.v1.ReplicationService.TransferLeadership:output_type -> api.v1.TransferLeadershipResponse
-	176, // [176:228] is the sub-list for method output_type
-	124, // [124:176] is the sub-list for method input_type
-	124, // [124:124] is the sub-list for extension type_name
-	124, // [124:124] is the sub-list for extension extendee
-	0,   // [0:124] is the sub-list for field type_name
+	99,  // 66: api.v1.CheckpointRequest.checkpoint:type_name -> api.v1.DurableStepCheckpoint
+	7,   // 67: api.v1.ActivationErrorDetail.code:type_name -> api.v1.ActivationErrorCode
+	103, // 68: api.v1.ActivationPayload.reference:type_name -> api.v1.ImmutablePayloadReference
+	104, // 69: api.v1.ActivationOutboxIntent.payload:type_name -> api.v1.ActivationPayload
+	104, // 70: api.v1.ActivationEvidence.payload:type_name -> api.v1.ActivationPayload
+	4,   // 71: api.v1.ChildActivationLinkage.join_policy:type_name -> api.v1.ChildJoinPolicy
+	1,   // 72: api.v1.BeginActivationRequest.kind:type_name -> api.v1.ActivationKind
+	3,   // 73: api.v1.BeginActivationRequest.recovery_policy:type_name -> api.v1.ActivationRecoveryPolicy
+	109, // 74: api.v1.BeginActivationRequest.child:type_name -> api.v1.ChildActivationLinkage
+	7,   // 75: api.v1.ActivationConflictReceipt.error_code:type_name -> api.v1.ActivationErrorCode
+	104, // 76: api.v1.ActivationUnknownOutcomeReceipt.error_data:type_name -> api.v1.ActivationPayload
+	2,   // 77: api.v1.BeginActivationResponse.outcome:type_name -> api.v1.BeginActivationOutcome
+	104, // 78: api.v1.BeginActivationResponse.replay_result:type_name -> api.v1.ActivationPayload
+	111, // 79: api.v1.BeginActivationResponse.conflict:type_name -> api.v1.ActivationConflictReceipt
+	112, // 80: api.v1.BeginActivationResponse.wait:type_name -> api.v1.ActivationWaitReceipt
+	113, // 81: api.v1.BeginActivationResponse.unknown_outcome:type_name -> api.v1.ActivationUnknownOutcomeReceipt
+	104, // 82: api.v1.CompleteActivationRequest.output:type_name -> api.v1.ActivationPayload
+	105, // 83: api.v1.CompleteActivationRequest.state_mutations:type_name -> api.v1.ActivationStateMutation
+	106, // 84: api.v1.CompleteActivationRequest.outbox_intents:type_name -> api.v1.ActivationOutboxIntent
+	107, // 85: api.v1.CompleteActivationRequest.usage:type_name -> api.v1.ActivationUsage
+	108, // 86: api.v1.CompleteActivationRequest.evidence:type_name -> api.v1.ActivationEvidence
+	104, // 87: api.v1.FailActivationRequest.error_data:type_name -> api.v1.ActivationPayload
+	5,   // 88: api.v1.FailActivationRequest.external_outcome_certainty:type_name -> api.v1.ActivationExternalOutcomeCertainty
+	108, // 89: api.v1.FailActivationRequest.evidence:type_name -> api.v1.ActivationEvidence
+	6,   // 90: api.v1.FailActivationResponse.status:type_name -> api.v1.ActivationStatus
+	1,   // 91: api.v1.ActivationStartedRecord.kind:type_name -> api.v1.ActivationKind
+	3,   // 92: api.v1.ActivationStartedRecord.recovery_policy:type_name -> api.v1.ActivationRecoveryPolicy
+	109, // 93: api.v1.ActivationStartedRecord.child:type_name -> api.v1.ChildActivationLinkage
+	104, // 94: api.v1.ActivationCompletedRecord.output:type_name -> api.v1.ActivationPayload
+	105, // 95: api.v1.ActivationCompletedRecord.state_mutations:type_name -> api.v1.ActivationStateMutation
+	106, // 96: api.v1.ActivationCompletedRecord.outbox_intents:type_name -> api.v1.ActivationOutboxIntent
+	107, // 97: api.v1.ActivationCompletedRecord.usage:type_name -> api.v1.ActivationUsage
+	108, // 98: api.v1.ActivationCompletedRecord.evidence:type_name -> api.v1.ActivationEvidence
+	104, // 99: api.v1.ActivationFailedRecord.error_data:type_name -> api.v1.ActivationPayload
+	5,   // 100: api.v1.ActivationFailedRecord.external_outcome_certainty:type_name -> api.v1.ActivationExternalOutcomeCertainty
+	108, // 101: api.v1.ActivationFailedRecord.evidence:type_name -> api.v1.ActivationEvidence
+	123, // 102: api.v1.ActivationUnknownOutcomeRecord.failure:type_name -> api.v1.ActivationFailedRecord
+	6,   // 103: api.v1.ActivationSnapshotRecord.status:type_name -> api.v1.ActivationStatus
+	121, // 104: api.v1.ActivationSnapshotRecord.current_attempt:type_name -> api.v1.ActivationStartedRecord
+	122, // 105: api.v1.ActivationSnapshotRecord.completion:type_name -> api.v1.ActivationCompletedRecord
+	123, // 106: api.v1.ActivationSnapshotRecord.failure:type_name -> api.v1.ActivationFailedRecord
+	124, // 107: api.v1.ActivationSnapshotRecord.suspension:type_name -> api.v1.ActivationSuspendedRecord
+	125, // 108: api.v1.ActivationSnapshotRecord.cancellation:type_name -> api.v1.ActivationCancelledRecord
+	121, // 109: api.v1.ActivationJournalRecord.started:type_name -> api.v1.ActivationStartedRecord
+	122, // 110: api.v1.ActivationJournalRecord.completed:type_name -> api.v1.ActivationCompletedRecord
+	123, // 111: api.v1.ActivationJournalRecord.failed:type_name -> api.v1.ActivationFailedRecord
+	124, // 112: api.v1.ActivationJournalRecord.suspended:type_name -> api.v1.ActivationSuspendedRecord
+	125, // 113: api.v1.ActivationJournalRecord.cancelled:type_name -> api.v1.ActivationCancelledRecord
+	127, // 114: api.v1.ActivationJournalRecord.snapshot:type_name -> api.v1.ActivationSnapshotRecord
+	126, // 115: api.v1.ActivationJournalRecord.unknown_outcome:type_name -> api.v1.ActivationUnknownOutcomeRecord
+	138, // 116: api.v1.PollJobsResponse.jobs:type_name -> api.v1.JobAssignment
+	133, // 117: api.v1.RegisterWorkerSessionRequest.slot_policy:type_name -> api.v1.WorkerSlotPolicy
+	155, // 118: api.v1.RegisterWorkerSessionRequest.capabilities:type_name -> api.v1.WorkerCapability
+	156, // 119: api.v1.RegisterWorkerSessionRequest.components:type_name -> api.v1.ComponentInfo
+	133, // 120: api.v1.RegisterWorkerSessionResponse.effective_slot_policy:type_name -> api.v1.WorkerSlotPolicy
+	138, // 121: api.v1.PollJobResponse.job:type_name -> api.v1.JobAssignment
+	157, // 122: api.v1.JobAssignment.component_type:type_name -> api.v1.ComponentType
+	150, // 123: api.v1.JobAssignment.metadata:type_name -> api.v1.JobAssignment.MetadataEntry
+	158, // 124: api.v1.RenewJobLeaseRequest.mode:type_name -> api.v1.WorkerMode
+	8,   // 125: api.v1.RenewJobLeaseResponse.outcome:type_name -> api.v1.LeaseRenewalOutcome
+	151, // 126: api.v1.CompleteJobRequest.metadata:type_name -> api.v1.CompleteJobRequest.MetadataEntry
+	10,  // 127: api.v1.EngineService.Append:input_type -> api.v1.AppendRequest
+	12,  // 128: api.v1.EngineService.AppendBatch:input_type -> api.v1.AppendBatchRequest
+	100, // 129: api.v1.EngineService.Checkpoint:input_type -> api.v1.CheckpointRequest
+	110, // 130: api.v1.EngineService.BeginActivation:input_type -> api.v1.BeginActivationRequest
+	115, // 131: api.v1.EngineService.CompleteActivation:input_type -> api.v1.CompleteActivationRequest
+	117, // 132: api.v1.EngineService.FailActivation:input_type -> api.v1.FailActivationRequest
+	119, // 133: api.v1.EngineService.SuspendActivation:input_type -> api.v1.SuspendActivationRequest
+	129, // 134: api.v1.EngineService.EventStream:input_type -> api.v1.EventStreamMessage
+	131, // 135: api.v1.EngineService.PollJobs:input_type -> api.v1.PollJobsRequest
+	134, // 136: api.v1.EngineService.RegisterWorkerSession:input_type -> api.v1.RegisterWorkerSessionRequest
+	136, // 137: api.v1.EngineService.PollJob:input_type -> api.v1.PollJobRequest
+	139, // 138: api.v1.EngineService.RenewJobLease:input_type -> api.v1.RenewJobLeaseRequest
+	141, // 139: api.v1.EngineService.ReportWorkerCapacity:input_type -> api.v1.ReportWorkerCapacityRequest
+	143, // 140: api.v1.EngineService.CompleteJob:input_type -> api.v1.CompleteJobRequest
+	14,  // 141: api.v1.EngineService.ReadByRunID:input_type -> api.v1.ReadByRunIDRequest
+	16,  // 142: api.v1.EngineService.FindByStepKey:input_type -> api.v1.FindByStepKeyRequest
+	18,  // 143: api.v1.EngineService.GetRun:input_type -> api.v1.GetRunRequest
+	20,  // 144: api.v1.EngineService.ListRoutingWorkers:input_type -> api.v1.ListRoutingWorkersRequest
+	24,  // 145: api.v1.EngineService.Tail:input_type -> api.v1.TailRequest
+	49,  // 146: api.v1.EngineService.GetEntityState:input_type -> api.v1.GetEntityStateRequest
+	51,  // 147: api.v1.EngineService.PutEntityState:input_type -> api.v1.PutEntityStateRequest
+	54,  // 148: api.v1.EngineService.GetApproval:input_type -> api.v1.GetApprovalRequest
+	56,  // 149: api.v1.EngineService.ListApprovals:input_type -> api.v1.EngineListApprovalsRequest
+	59,  // 150: api.v1.EngineService.GetSignal:input_type -> api.v1.GetSignalRequest
+	61,  // 151: api.v1.EngineService.LookupSignal:input_type -> api.v1.LookupSignalRequest
+	63,  // 152: api.v1.EngineService.ListSignals:input_type -> api.v1.ListSignalsRequest
+	66,  // 153: api.v1.EngineService.GetTimer:input_type -> api.v1.GetTimerRequest
+	68,  // 154: api.v1.EngineService.ListTimers:input_type -> api.v1.ListTimersRequest
+	70,  // 155: api.v1.EngineService.ListDueTimers:input_type -> api.v1.ListDueTimersRequest
+	73,  // 156: api.v1.EngineService.GetJob:input_type -> api.v1.GetJobRequest
+	75,  // 157: api.v1.EngineService.ListJobsByRun:input_type -> api.v1.ListJobsByRunRequest
+	77,  // 158: api.v1.EngineService.ListJobsByBatch:input_type -> api.v1.ListJobsByBatchRequest
+	80,  // 159: api.v1.EngineService.GetBatch:input_type -> api.v1.GetBatchRequest
+	83,  // 160: api.v1.EngineService.GetSession:input_type -> api.v1.GetSessionRequest
+	85,  // 161: api.v1.EngineService.ListSessions:input_type -> api.v1.ListSessionsRequest
+	88,  // 162: api.v1.EngineService.GetMessage:input_type -> api.v1.GetMessageRequest
+	90,  // 163: api.v1.EngineService.ListMessagesByCorrelation:input_type -> api.v1.ListMessagesByCorrelationRequest
+	92,  // 164: api.v1.EngineService.ListRuns:input_type -> api.v1.ListRunsRequest
+	97,  // 165: api.v1.EngineService.GetRunStats:input_type -> api.v1.GetRunStatsRequest
+	94,  // 166: api.v1.EngineService.ListEvents:input_type -> api.v1.ListEventsRequest
+	26,  // 167: api.v1.EngineService.GetStatus:input_type -> api.v1.GetStatusRequest
+	28,  // 168: api.v1.ReplicationService.Store:input_type -> api.v1.StoreRequest
+	30,  // 169: api.v1.ReplicationService.GetRecords:input_type -> api.v1.GetRecordsRequest
+	32,  // 170: api.v1.ReplicationService.Seal:input_type -> api.v1.SealRequest
+	34,  // 171: api.v1.ReplicationService.Heartbeat:input_type -> api.v1.HeartbeatRequest
+	37,  // 172: api.v1.ReplicationService.RequestVote:input_type -> api.v1.VoteRequest
+	39,  // 173: api.v1.ReplicationService.AnnounceLeader:input_type -> api.v1.AnnounceLeaderRequest
+	41,  // 174: api.v1.ReplicationService.ForwardAppend:input_type -> api.v1.ForwardAppendRequest
+	41,  // 175: api.v1.ReplicationService.ForwardAppendV2:input_type -> api.v1.ForwardAppendRequest
+	43,  // 176: api.v1.ReplicationService.AddMember:input_type -> api.v1.AddMemberRequest
+	45,  // 177: api.v1.ReplicationService.RemoveMember:input_type -> api.v1.RemoveMemberRequest
+	47,  // 178: api.v1.ReplicationService.TransferLeadership:input_type -> api.v1.TransferLeadershipRequest
+	11,  // 179: api.v1.EngineService.Append:output_type -> api.v1.AppendResponse
+	13,  // 180: api.v1.EngineService.AppendBatch:output_type -> api.v1.AppendBatchResponse
+	101, // 181: api.v1.EngineService.Checkpoint:output_type -> api.v1.CheckpointResponse
+	114, // 182: api.v1.EngineService.BeginActivation:output_type -> api.v1.BeginActivationResponse
+	116, // 183: api.v1.EngineService.CompleteActivation:output_type -> api.v1.CompleteActivationResponse
+	118, // 184: api.v1.EngineService.FailActivation:output_type -> api.v1.FailActivationResponse
+	120, // 185: api.v1.EngineService.SuspendActivation:output_type -> api.v1.SuspendActivationResponse
+	130, // 186: api.v1.EngineService.EventStream:output_type -> api.v1.EventStreamAck
+	132, // 187: api.v1.EngineService.PollJobs:output_type -> api.v1.PollJobsResponse
+	135, // 188: api.v1.EngineService.RegisterWorkerSession:output_type -> api.v1.RegisterWorkerSessionResponse
+	137, // 189: api.v1.EngineService.PollJob:output_type -> api.v1.PollJobResponse
+	140, // 190: api.v1.EngineService.RenewJobLease:output_type -> api.v1.RenewJobLeaseResponse
+	142, // 191: api.v1.EngineService.ReportWorkerCapacity:output_type -> api.v1.ReportWorkerCapacityResponse
+	144, // 192: api.v1.EngineService.CompleteJob:output_type -> api.v1.CompleteJobResponse
+	15,  // 193: api.v1.EngineService.ReadByRunID:output_type -> api.v1.ReadByRunIDResponse
+	17,  // 194: api.v1.EngineService.FindByStepKey:output_type -> api.v1.FindByStepKeyResponse
+	19,  // 195: api.v1.EngineService.GetRun:output_type -> api.v1.GetRunResponse
+	21,  // 196: api.v1.EngineService.ListRoutingWorkers:output_type -> api.v1.ListRoutingWorkersResponse
+	25,  // 197: api.v1.EngineService.Tail:output_type -> api.v1.TailResponse
+	50,  // 198: api.v1.EngineService.GetEntityState:output_type -> api.v1.GetEntityStateResponse
+	52,  // 199: api.v1.EngineService.PutEntityState:output_type -> api.v1.PutEntityStateResponse
+	55,  // 200: api.v1.EngineService.GetApproval:output_type -> api.v1.GetApprovalResponse
+	57,  // 201: api.v1.EngineService.ListApprovals:output_type -> api.v1.EngineListApprovalsResponse
+	60,  // 202: api.v1.EngineService.GetSignal:output_type -> api.v1.GetSignalResponse
+	62,  // 203: api.v1.EngineService.LookupSignal:output_type -> api.v1.LookupSignalResponse
+	64,  // 204: api.v1.EngineService.ListSignals:output_type -> api.v1.ListSignalsResponse
+	67,  // 205: api.v1.EngineService.GetTimer:output_type -> api.v1.GetTimerResponse
+	69,  // 206: api.v1.EngineService.ListTimers:output_type -> api.v1.ListTimersResponse
+	71,  // 207: api.v1.EngineService.ListDueTimers:output_type -> api.v1.ListDueTimersResponse
+	74,  // 208: api.v1.EngineService.GetJob:output_type -> api.v1.GetJobResponse
+	76,  // 209: api.v1.EngineService.ListJobsByRun:output_type -> api.v1.ListJobsByRunResponse
+	78,  // 210: api.v1.EngineService.ListJobsByBatch:output_type -> api.v1.ListJobsByBatchResponse
+	81,  // 211: api.v1.EngineService.GetBatch:output_type -> api.v1.GetBatchResponse
+	84,  // 212: api.v1.EngineService.GetSession:output_type -> api.v1.GetSessionResponse
+	86,  // 213: api.v1.EngineService.ListSessions:output_type -> api.v1.ListSessionsResponse
+	89,  // 214: api.v1.EngineService.GetMessage:output_type -> api.v1.GetMessageResponse
+	91,  // 215: api.v1.EngineService.ListMessagesByCorrelation:output_type -> api.v1.ListMessagesByCorrelationResponse
+	93,  // 216: api.v1.EngineService.ListRuns:output_type -> api.v1.ListRunsResponse
+	98,  // 217: api.v1.EngineService.GetRunStats:output_type -> api.v1.GetRunStatsResponse
+	96,  // 218: api.v1.EngineService.ListEvents:output_type -> api.v1.ListEventsResponse
+	27,  // 219: api.v1.EngineService.GetStatus:output_type -> api.v1.GetStatusResponse
+	29,  // 220: api.v1.ReplicationService.Store:output_type -> api.v1.StoreResponse
+	31,  // 221: api.v1.ReplicationService.GetRecords:output_type -> api.v1.GetRecordsResponse
+	33,  // 222: api.v1.ReplicationService.Seal:output_type -> api.v1.SealResponse
+	35,  // 223: api.v1.ReplicationService.Heartbeat:output_type -> api.v1.HeartbeatResponse
+	38,  // 224: api.v1.ReplicationService.RequestVote:output_type -> api.v1.VoteResponse
+	40,  // 225: api.v1.ReplicationService.AnnounceLeader:output_type -> api.v1.AnnounceLeaderResponse
+	42,  // 226: api.v1.ReplicationService.ForwardAppend:output_type -> api.v1.ForwardAppendResponse
+	42,  // 227: api.v1.ReplicationService.ForwardAppendV2:output_type -> api.v1.ForwardAppendResponse
+	44,  // 228: api.v1.ReplicationService.AddMember:output_type -> api.v1.AddMemberResponse
+	46,  // 229: api.v1.ReplicationService.RemoveMember:output_type -> api.v1.RemoveMemberResponse
+	48,  // 230: api.v1.ReplicationService.TransferLeadership:output_type -> api.v1.TransferLeadershipResponse
+	179, // [179:231] is the sub-list for method output_type
+	127, // [127:179] is the sub-list for method input_type
+	127, // [127:127] is the sub-list for extension type_name
+	127, // [127:127] is the sub-list for extension extendee
+	0,   // [0:127] is the sub-list for field type_name
 }
 
 func init() { file_api_v1_engine_proto_init() }
@@ -12958,7 +13124,7 @@ func file_api_v1_engine_proto_init() {
 		(*ActivationPayload_InlineData)(nil),
 		(*ActivationPayload_Reference)(nil),
 	}
-	file_api_v1_engine_proto_msgTypes[118].OneofWrappers = []any{
+	file_api_v1_engine_proto_msgTypes[119].OneofWrappers = []any{
 		(*ActivationJournalRecord_Started)(nil),
 		(*ActivationJournalRecord_Completed)(nil),
 		(*ActivationJournalRecord_Failed)(nil),
@@ -12967,16 +13133,16 @@ func file_api_v1_engine_proto_init() {
 		(*ActivationJournalRecord_Snapshot)(nil),
 		(*ActivationJournalRecord_UnknownOutcome)(nil),
 	}
-	file_api_v1_engine_proto_msgTypes[121].OneofWrappers = []any{}
-	file_api_v1_engine_proto_msgTypes[129].OneofWrappers = []any{}
-	file_api_v1_engine_proto_msgTypes[133].OneofWrappers = []any{}
+	file_api_v1_engine_proto_msgTypes[122].OneofWrappers = []any{}
+	file_api_v1_engine_proto_msgTypes[130].OneofWrappers = []any{}
+	file_api_v1_engine_proto_msgTypes[134].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v1_engine_proto_rawDesc), len(file_api_v1_engine_proto_rawDesc)),
-			NumEnums:      8,
-			NumMessages:   142,
+			NumEnums:      9,
+			NumMessages:   143,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

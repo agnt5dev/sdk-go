@@ -124,7 +124,7 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 		)
 	}
 
-	parentActivationID := c.Metadata("parent_activation_id")
+	parentActivationID := parentActivationID(c)
 	expectedID := activationID(
 		c.projectID,
 		c.RunID(),

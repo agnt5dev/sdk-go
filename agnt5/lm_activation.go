@@ -173,7 +173,7 @@ func (c *Context) generateDurableModel(
 		)
 	}
 	stableKey := c.nextActivationKey("model", modelName)
-	parentActivationID := c.Metadata("parent_activation_id")
+	parentActivationID := parentActivationID(c)
 	expectedActivationID := activationID(
 		c.projectID,
 		c.RunID(),

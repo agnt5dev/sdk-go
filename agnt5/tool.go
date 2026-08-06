@@ -215,7 +215,7 @@ func invokeAgentTool(ctx *Context, tool Tool, stableKey string, input map[string
 		)
 	}
 	logicalKey := "tool:" + tool.Name + ":" + stableKey
-	parentActivationID := ctx.Metadata("parent_activation_id")
+	parentActivationID := parentActivationID(ctx)
 	expectedActivationID := activationID(
 		ctx.projectID,
 		ctx.RunID(),

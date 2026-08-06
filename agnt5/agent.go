@@ -44,11 +44,12 @@ type AgentToolCall struct {
 
 // Handoff exposes another agent as a callable transfer target.
 type Handoff struct {
-	Agent           *Agent         `json:"-"`
-	Description     string         `json:"description,omitempty"`
-	ToolName        string         `json:"tool_name,omitempty"`
-	PassFullHistory bool           `json:"pass_full_history,omitempty"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	Agent           *Agent          `json:"-"`
+	Description     string          `json:"description,omitempty"`
+	ToolName        string          `json:"tool_name,omitempty"`
+	PassFullHistory bool            `json:"pass_full_history,omitempty"`
+	Metadata        map[string]any  `json:"metadata,omitempty"`
+	JoinPolicy      ChildJoinPolicy `json:"join_policy,omitempty"`
 }
 
 // Agent is a small provider-neutral agent loop.
@@ -137,6 +138,11 @@ func WithHandoffMetadata(metadata map[string]any) HandoffOption {
 	return func(h *Handoff) { h.Metadata = cloneAnyMap(metadata) }
 }
 
+// WithHandoffJoinPolicy selects required or detached child terminal behavior.
+func WithHandoffJoinPolicy(policy ChildJoinPolicy) HandoffOption {
+	return func(h *Handoff) { h.JoinPolicy = policy }
+}
+
 // NewHandoff exposes an agent as a transfer target for another agent.
 func NewHandoff(agent *Agent, opts ...HandoffOption) (Handoff, error) {
 	if agent == nil {
@@ -147,6 +153,7 @@ func NewHandoff(agent *Agent, opts ...HandoffOption) (Handoff, error) {
 		Description: "Transfer to " + agent.Name,
 		ToolName:    handoffToolName(agent.Name),
 		Metadata:    map[string]any{},
+		JoinPolicy:  ChildJoinPolicyRequired,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -155,6 +162,9 @@ func NewHandoff(agent *Agent, opts ...HandoffOption) (Handoff, error) {
 	}
 	if strings.TrimSpace(handoff.ToolName) == "" {
 		handoff.ToolName = handoffToolName(agent.Name)
+	}
+	if _, err := childJoinPolicyProto(handoff.JoinPolicy); err != nil {
+		return Handoff{}, err
 	}
 	return handoff, nil
 }
@@ -701,7 +711,7 @@ func (a *Agent) runHandoff(
 	if handoff.PassFullHistory {
 		handoffInput.Messages = cloneMessages(messages)
 	}
-	result, err := handoff.Agent.Run(ctx, handoffInput)
+	result, err := runDelegatedChild(ctx, handoff.Agent, handoffInput, handoff.JoinPolicy)
 	if err != nil {
 		record.Error = err.Error()
 		toolCalls := append(cloneAgentToolCalls(previousCalls), record)
