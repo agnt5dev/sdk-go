@@ -90,6 +90,7 @@ type batchConfig struct {
 	tenant               string
 	timeout              time.Duration
 	rawItems             bool
+	idempotencyKey       *string
 }
 
 // BatchOption mutates Batch request configuration.
@@ -172,6 +173,14 @@ func WithBatchHTTPTimeout(timeout time.Duration) BatchOption {
 func WithBatchRawItems() BatchOption {
 	return func(config *batchConfig) {
 		config.rawItems = true
+	}
+}
+
+// WithBatchIdempotencyKey sets the stable caller key used to deduplicate a
+// Batch or BatchStream admission.
+func WithBatchIdempotencyKey(key string) BatchOption {
+	return func(config *batchConfig) {
+		config.idempotencyKey = &key
 	}
 }
 
@@ -350,9 +359,13 @@ func (c *Client) Batch(ctx context.Context, component string, items any, opts ..
 	if err != nil {
 		return nil, err
 	}
+	headers := c.requestHeaders("", "", config.tenant, nil)
+	if config.idempotencyKey != nil {
+		headers.Set("Idempotency-Key", *config.idempotencyKey)
+	}
 	statusCode, responseBody, endpoint, err := c.doJSON(ctx, http.MethodPost, []string{
 		"v1", componentCollection(config.componentType), component, "batch",
-	}, batchRequestBody(config, normalized), c.requestHeaders("", "", config.tenant, nil), config.timeout)
+	}, batchRequestBody(config, normalized), headers, config.timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -374,6 +387,9 @@ func (c *Client) BatchStream(ctx context.Context, component string, items any, h
 		return err
 	}
 	headers := c.requestHeaders("", "", config.tenant, nil)
+	if config.idempotencyKey != nil {
+		headers.Set("Idempotency-Key", *config.idempotencyKey)
+	}
 	headers.Set("Accept", "text/event-stream")
 	statusCode, responseBody, err := c.doStream(ctx, []string{
 		"v1", componentCollection(config.componentType), component, "batch", "stream",

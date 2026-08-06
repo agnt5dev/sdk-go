@@ -79,7 +79,8 @@ func TestClientRunPostsHeadersAndParsesResponse(t *testing.T) {
 		WithRunSessionID("session-1"),
 		WithRunUserID("user-1"),
 		WithRunTenant("tenant-call"),
-		WithRunHeader("Idempotency-Key", "idem-1"),
+		WithRunHeader("Idempotency-Key", "legacy-idem"),
+		WithIdempotencyKey("idem-1"),
 	)
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -129,6 +130,9 @@ func TestClientSubmitWrapsMetadata(t *testing.T) {
 		if r.Header.Get("X-TENANT-ID") != "tenant-job" {
 			t.Fatalf("tenant header: %q", r.Header.Get("X-TENANT-ID"))
 		}
+		if r.Header.Get("Idempotency-Key") != "submit-idem" {
+			t.Fatalf("idempotency header: %q", r.Header.Get("Idempotency-Key"))
+		}
 		var body struct {
 			Input map[string]string `json:"input"`
 			Meta  map[string]string `json:"metadata"`
@@ -146,6 +150,7 @@ func TestClientSubmitWrapsMetadata(t *testing.T) {
 		WithSubmitComponentType(ComponentTypeWorkflow),
 		WithSubmitMetadata(map[string]string{"priority": "high"}),
 		WithSubmitTenant("tenant-job"),
+		WithSubmitIdempotencyKey("submit-idem"),
 	)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
@@ -247,6 +252,9 @@ func TestClientStreamEventsParsesSSE(t *testing.T) {
 		if r.Header.Get("Accept") != "text/event-stream" {
 			t.Fatalf("accept: %q", r.Header.Get("Accept"))
 		}
+		if r.Header.Get("Idempotency-Key") != "stream-idem" {
+			t.Fatalf("idempotency header: %q", r.Header.Get("Idempotency-Key"))
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = fmt.Fprint(w, "event: output.delta\n")
 		_, _ = fmt.Fprint(w, "data: {\"content\":\"hel\",\"sequence\":1,\"index\":0}\n\n")
@@ -261,7 +269,7 @@ func TestClientStreamEventsParsesSSE(t *testing.T) {
 	err := client.Stream(context.Background(), "generate", map[string]string{"prompt": "hi"}, func(chunk string) error {
 		chunks = append(chunks, chunk)
 		return nil
-	})
+	}, WithRunIdempotencyKey("stream-idem"))
 	if err != nil {
 		t.Fatalf("stream: %v", err)
 	}
