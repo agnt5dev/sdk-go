@@ -61,6 +61,13 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchPausedResponse(req, result, invokeErr)))
 		return messages
 	}
+	var sleepSuspension *durableSleepSuspensionError
+	if errors.As(invokeErr, &sleepSuspension) && sleepSuspension.suspension != nil {
+		messages = append(messages, w.dispatchServiceMessageFromResponse(
+			dispatchSuspendedResponse(req, sleepSuspension.suspension),
+		))
+		return messages
+	}
 	if invokeErr != nil {
 		_ = w.writeComponentFailed(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, durationMS, invokeErr)
 		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, invokeErr)))
@@ -115,10 +122,24 @@ func invocationFromDispatch(req *pb.DispatchComponentRequest) Invocation {
 		ComponentType:  componentTypeFromProto(req.GetComponentType()),
 		Input:          cloneBytes(req.GetInputData()),
 		Attempt:        int(req.GetAttempt()),
-		Metadata:       cloneStringMap(req.GetMetadata()),
+		Metadata:       mergeDurableContinuation(req.GetMetadata()),
 		LeaseID:        req.GetLeaseId(),
 		IsStreaming:    req.GetIsStreaming(),
 		StreamFallback: true,
+	}
+}
+
+func dispatchSuspendedResponse(req *pb.DispatchComponentRequest, suspension *pb.WorkerSuspension) *pb.DispatchComponentResponse {
+	return &pb.DispatchComponentResponse{
+		InvocationId: req.GetInvocationId(),
+		Success:      true,
+		Result: &pb.DispatchComponentResponse_WorkerSuspension{
+			WorkerSuspension: suspension,
+		},
+		Metadata:  cloneStringMap(req.GetMetadata()),
+		EventType: "workflow.paused",
+		Attempt:   req.GetAttempt(),
+		LeaseId:   req.GetLeaseId(),
 	}
 }
 

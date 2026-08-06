@@ -29,10 +29,12 @@ type testEngine struct {
 	renewErrs    []error
 	renewResults []*pb.RenewJobLeaseResponse
 	completeErrs []error
+	suspendErrs  []error
 	capacityErrs []error
 	polled       chan *pb.PollJobRequest
 	registered   chan *pb.RegisterWorkerSessionRequest
 	completed    chan *pb.CompleteJobRequest
+	suspended    chan *pb.SuspendActivationRequest
 	renewed      chan *pb.RenewJobLeaseRequest
 	appends      chan *pb.AppendRequest
 	batches      chan *pb.AppendBatchRequest
@@ -144,6 +146,26 @@ func (s *testEngine) CompleteJob(ctx context.Context, req *pb.CompleteJobRequest
 		return nil, ctx.Err()
 	}
 	return &pb.CompleteJobResponse{Acknowledged: true}, nil
+}
+
+func (s *testEngine) SuspendActivation(_ context.Context, req *pb.SuspendActivationRequest) (*pb.SuspendActivationResponse, error) {
+	if s.suspended != nil {
+		s.suspended <- req
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.suspendErrs) > 0 {
+		err := s.suspendErrs[0]
+		s.suspendErrs = s.suspendErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &pb.SuspendActivationResponse{
+		Accepted:     true,
+		ActivationId: req.GetActivationId(),
+		Attempt:      req.GetAttempt(),
+	}, nil
 }
 
 func (s *testEngine) RenewJobLease(_ context.Context, req *pb.RenewJobLeaseRequest) (*pb.RenewJobLeaseResponse, error) {
@@ -1066,6 +1088,46 @@ func TestCompletePolledJobRetriesTransientFailure(t *testing.T) {
 	}
 	if got := len(server.completed); got != 2 {
 		t.Fatalf("CompleteJob attempts = %d, want 2", got)
+	}
+}
+
+func TestSuspendPolledJobUsesAssignmentScopeAndRetries(t *testing.T) {
+	server := &testEngine{
+		suspended:   make(chan *pb.SuspendActivationRequest, 2),
+		suspendErrs: []error{errors.New("transient suspension failure")},
+	}
+	client := newTestEngineClient(t, server)
+	worker := NewWorker("svc", WithWorkerID("worker-pull"), WithProjectID("project-owned"))
+	job := &pb.JobAssignment{
+		JobId:   "run-owned",
+		RunId:   "run-owned",
+		LeaseId: "lease-owned",
+	}
+	suspension := &pb.WorkerSuspension{
+		ActivationId:     "activation-1",
+		Attempt:          2,
+		FenceToken:       []byte("fence-2"),
+		TimerKey:         "sleep:retry",
+		ReadyAtMs:        12345,
+		DelayMs:          2500,
+		InputDigest:      []byte("input"),
+		DefinitionDigest: []byte("definition"),
+		Continuation:     []byte("continuation"),
+	}
+
+	if err := worker.suspendPolledJob(context.Background(), client, job, suspension); err != nil {
+		t.Fatalf("suspend pull job: %v", err)
+	}
+	if got := len(server.suspended); got != 2 {
+		t.Fatalf("SuspendActivation attempts = %d, want 2", got)
+	}
+	request := <-server.suspended
+	if request.GetProjectId() != "project-owned" || request.GetRunId() != "run-owned" {
+		t.Fatalf("assignment scope = (%q, %q)", request.GetProjectId(), request.GetRunId())
+	}
+	if request.GetActivationId() != "activation-1" || request.GetTimerKey() != "sleep:retry" ||
+		request.GetDelayMs() != 2500 || string(request.GetFenceToken()) != "fence-2" {
+		t.Fatalf("suspension request = %#v", request)
 	}
 }
 

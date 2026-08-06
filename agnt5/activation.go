@@ -22,6 +22,7 @@ import (
 
 const (
 	durableActivationV1Capability       = "durable_activation_v1"
+	durableSuspensionV1Capability       = "durable_suspension_v1"
 	activationArtifactSHA256Metadata    = "activation_artifact_sha256"
 	activationDefinitionVersionMetadata = "activation_definition_version"
 	activationDefinitionConfigMetadata  = "activation_definition_config"
@@ -66,7 +67,7 @@ func (w *Worker) protocolRegistrationCapabilities() (supported, required []strin
 	if w.durableActivationMode == DurableActivationDisabled {
 		return nil, nil
 	}
-	supported = []string{durableActivationV1Capability}
+	supported = []string{durableActivationV1Capability, durableSuspensionV1Capability}
 	if w.durableActivationMode == DurableActivationRequired {
 		required = []string{durableActivationV1Capability}
 	}
@@ -88,6 +89,8 @@ func (w *Worker) applyProtocolNegotiation(runtimeSupported, runtimeRequired []st
 	}
 	enabled := stringSliceContains(runtimeSupported, durableActivationV1Capability) &&
 		stringSliceContains(workerSupported, durableActivationV1Capability)
+	suspensionEnabled := stringSliceContains(runtimeSupported, durableSuspensionV1Capability) &&
+		stringSliceContains(workerSupported, durableSuspensionV1Capability)
 	definitionReason := ""
 	if enabled {
 		if _, err := decodeSHA256(w.metadata[activationArtifactSHA256Metadata]); err != nil {
@@ -119,6 +122,7 @@ func (w *Worker) applyProtocolNegotiation(runtimeSupported, runtimeRequired []st
 	w.protocolMu.Lock()
 	previousReason := w.durableActivationWhy
 	w.durableActivationOn = enabled
+	w.durableSuspensionOn = enabled && suspensionEnabled
 	w.durableActivationWhy = reason
 	w.protocolMu.Unlock()
 	if reason != "" && reason != previousReason {
@@ -144,6 +148,12 @@ func (w *Worker) withActivationMetadata(inv Invocation, component Component) Inv
 		if componentConfig, err := canonicalActivationValue(component.Config); err == nil {
 			inv.Metadata[activationDefinitionConfigMetadata] = string(componentConfig)
 		}
+	}
+	w.protocolMu.RLock()
+	durableSuspensionOn := w.durableSuspensionOn
+	w.protocolMu.RUnlock()
+	if durableSuspensionOn {
+		inv.Metadata[durableSuspensionV1Capability] = "true"
 	}
 	return inv
 }

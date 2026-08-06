@@ -264,14 +264,27 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 		return nil
 	}
 	var terminal *pb.DispatchComponentResponse
+	var suspension *pb.WorkerSuspension
 	for _, message := range messages {
 		response := message.GetFunctionResponse()
 		if response == nil {
 			continue
 		}
+		if value := response.GetWorkerSuspension(); value != nil {
+			suspension = value
+			continue
+		}
 		if isTerminalPullResponse(response) {
 			terminal = response
 		}
+	}
+	if suspension != nil {
+		if pullJobStreamingRequested(job.GetMetadata()) {
+			flushCtx, cancel := context.WithTimeout(ctx, defaultCompleteJobTimeout)
+			_ = w.flushStreamEvents(flushCtx)
+			cancel()
+		}
+		return w.suspendPolledJob(ctx, client, job, suspension)
 	}
 	if terminal == nil {
 		terminal = dispatchResponseFromResult(req, InvocationResult{LeaseID: job.GetLeaseId()}, fmt.Errorf("agnt5: pull job produced no terminal response"))
@@ -282,6 +295,58 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 		cancel()
 	}
 	return w.completePolledJob(ctx, client, sessionID, job, terminal)
+}
+
+func (w *Worker) suspendPolledJob(ctx context.Context, client pb.EngineServiceClient, job *pb.JobAssignment, suspension *pb.WorkerSuspension) error {
+	request, err := w.polledJobSuspensionRequest(job, suspension)
+	if err != nil {
+		return err
+	}
+	var lastErr error
+	for attempt := 0; attempt < defaultCompleteJobAttempts; attempt++ {
+		suspendCtx, cancel := context.WithTimeout(ctx, defaultCompleteJobTimeout)
+		response, callErr := client.SuspendActivation(suspendCtx, request)
+		cancel()
+		if callErr == nil && response.GetAccepted() {
+			return nil
+		}
+		if callErr != nil {
+			lastErr = callErr
+		} else {
+			lastErr = fmt.Errorf("runtime returned an unaccepted suspension receipt")
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if attempt+1 < defaultCompleteJobAttempts {
+			if err := sleepContext(ctx, defaultCompleteJobBackoff); err != nil {
+				return err
+			}
+		}
+	}
+	return fmt.Errorf("agnt5: suspend pull job %s: %w", job.GetJobId(), lastErr)
+}
+
+func (w *Worker) polledJobSuspensionRequest(job *pb.JobAssignment, suspension *pb.WorkerSuspension) (*pb.SuspendActivationRequest, error) {
+	if err := validatePolledJobAssignment(job); err != nil {
+		return nil, err
+	}
+	if suspension == nil {
+		return nil, fmt.Errorf("agnt5: pull job %s returned an empty suspension", job.GetJobId())
+	}
+	return &pb.SuspendActivationRequest{
+		ProjectId:        w.projectID,
+		RunId:            job.GetRunId(),
+		ActivationId:     suspension.GetActivationId(),
+		Attempt:          suspension.GetAttempt(),
+		FenceToken:       cloneBytes(suspension.GetFenceToken()),
+		TimerKey:         suspension.GetTimerKey(),
+		ReadyAtMs:        suspension.GetReadyAtMs(),
+		InputDigest:      cloneBytes(suspension.GetInputDigest()),
+		DefinitionDigest: cloneBytes(suspension.GetDefinitionDigest()),
+		Continuation:     cloneBytes(suspension.GetContinuation()),
+		DelayMs:          suspension.GetDelayMs(),
+	}, nil
 }
 
 func dispatchRequestFromJob(job *pb.JobAssignment, serviceName string) *pb.DispatchComponentRequest {

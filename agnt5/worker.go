@@ -74,6 +74,7 @@ type Worker struct {
 	durableActivationMode DurableActivationMode
 	protocolMu            sync.RWMutex
 	durableActivationOn   bool
+	durableSuspensionOn   bool
 	durableActivationWhy  string
 }
 

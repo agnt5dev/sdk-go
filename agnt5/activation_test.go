@@ -313,7 +313,10 @@ func TestActivationRPCErrorUsesTypedRuntimeDetail(t *testing.T) {
 func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	preferred := NewWorker("svc", WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="))
 	supported, required := preferred.protocolRegistrationCapabilities()
-	if !reflect.DeepEqual(supported, []string{durableActivationV1Capability}) || len(required) != 0 {
+	if !reflect.DeepEqual(supported, []string{
+		durableActivationV1Capability,
+		durableSuspensionV1Capability,
+	}) || len(required) != 0 {
 		t.Fatalf("preferred protocols: supported=%v required=%v", supported, required)
 	}
 	if err := preferred.applyProtocolNegotiation(nil, nil); err != nil {
@@ -337,7 +340,10 @@ func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 		WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="),
 	)
 	supported, required = requiredWorker.protocolRegistrationCapabilities()
-	if !reflect.DeepEqual(supported, []string{durableActivationV1Capability}) ||
+	if !reflect.DeepEqual(supported, []string{
+		durableActivationV1Capability,
+		durableSuspensionV1Capability,
+	}) ||
 		!reflect.DeepEqual(required, []string{durableActivationV1Capability}) {
 		t.Fatalf("required protocols: supported=%v required=%v", supported, required)
 	}
