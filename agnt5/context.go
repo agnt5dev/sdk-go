@@ -314,9 +314,14 @@ func (c *Context) Events() []Event {
 }
 
 func (c *Context) nextStepKey(name string) string {
+	return c.nextActivationKey("step", name)
+}
+
+func (c *Context) nextActivationKey(kind, name string) string {
 	c.shared.stepMu.Lock()
 	defer c.shared.stepMu.Unlock()
-	idx := c.shared.stepCounts[name]
-	c.shared.stepCounts[name] = idx + 1
-	return "step:" + name + ":" + intString(idx)
+	namespace := kind + ":" + name
+	idx := c.shared.stepCounts[namespace]
+	c.shared.stepCounts[namespace] = idx + 1
+	return namespace + ":" + intString(idx)
 }
