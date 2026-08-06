@@ -26,6 +26,7 @@ const (
 	activationArtifactSHA256Metadata    = "activation_artifact_sha256"
 	activationDefinitionVersionMetadata = "activation_definition_version"
 	activationDefinitionConfigMetadata  = "activation_definition_config"
+	deploymentArtifactIdentityDomain    = "agnt5.deployment-artifact.v1\x00"
 )
 
 // RecoveryPolicy controls how interrupted durable work is settled.
@@ -147,9 +148,13 @@ func (w *Worker) applyProtocolNegotiation(runtimeSupported, runtimeRequired []st
 		stringSliceContains(workerSupported, durableSuspensionV1Capability)
 	definitionReason := ""
 	if enabled {
-		if _, err := decodeSHA256(w.metadata[activationArtifactSHA256Metadata]); err != nil {
+		artifact, err := decodeSHA256(w.metadata[activationArtifactSHA256Metadata])
+		if err != nil {
 			enabled = false
 			definitionReason = "activation artifact identity is unavailable; configure activation_artifact_sha256"
+		} else if expected, ok := deploymentArtifactSHA256(w.deploymentID); ok && !bytes.Equal(artifact, expected) {
+			enabled = false
+			definitionReason = "activation artifact identity does not match the control-plane deployment identity"
 		}
 	}
 	if w.durableActivationMode == DurableActivationRequired && !enabled {
@@ -181,6 +186,45 @@ func (w *Worker) applyProtocolNegotiation(runtimeSupported, runtimeRequired []st
 	w.protocolMu.Unlock()
 	if reason != "" && reason != previousReason {
 		fmt.Fprintf(os.Stderr, "[WARN] agnt5 durable activation degraded: %s\n", reason)
+	}
+	return nil
+}
+
+func deploymentArtifactSHA256(deploymentID string) ([]byte, bool) {
+	canonical := strings.ToLower(strings.TrimSpace(deploymentID))
+	if len(canonical) != 36 {
+		return nil, false
+	}
+	for _, index := range []int{8, 13, 18, 23} {
+		if canonical[index] != '-' {
+			return nil, false
+		}
+	}
+	if decoded, err := hex.DecodeString(strings.ReplaceAll(canonical, "-", "")); err != nil || len(decoded) != 16 {
+		return nil, false
+	}
+	digest := sha256.Sum256([]byte(deploymentArtifactIdentityDomain + canonical))
+	return digest[:], true
+}
+
+func (w *Worker) validateActivationArtifactPin(metadata map[string]string) error {
+	if !w.DurableActivationStatus().Enabled {
+		return nil
+	}
+	runArtifact := metadata[activationArtifactSHA256Metadata]
+	if runArtifact == "" {
+		return nil
+	}
+	runDigest, runErr := decodeSHA256(runArtifact)
+	workerDigest, workerErr := decodeSHA256(w.metadata[activationArtifactSHA256Metadata])
+	if runErr != nil || workerErr != nil || !bytes.Equal(runDigest, workerDigest) {
+		return newActivationError(
+			ActivationErrorNondeterministicReplay,
+			"worker artifact identity does not match the run's pinned deployment artifact",
+			"",
+			0,
+			nil,
+		)
 	}
 	return nil
 }

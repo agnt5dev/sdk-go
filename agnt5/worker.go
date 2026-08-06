@@ -461,6 +461,9 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 	if inv.ComponentType != "" && inv.ComponentType != component.Type {
 		return InvocationResult{}, ErrComponentNotFound
 	}
+	if err := w.validateActivationArtifactPin(inv.Metadata); err != nil {
+		return InvocationResult{}, err
+	}
 	inv = w.withActivationMetadata(inv, component)
 	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(inv.Metadata), w.stateStore)
 	runCorrelationID := runCorrelationIDFromRunID(inv.RunID)

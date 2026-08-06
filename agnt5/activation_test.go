@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -357,6 +359,44 @@ func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	missingIdentity := NewWorker("svc", WithDurableActivationMode(DurableActivationRequired))
 	if err := missingIdentity.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); !errors.Is(err, ErrDurabilityUnavailable) {
 		t.Fatalf("required missing definition identity error = %v", err)
+	}
+
+	mismatchedIdentity := NewWorker(
+		"svc",
+		WithDeploymentID("01234567-89ab-cdef-0123-456789abcdef"),
+		WithDurableActivationMode(DurableActivationRequired),
+		WithDurableActivationArtifact(strings.Repeat("00", 32)),
+	)
+	if err := mismatchedIdentity.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); !errors.Is(err, ErrDurabilityUnavailable) {
+		t.Fatalf("required mismatched deployment identity error = %v", err)
+	}
+}
+
+func TestDeploymentArtifactIdentityMatchesControlPlaneVector(t *testing.T) {
+	digest, ok := deploymentArtifactSHA256("01234567-89AB-CDEF-0123-456789ABCDEF")
+	if !ok {
+		t.Fatal("valid deployment ID was rejected")
+	}
+	const want = "c51344c186e74ccb1ce5b5f6122362285d9dd3a4b125d442280de1dcacae8c9f"
+	if got := hex.EncodeToString(digest); got != want {
+		t.Fatalf("deploymentArtifactSHA256() = %q, want %q", got, want)
+	}
+	if _, ok := deploymentArtifactSHA256("not-a-deployment-id"); ok {
+		t.Fatal("invalid deployment ID was accepted")
+	}
+}
+
+func TestNegotiatedWorkerRejectsRunArtifactMismatch(t *testing.T) {
+	worker := NewWorker("svc", WithDurableActivationArtifact(strings.Repeat("11", 32)))
+	if err := worker.applyProtocolNegotiation([]string{durableActivationV1Capability}, nil); err != nil {
+		t.Fatalf("negotiate: %v", err)
+	}
+	err := worker.validateActivationArtifactPin(map[string]string{
+		activationArtifactSHA256Metadata: strings.Repeat("00", 32),
+	})
+	var activationErr *ActivationError
+	if !errors.As(err, &activationErr) || activationErr.Code != ActivationErrorNondeterministicReplay {
+		t.Fatalf("artifact mismatch error = %#v", err)
 	}
 }
 
