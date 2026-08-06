@@ -1,9 +1,11 @@
 package agnt5
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"time"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -12,6 +14,99 @@ import (
 type modelActivationInput struct {
 	Provider string          `json:"provider,omitempty"`
 	Request  GenerateRequest `json:"request"`
+}
+
+type modelActivationFailureEvidence interface {
+	activationFailureEvidence(attempt uint32) []*pb.ActivationEvidence
+	activationFailureErrorCode() string
+}
+
+type activationStreamingModel struct {
+	model            StreamingLanguageModel
+	emit             func(ModelStreamChunk) error
+	partialHash      hash.Hash
+	partialChunks    int
+	partialUTF8Bytes int
+}
+
+func (m *activationStreamingModel) Generate(
+	ctx context.Context,
+	request GenerateRequest,
+) (GenerateResponse, error) {
+	return m.model.Stream(ctx, request, func(chunk ModelStreamChunk) error {
+		partial := chunk.Content
+		if chunk.ArgumentsDelta != "" {
+			partial = chunk.ArgumentsDelta
+		}
+		if partial != "" {
+			_, _ = m.partialHash.Write([]byte(partial))
+			m.partialChunks++
+			m.partialUTF8Bytes += len([]byte(partial))
+		}
+		return m.emit(chunk)
+	})
+}
+
+func (m *activationStreamingModel) activationFailureEvidence(attempt uint32) []*pb.ActivationEvidence {
+	payload, _ := json.Marshal(struct {
+		Schema           string `json:"schema"`
+		Attempt          uint32 `json:"attempt"`
+		PartialChunks    int    `json:"partial_chunks"`
+		PartialUTF8Bytes int    `json:"partial_utf8_bytes"`
+		PartialSHA256    string `json:"partial_sha256"`
+		Classification   string `json:"classification"`
+	}{
+		Schema:           "agnt5.model_stream_interruption.v1",
+		Attempt:          attempt,
+		PartialChunks:    m.partialChunks,
+		PartialUTF8Bytes: m.partialUTF8Bytes,
+		PartialSHA256:    fmt.Sprintf("%x", m.partialHash.Sum(nil)),
+		Classification:   "provider_interrupted",
+	})
+	return []*pb.ActivationEvidence{inlineModelEvidence("model_stream_interruption_v1", payload)}
+}
+
+func (m *activationStreamingModel) activationFailureErrorCode() string {
+	return "MODEL_STREAM_INTERRUPTED"
+}
+
+func (c *Context) streamDurableModel(
+	model StreamingLanguageModel,
+	request GenerateRequest,
+	modelName string,
+	provider string,
+	emit func(ModelStreamChunk) error,
+) (GenerateResponse, error) {
+	wrapper := &activationStreamingModel{
+		model:       model,
+		emit:        emit,
+		partialHash: sha256.New(),
+	}
+	return c.generateDurableModel(wrapper, request, modelName, provider)
+}
+
+func inlineModelEvidence(evidenceType string, payload []byte) *pb.ActivationEvidence {
+	digest := sha256.Sum256(payload)
+	return &pb.ActivationEvidence{
+		EvidenceType: evidenceType,
+		Payload:      inlineActivationPayload(payload),
+		Sha256:       digest[:],
+	}
+}
+
+func modelTerminalEvidence(response GenerateResponse) []*pb.ActivationEvidence {
+	payload, _ := json.Marshal(struct {
+		Schema         string `json:"schema"`
+		Classification string `json:"classification"`
+		FinishReason   string `json:"finish_reason,omitempty"`
+		ResponseID     string `json:"response_id,omitempty"`
+	}{
+		Schema:         "agnt5.model_provider_terminal.v1",
+		Classification: "accepted_final",
+		FinishReason:   response.FinishReason,
+		ResponseID:     response.ID,
+	})
+	return []*pb.ActivationEvidence{inlineModelEvidence("model_provider_terminal_v1", payload)}
 }
 
 func (c *Context) generateDurableModel(
@@ -154,10 +249,11 @@ func (c *Context) generateDurableModel(
 			ActivationId:             begin.GetActivationId(),
 			Attempt:                  begin.GetAttempt(),
 			FenceToken:               cloneBytes(begin.GetFenceToken()),
-			ErrorCode:                "MODEL_FAILED",
+			ErrorCode:                modelFailureErrorCode(model),
 			ErrorData:                inlineActivationPayload(errorData),
 			Retryable:                retryable,
 			ExternalOutcomeCertainty: pb.ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN,
+			Evidence:                 modelFailureEvidence(model, begin.GetAttempt()),
 		})
 		if failErr != nil {
 			return GenerateResponse{}, fmt.Errorf("agnt5: record failure for model %q: %w (model error: %v)", modelName, failErr, modelErr)
@@ -193,6 +289,7 @@ func (c *Context) generateDurableModel(
 			Provider:  provider,
 			Model:     modelName,
 		},
+		Evidence: modelTerminalEvidence(response),
 	})
 	if err != nil {
 		return GenerateResponse{}, err
@@ -207,4 +304,20 @@ func (c *Context) generateDurableModel(
 		)
 	}
 	return response, nil
+}
+
+func modelFailureEvidence(model LanguageModel, attempt uint32) []*pb.ActivationEvidence {
+	provider, ok := model.(modelActivationFailureEvidence)
+	if !ok {
+		return nil
+	}
+	return provider.activationFailureEvidence(attempt)
+}
+
+func modelFailureErrorCode(model LanguageModel) string {
+	provider, ok := model.(modelActivationFailureEvidence)
+	if !ok {
+		return "MODEL_FAILED"
+	}
+	return provider.activationFailureErrorCode()
 }

@@ -717,9 +717,14 @@ func (c *Context) Generate(model LanguageModel, request GenerateRequest) (Genera
 		err  error
 	)
 	if streamingModel, ok := model.(StreamingLanguageModel); ok && c.IsStreaming() {
-		resp, err = streamingModel.Stream(c, request, func(chunk ModelStreamChunk) error {
+		emit := func(chunk ModelStreamChunk) error {
 			return c.Emit(modelStreamEvent(chunk, lmCorrelationID, parentCorrelationID, modelName))
-		})
+		}
+		if c.Metadata(durableActivationV1Capability) == "true" {
+			resp, err = c.streamDurableModel(streamingModel, request, modelName, provider, emit)
+		} else {
+			resp, err = streamingModel.Stream(c, request, emit)
+		}
 	} else if c.Metadata(durableActivationV1Capability) == "true" {
 		resp, err = c.generateDurableModel(model, request, modelName, provider)
 	} else {

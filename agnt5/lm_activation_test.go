@@ -1,6 +1,7 @@
 package agnt5
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -13,6 +14,31 @@ type activationAwareModel struct {
 	err       error
 	calls     int
 	execution ActivationExecution
+}
+
+type activationStreamingTestModel struct {
+	response GenerateResponse
+	err      error
+	calls    int
+}
+
+func (m *activationStreamingTestModel) Generate(
+	context.Context,
+	GenerateRequest,
+) (GenerateResponse, error) {
+	return GenerateResponse{}, errors.New("streaming model fell back to Generate")
+}
+
+func (m *activationStreamingTestModel) Stream(
+	_ context.Context,
+	_ GenerateRequest,
+	emit func(ModelStreamChunk) error,
+) (GenerateResponse, error) {
+	m.calls++
+	if err := emit(ModelStreamChunk{Type: ModelStreamMessageDelta, Content: "partial"}); err != nil {
+		return GenerateResponse{}, err
+	}
+	return m.response, m.err
 }
 
 func (m *activationAwareModel) Generate(ctx context.Context, _ GenerateRequest) (GenerateResponse, error) {
@@ -151,5 +177,113 @@ func TestModelRecoveryPolicyControlsRetryableFailure(t *testing.T) {
 				t.Fatalf("certainty = %v", failure.GetExternalOutcomeCertainty())
 			}
 		})
+	}
+}
+
+func TestStreamingModelFinalUsesDurableActivation(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.IsStreaming = true
+	model := &activationStreamingTestModel{response: GenerateResponse{
+		ID:           "response-stream-1",
+		Model:        "openai/gpt-test",
+		Content:      "accepted final",
+		FinishReason: "stop",
+		Usage: TokenUsage{
+			InputTokens:  3,
+			OutputTokens: 2,
+			TotalTokens:  5,
+		},
+	}}
+
+	response, err := ctx.Generate(model, GenerateRequest{
+		Model:    "openai/gpt-test",
+		Messages: []Message{{Role: MessageRoleUser, Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if response.Content != "accepted final" || model.calls != 1 {
+		t.Fatalf("response = %#v calls = %d", response, model.calls)
+	}
+	if len(writer.completeRequests) != 1 {
+		t.Fatalf("completion writes = %d", len(writer.completeRequests))
+	}
+	completed := writer.completeRequests[0]
+	if completed.GetUsage().GetTokensIn() != 3 || completed.GetUsage().GetTokensOut() != 2 {
+		t.Fatalf("usage = %#v", completed.GetUsage())
+	}
+	if len(completed.GetEvidence()) != 1 || completed.GetEvidence()[0].GetEvidenceType() != "model_provider_terminal_v1" {
+		t.Fatalf("evidence = %#v", completed.GetEvidence())
+	}
+}
+
+func TestAcceptedStreamingModelFinalReplaysWithoutProviderCall(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.IsStreaming = true
+	stableKey := "model:openai/gpt-test:0"
+	writer.beginResponse = &pb.BeginActivationResponse{
+		Outcome: pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_REPLAY,
+		ActivationId: activationID(
+			"project-1",
+			"run-1",
+			"",
+			pb.ActivationKind_ACTIVATION_KIND_MODEL,
+			stableKey,
+		),
+		Attempt:               1,
+		AcceptedJournalOffset: 9,
+		ReplayResult: inlineActivationPayload([]byte(
+			`{"id":"response-replay","model":"openai/gpt-test","content":"replayed final","usage":{"total_tokens":5},"finish_reason":"stop"}`,
+		)),
+	}
+	model := &activationStreamingTestModel{}
+
+	response, err := ctx.Generate(model, GenerateRequest{
+		Model:    "openai/gpt-test",
+		Messages: []Message{{Role: MessageRoleUser, Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if response.Content != "replayed final" || model.calls != 0 {
+		t.Fatalf("response = %#v calls = %d", response, model.calls)
+	}
+	if len(writer.completeRequests) != 0 || len(writer.failRequests) != 0 {
+		t.Fatal("replay emitted a terminal activation write")
+	}
+}
+
+func TestInterruptedModelStreamRecordsBoundedEvidence(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.IsStreaming = true
+	model := &activationStreamingTestModel{err: errors.New("provider stream interrupted")}
+
+	_, err := ctx.Generate(model, GenerateRequest{
+		Model:    "openai/gpt-test",
+		Messages: []Message{{Role: MessageRoleUser, Content: "hello"}},
+	})
+	if err == nil || err.Error() != "provider stream interrupted" {
+		t.Fatalf("error = %v", err)
+	}
+	if len(writer.completeRequests) != 0 || len(writer.failRequests) != 1 {
+		t.Fatalf("terminal writes = complete %d fail %d", len(writer.completeRequests), len(writer.failRequests))
+	}
+	failure := writer.failRequests[0]
+	if failure.GetErrorCode() != "MODEL_STREAM_INTERRUPTED" {
+		t.Fatalf("error code = %q", failure.GetErrorCode())
+	}
+	if len(failure.GetEvidence()) != 1 {
+		t.Fatalf("evidence = %#v", failure.GetEvidence())
+	}
+	evidence := failure.GetEvidence()[0]
+	payload := evidence.GetPayload().GetInlineData()
+	if evidence.GetEvidenceType() != "model_stream_interruption_v1" ||
+		!bytes.Contains(payload, []byte(`"partial_chunks":1`)) ||
+		!bytes.Contains(payload, []byte(`"partial_utf8_bytes":7`)) ||
+		bytes.Contains(payload, []byte(`"partial"`)) {
+		t.Fatalf("evidence payload = %s", payload)
 	}
 }
