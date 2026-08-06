@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -64,13 +64,22 @@ type streamEvent struct {
 
 type engineEventWriter struct {
 	client       pb.EngineServiceClient
-	streamMu     sync.Mutex
 	stream       pb.EngineService_EventStreamClient
 	streamCancel context.CancelFunc
 	streamCount  int64
+	streamOps    chan streamWriterOp
 }
 
-const activationRPCAttempts = 6
+type streamWriterOp struct {
+	ctx    context.Context
+	events []streamEvent
+	flush  chan error
+}
+
+const (
+	activationRPCAttempts = 6
+	streamWriterQueueSize = 256
+)
 
 func waitActivationRPCRetry(ctx context.Context, attempt int) bool {
 	timer := time.NewTimer(time.Duration(attempt+1) * 100 * time.Millisecond)
@@ -84,7 +93,14 @@ func waitActivationRPCRetry(ctx context.Context, attempt int) bool {
 }
 
 func newEngineEventWriter(client pb.EngineServiceClient) *engineEventWriter {
-	return &engineEventWriter{client: client}
+	w := &engineEventWriter{
+		client:    client,
+		streamOps: make(chan streamWriterOp, streamWriterQueueSize),
+	}
+	if client != nil {
+		go w.runStreamWriter()
+	}
+	return w
 }
 
 func validateAppendBatchRecords(records []*pb.Record) error {
@@ -166,8 +182,45 @@ func (w *engineEventWriter) StreamEvents(ctx context.Context, events []streamEve
 	if w == nil || w.client == nil || len(events) == 0 {
 		return nil
 	}
-	w.streamMu.Lock()
-	defer w.streamMu.Unlock()
+	queued := make([]streamEvent, 0, len(events))
+	for _, event := range events {
+		if canonicalProjectID(event.Metadata) == "" {
+			return fmt.Errorf("agnt5: cannot stream %s without project_id metadata", event.EventType)
+		}
+		event.Data = cloneBytes(event.Data)
+		event.Metadata = cloneStringMap(event.Metadata)
+		queued = append(queued, event)
+	}
+	select {
+	case w.streamOps <- streamWriterOp{ctx: ctx, events: queued}:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("agnt5: queue event stream: %w", ctx.Err())
+	}
+}
+
+func (w *engineEventWriter) runStreamWriter() {
+	var pendingErr error
+	for op := range w.streamOps {
+		if op.flush != nil {
+			if pendingErr != nil {
+				op.flush <- errors.Join(pendingErr, w.flushEvents(op.ctx))
+				pendingErr = nil
+				continue
+			}
+			op.flush <- w.flushEvents(op.ctx)
+			continue
+		}
+		if err := w.writeStreamEvents(op.ctx, op.events); err != nil && pendingErr == nil {
+			pendingErr = err
+		}
+	}
+	if w.stream != nil {
+		w.resetStream()
+	}
+}
+
+func (w *engineEventWriter) writeStreamEvents(ctx context.Context, events []streamEvent) error {
 	for attempt := 0; attempt < 2; attempt++ {
 		if w.stream == nil {
 			streamCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -185,7 +238,7 @@ func (w *engineEventWriter) StreamEvents(ctx context.Context, events []streamEve
 		} else if attempt == 1 {
 			return err
 		}
-		w.resetStreamLocked()
+		w.resetStream()
 	}
 	return fmt.Errorf("agnt5: event stream retry exhausted")
 }
@@ -193,9 +246,6 @@ func (w *engineEventWriter) StreamEvents(ctx context.Context, events []streamEve
 func (w *engineEventWriter) sendStreamEvents(events []streamEvent) error {
 	for _, event := range events {
 		projectID := canonicalProjectID(event.Metadata)
-		if projectID == "" {
-			return fmt.Errorf("agnt5: cannot stream %s without project_id metadata", event.EventType)
-		}
 		if err := w.stream.Send(&pb.EventStreamMessage{
 			RunId:             event.RunID,
 			EventType:         event.EventType,
@@ -220,8 +270,21 @@ func (w *engineEventWriter) FlushEvents(ctx context.Context) error {
 	if w == nil || w.client == nil {
 		return nil
 	}
-	w.streamMu.Lock()
-	defer w.streamMu.Unlock()
+	result := make(chan error, 1)
+	select {
+	case w.streamOps <- streamWriterOp{ctx: ctx, flush: result}:
+	case <-ctx.Done():
+		return fmt.Errorf("agnt5: queue event stream flush: %w", ctx.Err())
+	}
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("agnt5: flush event stream: %w", ctx.Err())
+	}
+}
+
+func (w *engineEventWriter) flushEvents(ctx context.Context) error {
 	if w.stream == nil {
 		return nil
 	}
@@ -266,7 +329,7 @@ func (w *engineEventWriter) FlushEvents(ctx context.Context) error {
 	}
 }
 
-func (w *engineEventWriter) resetStreamLocked() {
+func (w *engineEventWriter) resetStream() {
 	if w.stream != nil {
 		_ = w.stream.CloseSend()
 	}
