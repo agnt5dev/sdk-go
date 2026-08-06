@@ -312,6 +312,27 @@ func TestActivationRPCErrorUsesTypedRuntimeDetail(t *testing.T) {
 	}
 }
 
+func TestActivationRPCErrorPreservesRequiredChildRecoveryFailure(t *testing.T) {
+	grpcStatus, err := status.New(codes.FailedPrecondition, "text is not the contract").WithDetails(
+		&pb.ActivationErrorDetail{
+			Code:         pb.ActivationErrorCode_ACTIVATION_ERROR_CODE_REQUIRED_CHILD_UNRESOLVED,
+			ActivationId: "actv1_parent",
+			Attempt:      3,
+			Message:      "required child is still active",
+		},
+	)
+	if err != nil {
+		t.Fatalf("status details: %v", err)
+	}
+
+	mapped := activationRPCError("CompleteActivation", grpcStatus.Err())
+	var activationErr *ActivationError
+	if !errors.As(mapped, &activationErr) || activationErr.Code != ActivationErrorRequiredChildUnresolved ||
+		activationErr.ActivationID != "actv1_parent" || activationErr.Attempt != 3 {
+		t.Fatalf("mapped error = %#v", mapped)
+	}
+}
+
 func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	preferred := NewWorker("svc", WithDurableActivationArtifact("0lJSBAIElTtKmSY0S/XeONW7020B5x6yW0xopTX5kkg="))
 	supported, required := preferred.protocolRegistrationCapabilities()

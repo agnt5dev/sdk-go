@@ -38,17 +38,18 @@ var (
 type ActivationErrorCode string
 
 const (
-	ActivationErrorDurabilityUnavailable  ActivationErrorCode = "DURABILITY_UNAVAILABLE"
-	ActivationErrorNondeterministicReplay ActivationErrorCode = "NON_DETERMINISTIC_REPLAY"
-	ActivationErrorStaleAuthority         ActivationErrorCode = "STALE_AUTHORITY"
-	ActivationErrorCancelled              ActivationErrorCode = "CANCELLED"
-	ActivationErrorContended              ActivationErrorCode = "CONTENDED"
-	ActivationErrorUnknownOutcome         ActivationErrorCode = "UNKNOWN_OUTCOME"
-	ActivationErrorPayloadConflict        ActivationErrorCode = "PAYLOAD_CONFLICT"
-	ActivationErrorIllegalTransition      ActivationErrorCode = "ILLEGAL_TRANSITION"
-	ActivationErrorInvalidArgument        ActivationErrorCode = "INVALID_ARGUMENT"
-	ActivationErrorReferenceRequired      ActivationErrorCode = "REFERENCE_REQUIRED"
-	ActivationErrorStateVersionConflict   ActivationErrorCode = "STATE_VERSION_CONFLICT"
+	ActivationErrorDurabilityUnavailable   ActivationErrorCode = "DURABILITY_UNAVAILABLE"
+	ActivationErrorNondeterministicReplay  ActivationErrorCode = "NON_DETERMINISTIC_REPLAY"
+	ActivationErrorStaleAuthority          ActivationErrorCode = "STALE_AUTHORITY"
+	ActivationErrorCancelled               ActivationErrorCode = "CANCELLED"
+	ActivationErrorContended               ActivationErrorCode = "CONTENDED"
+	ActivationErrorUnknownOutcome          ActivationErrorCode = "UNKNOWN_OUTCOME"
+	ActivationErrorPayloadConflict         ActivationErrorCode = "PAYLOAD_CONFLICT"
+	ActivationErrorIllegalTransition       ActivationErrorCode = "ILLEGAL_TRANSITION"
+	ActivationErrorInvalidArgument         ActivationErrorCode = "INVALID_ARGUMENT"
+	ActivationErrorReferenceRequired       ActivationErrorCode = "REFERENCE_REQUIRED"
+	ActivationErrorStateVersionConflict    ActivationErrorCode = "STATE_VERSION_CONFLICT"
+	ActivationErrorRequiredChildUnresolved ActivationErrorCode = "REQUIRED_CHILD_UNRESOLVED"
 )
 
 // ActivationError preserves a stable correctness error and its durable identity.
@@ -137,6 +138,8 @@ func activationErrorCodeFromProto(code pb.ActivationErrorCode) ActivationErrorCo
 		return ActivationErrorReferenceRequired
 	case pb.ActivationErrorCode_ACTIVATION_ERROR_CODE_STATE_VERSION_CONFLICT:
 		return ActivationErrorStateVersionConflict
+	case pb.ActivationErrorCode_ACTIVATION_ERROR_CODE_REQUIRED_CHILD_UNRESOLVED:
+		return ActivationErrorRequiredChildUnresolved
 	default:
 		return ActivationErrorInvalidArgument
 	}
