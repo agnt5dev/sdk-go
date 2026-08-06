@@ -56,6 +56,31 @@ func TestContextSleepResumesOnlyMatchingTimerActivation(t *testing.T) {
 	}
 }
 
+func TestContextSleepReplaySkipsAnEarlierCompletedTimer(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.Metadata[durableSuspensionV1Capability] = "true"
+	ctx.recordCompletedStep("sleep:first", []byte("null"))
+	ctx.invocation.Metadata["timer_key"] = "sleep:second"
+	ctx.invocation.Metadata["activation_id"] = activationID(
+		"project-1",
+		"run-1",
+		"",
+		pb.ActivationKind_ACTIVATION_KIND_TIMER,
+		"sleep:second",
+	)
+
+	if err := ctx.Sleep(time.Second, WithSleepKey("first")); err != nil {
+		t.Fatalf("replay first sleep: %v", err)
+	}
+	if err := ctx.Sleep(time.Second, WithSleepKey("second")); err != nil {
+		t.Fatalf("resume second sleep: %v", err)
+	}
+	if len(writer.beginRequests) != 0 {
+		t.Fatalf("replayed sleeps began activations: %#v", writer.beginRequests)
+	}
+}
+
 func TestContextSleepZeroAndNegativeValidation(t *testing.T) {
 	ctx := newActivationTestContext(&recordingActivationWriter{})
 	ctx.invocation.Metadata[durableSuspensionV1Capability] = "true"

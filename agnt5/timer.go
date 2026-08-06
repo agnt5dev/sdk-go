@@ -82,6 +82,9 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 			nil,
 		)
 	}
+	if _, completed := c.completedStepPayload(timerKey); completed {
+		return nil
+	}
 
 	delayMS := duration.Milliseconds()
 	if delayMS == 0 {
