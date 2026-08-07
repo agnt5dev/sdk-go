@@ -122,6 +122,42 @@ func TestClientRunAcceptsDirectOutputBody(t *testing.T) {
 	}
 }
 
+func TestClientRunWaitsWhenGatewayDetachesExcessWaiter(t *testing.T) {
+	var requests []string
+	resultAttempts := 0
+	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		switch r.URL.Path {
+		case "/v1/functions/noop/run":
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"run_id":"run-detached","status":"queued"}`))
+		case "/v1/status/run-detached":
+			_, _ = w.Write([]byte(`{"run_id":"run-detached","status":"completed"}`))
+		case "/v1/result/run-detached":
+			resultAttempts++
+			if resultAttempts == 1 {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"status":"completed","error":"result not projected yet"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"run_id":"run-detached","status":"completed","output":{"ok":true}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	result, err := client.Run(context.Background(), "noop", nil, WithRunTimeout(time.Second))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !result.IsSuccess() {
+		t.Fatalf("result: %#v", result)
+	}
+	if got, want := strings.Join(requests, ","), "/v1/functions/noop/run,/v1/status/run-detached,/v1/result/run-detached,/v1/result/run-detached"; got != want {
+		t.Fatalf("requests=%q want=%q", got, want)
+	}
+}
+
 func TestClientSubmitWrapsMetadata(t *testing.T) {
 	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/workflows/process/submit" {

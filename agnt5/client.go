@@ -541,7 +541,70 @@ func (c *Client) Run(ctx context.Context, component string, input any, opts ...R
 		}
 		return nil, &ClientError{Method: http.MethodPost, URL: endpoint, StatusCode: statusCode, Body: string(body)}
 	}
-	return parseRunResponse(body, statusCode)
+	response, err := parseRunResponse(body, statusCode)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode != http.StatusAccepted || response.RunID == "" {
+		return response, nil
+	}
+
+	// The gateway may durably detach excess synchronous waiters. Preserve
+	// Run's blocking contract via short status/result requests rather than one
+	// long-lived gateway tail.
+	waitTimeout := config.timeout
+	if waitTimeout <= 0 {
+		waitTimeout = c.httpClient.Timeout
+	}
+	if waitTimeout <= 0 {
+		waitTimeout = 300 * time.Second
+	}
+	return c.waitForDetachedRun(ctx, response.RunID, waitTimeout)
+}
+
+func (c *Client) waitForDetachedRun(ctx context.Context, runID string, timeout time.Duration) (*RunResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	pollInterval := 100 * time.Millisecond
+	terminalStatusObserved := false
+
+	for {
+		if !terminalStatusObserved {
+			status, err := c.GetStatus(ctx, runID)
+			if err != nil {
+				return nil, err
+			}
+			terminalStatusObserved = status.IsComplete()
+		}
+		if terminalStatusObserved {
+			result, err := c.GetResult(ctx, runID)
+			if err != nil {
+				return nil, err
+			}
+			if result.Error == nil || result.Error.Code != "NOT_READY" {
+				return result, nil
+			}
+		}
+
+		pollTimer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !pollTimer.Stop() {
+				<-pollTimer.C
+			}
+			return nil, ctx.Err()
+		case <-deadline.C:
+			if !pollTimer.Stop() {
+				<-pollTimer.C
+			}
+			return timeoutRunResponse(runID, timeout), nil
+		case <-pollTimer.C:
+		}
+		pollInterval = min(pollInterval+pollInterval/2, 2*time.Second)
+	}
 }
 
 // Submit enqueues a component asynchronously through /v1/{type}/{component}/submit.
@@ -1071,7 +1134,9 @@ func syntheticRunResponse(body []byte, httpStatus int, status RunStatus, code, m
 		message = rawMessage
 	}
 	if detail := parseRunErrorDetail(data); detail != nil {
-		code = firstNonEmpty(detail.Code, code)
+		if detail.Code != "" && detail.Code != "UNKNOWN" {
+			code = detail.Code
+		}
 		message = firstNonEmpty(detail.Message, message)
 	}
 	if rawCode := fieldString(data, "error_code", "errorCode"); rawCode != "" {
