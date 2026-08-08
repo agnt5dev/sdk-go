@@ -22,27 +22,31 @@ import (
 type testEngine struct {
 	pb.UnimplementedEngineServiceServer
 
-	mu           sync.Mutex
-	job          *pb.JobAssignment
-	jobPolled    bool
-	pollErrs     []error
-	renewErrs    []error
-	completeErrs []error
-	capacityErrs []error
-	polled       chan *pb.PollJobRequest
-	registered   chan *pb.RegisterWorkerSessionRequest
-	completed    chan *pb.CompleteJobRequest
-	renewed      chan *pb.RenewJobLeaseRequest
-	appends      chan *pb.AppendRequest
-	batches      chan *pb.AppendBatchRequest
-	streamed     chan *pb.EventStreamMessage
-	streamClosed chan int64
-	capacity     chan *pb.ReportWorkerCapacityRequest
-	statePuts    chan *pb.PutEntityStateRequest
-	statePutErrs []error
-	completeWait bool
-	registerIDs  []string
-	registerCall int
+	mu             sync.Mutex
+	job            *pb.JobAssignment
+	jobPolled      bool
+	pollErrs       []error
+	renewErrs      []error
+	renewResults   []*pb.RenewJobLeaseResponse
+	completeErrs   []error
+	suspendErrs    []error
+	capacityErrs   []error
+	polled         chan *pb.PollJobRequest
+	registered     chan *pb.RegisterWorkerSessionRequest
+	completed      chan *pb.CompleteJobRequest
+	suspended      chan *pb.SuspendActivationRequest
+	renewed        chan *pb.RenewJobLeaseRequest
+	appends        chan *pb.AppendRequest
+	batches        chan *pb.AppendBatchRequest
+	streamed       chan *pb.EventStreamMessage
+	streamClosed   chan int64
+	streamAckBlock <-chan struct{}
+	capacity       chan *pb.ReportWorkerCapacityRequest
+	statePuts      chan *pb.PutEntityStateRequest
+	statePutErrs   []error
+	completeWait   bool
+	registerIDs    []string
+	registerCall   int
 }
 
 func (s *testEngine) RegisterWorkerSession(_ context.Context, req *pb.RegisterWorkerSessionRequest) (*pb.RegisterWorkerSessionResponse, error) {
@@ -116,6 +120,13 @@ func (s *testEngine) EventStream(stream grpc.ClientStreamingServer[pb.EventStrea
 			if s.streamClosed != nil {
 				s.streamClosed <- count
 			}
+			if s.streamAckBlock != nil {
+				select {
+				case <-s.streamAckBlock:
+				case <-stream.Context().Done():
+					return stream.Context().Err()
+				}
+			}
 			return stream.SendAndClose(&pb.EventStreamAck{Success: true, EventsReceived: count})
 		}
 		if err != nil {
@@ -145,6 +156,26 @@ func (s *testEngine) CompleteJob(ctx context.Context, req *pb.CompleteJobRequest
 	return &pb.CompleteJobResponse{Acknowledged: true}, nil
 }
 
+func (s *testEngine) SuspendActivation(_ context.Context, req *pb.SuspendActivationRequest) (*pb.SuspendActivationResponse, error) {
+	if s.suspended != nil {
+		s.suspended <- req
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.suspendErrs) > 0 {
+		err := s.suspendErrs[0]
+		s.suspendErrs = s.suspendErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &pb.SuspendActivationResponse{
+		Accepted:     true,
+		ActivationId: req.GetActivationId(),
+		Attempt:      req.GetAttempt(),
+	}, nil
+}
+
 func (s *testEngine) RenewJobLease(_ context.Context, req *pb.RenewJobLeaseRequest) (*pb.RenewJobLeaseResponse, error) {
 	if s.renewed != nil {
 		s.renewed <- req
@@ -156,8 +187,66 @@ func (s *testEngine) RenewJobLease(_ context.Context, req *pb.RenewJobLeaseReque
 		s.mu.Unlock()
 		return nil, err
 	}
+	if len(s.renewResults) > 0 {
+		response := s.renewResults[0]
+		s.renewResults = s.renewResults[1:]
+		s.mu.Unlock()
+		return response, nil
+	}
 	s.mu.Unlock()
 	return &pb.RenewJobLeaseResponse{Renewed: true, LeaseExpiresAtMs: time.Now().Add(time.Minute).UnixMilli()}, nil
+}
+
+func TestWorkerRunPullSuppressesCompletionAfterDefiniteLeaseLoss(t *testing.T) {
+	t.Setenv(envClaimTimeoutMS, "40")
+	server := &testEngine{
+		job: &pb.JobAssignment{
+			JobId:         "run-renew-rejected",
+			RunId:         "run-renew-rejected",
+			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
+			ComponentName: "block",
+			InputData:     []byte(`{}`),
+			LeaseId:       "lease-rejected",
+		},
+		renewResults: []*pb.RenewJobLeaseResponse{{
+			Renewed: false,
+			Outcome: pb.LeaseRenewalOutcome_LEASE_RENEWAL_OUTCOME_AUTHORITY_LOST,
+		}},
+		registered: make(chan *pb.RegisterWorkerSessionRequest, 1),
+		completed:  make(chan *pb.CompleteJobRequest, 1),
+		renewed:    make(chan *pb.RenewJobLeaseRequest, 1),
+		capacity:   make(chan *pb.ReportWorkerCapacityRequest, 1),
+	}
+	listener := newTestEngineListener(t, server)
+	worker := NewWorker("svc",
+		WithWorkerID("worker-pull"),
+		WithProjectID("proj-1"),
+		WithDeploymentID("dep-1"),
+		WithWorkerMode(WorkerModePull),
+		WithCoordinatorEndpoint("http://bufnet"),
+		WithMaxConcurrency(1),
+		withGRPCDialOptions(grpc.WithContextDialer(testBufconnDialer(listener))),
+	)
+	if err := RegisterFunction(worker, "block", func(ctx *Context, _ map[string]string) (map[string]string, error) {
+		<-ctx.Done()
+		return map[string]string{"late": "true"}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- worker.Run(ctx) }()
+	<-server.renewed
+	select {
+	case completion := <-server.completed:
+		t.Fatalf("stale completion was forwarded after authority loss: %#v", completion)
+	case <-time.After(100 * time.Millisecond):
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("worker run: %v", err)
+	}
 }
 
 func (s *testEngine) GetEntityState(_ context.Context, _ *pb.GetEntityStateRequest) (*pb.GetEntityStateResponse, error) {
@@ -506,7 +595,7 @@ func TestWorkerRunPullKeepsSessionAfterTransientPermissionDenied(t *testing.T) {
 	}
 }
 
-func TestWorkerRunPullReregistersAfterPermissionDeniedRenewal(t *testing.T) {
+func TestWorkerRunPullReregistersImmediatelyAfterPermissionDeniedRenewal(t *testing.T) {
 	t.Setenv(envClaimTimeoutMS, "6")
 	denied := status.Error(codes.PermissionDenied, "worker session is not active")
 	server := &testEngine{
@@ -550,11 +639,9 @@ func TestWorkerRunPullReregistersAfterPermissionDeniedRenewal(t *testing.T) {
 		done <- worker.Run(ctx)
 	}()
 	<-server.registered
-	for i := 0; i < sessionRejectThreshold; i++ {
-		renewal := <-server.renewed
-		if renewal.GetWorkerSessionId() != "session-1" {
-			t.Fatalf("renewal %d session = %q, want session-1", i, renewal.GetWorkerSessionId())
-		}
+	renewal := <-server.renewed
+	if renewal.GetWorkerSessionId() != "session-1" {
+		t.Fatalf("renewal session = %q, want session-1", renewal.GetWorkerSessionId())
 	}
 	<-server.registered
 	cancel()
@@ -1012,6 +1099,46 @@ func TestCompletePolledJobRetriesTransientFailure(t *testing.T) {
 	}
 }
 
+func TestSuspendPolledJobUsesAssignmentScopeAndRetries(t *testing.T) {
+	server := &testEngine{
+		suspended:   make(chan *pb.SuspendActivationRequest, 2),
+		suspendErrs: []error{errors.New("transient suspension failure")},
+	}
+	client := newTestEngineClient(t, server)
+	worker := NewWorker("svc", WithWorkerID("worker-pull"), WithProjectID("project-owned"))
+	job := &pb.JobAssignment{
+		JobId:   "run-owned",
+		RunId:   "run-owned",
+		LeaseId: "lease-owned",
+	}
+	suspension := &pb.WorkerSuspension{
+		ActivationId:     "activation-1",
+		Attempt:          2,
+		FenceToken:       []byte("fence-2"),
+		TimerKey:         "sleep:retry",
+		ReadyAtMs:        12345,
+		DelayMs:          2500,
+		InputDigest:      []byte("input"),
+		DefinitionDigest: []byte("definition"),
+		Continuation:     []byte("continuation"),
+	}
+
+	if err := worker.suspendPolledJob(context.Background(), client, job, suspension); err != nil {
+		t.Fatalf("suspend pull job: %v", err)
+	}
+	if got := len(server.suspended); got != 2 {
+		t.Fatalf("SuspendActivation attempts = %d, want 2", got)
+	}
+	request := <-server.suspended
+	if request.GetProjectId() != "project-owned" || request.GetRunId() != "run-owned" {
+		t.Fatalf("assignment scope = (%q, %q)", request.GetProjectId(), request.GetRunId())
+	}
+	if request.GetActivationId() != "activation-1" || request.GetTimerKey() != "sleep:retry" ||
+		request.GetDelayMs() != 2500 || string(request.GetFenceToken()) != "fence-2" {
+		t.Fatalf("suspension request = %#v", request)
+	}
+}
+
 func TestEngineEventWriterBatchesAndStreamsEvents(t *testing.T) {
 	server := &testEngine{
 		batches:  make(chan *pb.AppendBatchRequest, 1),
@@ -1053,6 +1180,53 @@ func TestEngineEventWriterBatchesAndStreamsEvents(t *testing.T) {
 		streamed.GetProjectId() != "proj-1" ||
 		streamed.GetWorkerId() != "worker-1" {
 		t.Fatalf("streamed event: %#v", streamed)
+	}
+}
+
+func TestEngineEventWriterQueuesSendsWhileFlushAwaitsAck(t *testing.T) {
+	ackBlock := make(chan struct{})
+	server := &testEngine{
+		streamed:       make(chan *pb.EventStreamMessage, 2),
+		streamClosed:   make(chan int64, 2),
+		streamAckBlock: ackBlock,
+	}
+	writer := newEngineEventWriter(newTestEngineClient(t, server))
+	event := func(runID string) streamEvent {
+		return streamEvent{
+			RunID:     runID,
+			EventType: EventTypeOutputDelta,
+			Data:      []byte(`{"delta":"hi"}`),
+			Metadata:  map[string]string{"project_id": "proj-1", "worker_id": "worker-1"},
+		}
+	}
+
+	if err := writer.StreamEvents(context.Background(), []streamEvent{event("run-1")}); err != nil {
+		t.Fatalf("queue first stream event: %v", err)
+	}
+	<-server.streamed
+
+	flushDone := make(chan error, 1)
+	go func() {
+		flushDone <- writer.FlushEvents(context.Background())
+	}()
+	<-server.streamClosed
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err := writer.StreamEvents(ctx, []streamEvent{event("run-2")}); err != nil {
+		t.Fatalf("queue while flush awaits acknowledgement: %v", err)
+	}
+
+	close(ackBlock)
+	if err := <-flushDone; err != nil {
+		t.Fatalf("flush first stream: %v", err)
+	}
+	streamed := <-server.streamed
+	if streamed.GetRunId() != "run-2" {
+		t.Fatalf("queued run ID = %q, want run-2", streamed.GetRunId())
+	}
+	if err := writer.FlushEvents(context.Background()); err != nil {
+		t.Fatalf("flush second stream: %v", err)
 	}
 }
 

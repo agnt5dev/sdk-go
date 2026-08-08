@@ -79,7 +79,8 @@ func TestClientRunPostsHeadersAndParsesResponse(t *testing.T) {
 		WithRunSessionID("session-1"),
 		WithRunUserID("user-1"),
 		WithRunTenant("tenant-call"),
-		WithRunHeader("Idempotency-Key", "idem-1"),
+		WithRunHeader("Idempotency-Key", "legacy-idem"),
+		WithIdempotencyKey("idem-1"),
 	)
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -121,6 +122,42 @@ func TestClientRunAcceptsDirectOutputBody(t *testing.T) {
 	}
 }
 
+func TestClientRunWaitsWhenGatewayDetachesExcessWaiter(t *testing.T) {
+	var requests []string
+	resultAttempts := 0
+	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
+		switch r.URL.Path {
+		case "/v1/functions/noop/run":
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"run_id":"run-detached","status":"queued"}`))
+		case "/v1/status/run-detached":
+			_, _ = w.Write([]byte(`{"run_id":"run-detached","status":"completed"}`))
+		case "/v1/result/run-detached":
+			resultAttempts++
+			if resultAttempts == 1 {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"status":"completed","error":"result not projected yet"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"run_id":"run-detached","status":"completed","output":{"ok":true}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	result, err := client.Run(context.Background(), "noop", nil, WithRunTimeout(time.Second))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !result.IsSuccess() {
+		t.Fatalf("result: %#v", result)
+	}
+	if got, want := strings.Join(requests, ","), "/v1/functions/noop/run,/v1/status/run-detached,/v1/result/run-detached,/v1/result/run-detached"; got != want {
+		t.Fatalf("requests=%q want=%q", got, want)
+	}
+}
+
 func TestClientSubmitWrapsMetadata(t *testing.T) {
 	client := newHTTPTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/workflows/process/submit" {
@@ -128,6 +165,9 @@ func TestClientSubmitWrapsMetadata(t *testing.T) {
 		}
 		if r.Header.Get("X-TENANT-ID") != "tenant-job" {
 			t.Fatalf("tenant header: %q", r.Header.Get("X-TENANT-ID"))
+		}
+		if r.Header.Get("Idempotency-Key") != "submit-idem" {
+			t.Fatalf("idempotency header: %q", r.Header.Get("Idempotency-Key"))
 		}
 		var body struct {
 			Input map[string]string `json:"input"`
@@ -146,6 +186,7 @@ func TestClientSubmitWrapsMetadata(t *testing.T) {
 		WithSubmitComponentType(ComponentTypeWorkflow),
 		WithSubmitMetadata(map[string]string{"priority": "high"}),
 		WithSubmitTenant("tenant-job"),
+		WithSubmitIdempotencyKey("submit-idem"),
 	)
 	if err != nil {
 		t.Fatalf("submit: %v", err)
@@ -247,6 +288,9 @@ func TestClientStreamEventsParsesSSE(t *testing.T) {
 		if r.Header.Get("Accept") != "text/event-stream" {
 			t.Fatalf("accept: %q", r.Header.Get("Accept"))
 		}
+		if r.Header.Get("Idempotency-Key") != "stream-idem" {
+			t.Fatalf("idempotency header: %q", r.Header.Get("Idempotency-Key"))
+		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = fmt.Fprint(w, "event: output.delta\n")
 		_, _ = fmt.Fprint(w, "data: {\"content\":\"hel\",\"sequence\":1,\"index\":0}\n\n")
@@ -261,7 +305,7 @@ func TestClientStreamEventsParsesSSE(t *testing.T) {
 	err := client.Stream(context.Background(), "generate", map[string]string{"prompt": "hi"}, func(chunk string) error {
 		chunks = append(chunks, chunk)
 		return nil
-	})
+	}, WithRunIdempotencyKey("stream-idem"))
 	if err != nil {
 		t.Fatalf("stream: %v", err)
 	}

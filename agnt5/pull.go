@@ -19,7 +19,6 @@ const (
 	defaultPollWaitMS          = int64(30_000)
 	defaultClaimTimeoutMS      = int64(300_000)
 	defaultCapacityEvery       = 15 * time.Second
-	defaultLeaseRenewEvery     = 30 * time.Second
 	defaultPollErrorBackoff    = 250 * time.Millisecond
 	defaultPollErrorBackoffMax = 5 * time.Second
 	sessionRejectThreshold     = 3
@@ -50,6 +49,12 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 	sessionID := session.GetWorkerSessionId()
 	if sessionID == "" {
 		return fmt.Errorf("agnt5: register pull worker session returned empty session id")
+	}
+	if err := w.applyProtocolNegotiation(
+		session.GetSupportedProtocolCapabilities(),
+		session.GetRequiredProtocolCapabilities(),
+	); err != nil {
+		return err
 	}
 	w.writeHealthMarker()
 	defer w.removeHealthMarker()
@@ -107,6 +112,7 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 
 func (w *Worker) registerWorkerSessionRequest(config pullSlotConfig) *pb.RegisterWorkerSessionRequest {
 	components := append(w.Components(), builtInScorerComponentInfos()...)
+	supportedProtocols, requiredProtocols := w.protocolRegistrationCapabilities()
 	sort.Slice(components, func(i, j int) bool { return components[i].Name < components[j].Name })
 	return &pb.RegisterWorkerSessionRequest{
 		WorkerId:     w.workerID,
@@ -120,11 +126,13 @@ func (w *Worker) registerWorkerSessionRequest(config pullSlotConfig) *pb.Registe
 			TargetMemoryUsage: 0.80,
 			RampThrottleMs:    1_000,
 		},
-		Capabilities:   protoCapabilities(components),
-		Components:     protoComponentInfos(components),
-		ServiceName:    w.serviceName,
-		ServiceVersion: w.serviceVersion,
-		ServiceType:    w.serviceType,
+		Capabilities:                  protoCapabilities(components),
+		Components:                    protoComponentInfos(components),
+		ServiceName:                   w.serviceName,
+		ServiceVersion:                w.serviceVersion,
+		ServiceType:                   w.serviceType,
+		SupportedProtocolCapabilities: supportedProtocols,
+		RequiredProtocolCapabilities:  requiredProtocols,
 	}
 }
 
@@ -239,19 +247,44 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 	req := dispatchRequestFromJob(job, w.serviceName)
 	req.Metadata["worker_id"] = w.workerID
 	req.Metadata["worker_session_id"] = sessionID
-	stopRenewal := w.startLeaseRenewal(ctx, client, sessionID, job, claimTimeoutMS, sessionFailures)
+	jobCtx, cancelJob := context.WithCancel(ctx)
+	defer cancelJob()
+	var authorityLost atomic.Bool
+	stopRenewal := w.startLeaseRenewal(jobCtx, client, sessionID, job, claimTimeoutMS, func(outcome pb.LeaseRenewalOutcome) {
+		authorityLost.Store(true)
+		cancelJob()
+		if outcome == pb.LeaseRenewalOutcome_LEASE_RENEWAL_OUTCOME_SESSION_INACTIVE {
+			signalSessionFailure(sessionFailures, "renew pull lease", fmt.Errorf("worker session is not active"))
+		}
+	})
 	defer stopRenewal()
 
-	messages := w.dispatchServiceMessages(ctx, req)
+	messages := w.dispatchServiceMessages(jobCtx, req)
+	if authorityLost.Load() {
+		return nil
+	}
 	var terminal *pb.DispatchComponentResponse
+	var suspension *pb.WorkerSuspension
 	for _, message := range messages {
 		response := message.GetFunctionResponse()
 		if response == nil {
 			continue
 		}
+		if value := response.GetWorkerSuspension(); value != nil {
+			suspension = value
+			continue
+		}
 		if isTerminalPullResponse(response) {
 			terminal = response
 		}
+	}
+	if suspension != nil {
+		if pullJobStreamingRequested(job.GetMetadata()) {
+			flushCtx, cancel := context.WithTimeout(ctx, defaultCompleteJobTimeout)
+			_ = w.flushStreamEvents(flushCtx)
+			cancel()
+		}
+		return w.suspendPolledJob(ctx, client, job, suspension)
 	}
 	if terminal == nil {
 		terminal = dispatchResponseFromResult(req, InvocationResult{LeaseID: job.GetLeaseId()}, fmt.Errorf("agnt5: pull job produced no terminal response"))
@@ -262,6 +295,58 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 		cancel()
 	}
 	return w.completePolledJob(ctx, client, sessionID, job, terminal)
+}
+
+func (w *Worker) suspendPolledJob(ctx context.Context, client pb.EngineServiceClient, job *pb.JobAssignment, suspension *pb.WorkerSuspension) error {
+	request, err := w.polledJobSuspensionRequest(job, suspension)
+	if err != nil {
+		return err
+	}
+	var lastErr error
+	for attempt := 0; attempt < defaultCompleteJobAttempts; attempt++ {
+		suspendCtx, cancel := context.WithTimeout(ctx, defaultCompleteJobTimeout)
+		response, callErr := client.SuspendActivation(suspendCtx, request)
+		cancel()
+		if callErr == nil && response.GetAccepted() {
+			return nil
+		}
+		if callErr != nil {
+			lastErr = callErr
+		} else {
+			lastErr = fmt.Errorf("runtime returned an unaccepted suspension receipt")
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if attempt+1 < defaultCompleteJobAttempts {
+			if err := sleepContext(ctx, defaultCompleteJobBackoff); err != nil {
+				return err
+			}
+		}
+	}
+	return fmt.Errorf("agnt5: suspend pull job %s: %w", job.GetJobId(), lastErr)
+}
+
+func (w *Worker) polledJobSuspensionRequest(job *pb.JobAssignment, suspension *pb.WorkerSuspension) (*pb.SuspendActivationRequest, error) {
+	if err := validatePolledJobAssignment(job); err != nil {
+		return nil, err
+	}
+	if suspension == nil {
+		return nil, fmt.Errorf("agnt5: pull job %s returned an empty suspension", job.GetJobId())
+	}
+	return &pb.SuspendActivationRequest{
+		ProjectId:        w.projectID,
+		RunId:            job.GetRunId(),
+		ActivationId:     suspension.GetActivationId(),
+		Attempt:          suspension.GetAttempt(),
+		FenceToken:       cloneBytes(suspension.GetFenceToken()),
+		TimerKey:         suspension.GetTimerKey(),
+		ReadyAtMs:        suspension.GetReadyAtMs(),
+		InputDigest:      cloneBytes(suspension.GetInputDigest()),
+		DefinitionDigest: cloneBytes(suspension.GetDefinitionDigest()),
+		Continuation:     cloneBytes(suspension.GetContinuation()),
+		DelayMs:          suspension.GetDelayMs(),
+	}, nil
 }
 
 func dispatchRequestFromJob(job *pb.JobAssignment, serviceName string) *pb.DispatchComponentRequest {
@@ -409,7 +494,7 @@ func (w *Worker) completePolledJobRequestWithin(ctx context.Context, client pb.E
 	return nil
 }
 
-func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, fallbackLeaseTimeoutMS int64, sessionFailures chan<- error) func() {
+func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, fallbackLeaseTimeoutMS int64, onAuthorityLost func(pb.LeaseRenewalOutcome)) func() {
 	if job.GetLeaseId() == "" || job.GetRunId() == "" {
 		return func() {}
 	}
@@ -417,56 +502,23 @@ func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceC
 	if leaseTimeoutMS <= 0 {
 		leaseTimeoutMS = defaultClaimTimeoutMS
 	}
-	interval := defaultLeaseRenewEvery
-	if leaseTimeoutMS > 0 {
-		half := time.Duration(leaseTimeoutMS/2) * time.Millisecond
-		if half > 0 && half < interval {
-			interval = half
-		}
+	attempt := uint32(job.GetAttempt())
+	expiresAt := time.Time{}
+	if job.GetLeaseExpiresAtMs() > 0 {
+		expiresAt = time.UnixMilli(job.GetLeaseExpiresAtMs())
 	}
-	renewCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		consecutiveSessionRejects := 0
-		for {
-			select {
-			case <-renewCtx.Done():
-				return
-			case <-ticker.C:
-				_, err := client.RenewJobLease(renewCtx, &pb.RenewJobLeaseRequest{
-					WorkerId:        w.workerID,
-					WorkerSessionId: sessionID,
-					RunId:           job.GetRunId(),
-					LeaseId:         job.GetLeaseId(),
-					LeaseTimeoutMs:  leaseTimeoutMS,
-				})
-				if err == nil {
-					consecutiveSessionRejects = 0
-					continue
-				}
-				if isSessionRegistrationRejection(err) {
-					consecutiveSessionRejects++
-					if consecutiveSessionRejects >= sessionRejectThreshold {
-						signalSessionFailure(sessionFailures, "renew pull lease", err)
-						return
-					}
-					continue
-				}
-				consecutiveSessionRejects = 0
-				if renewCtx.Err() != nil {
-					return
-				}
-				continue
-			}
-		}
-	}()
-	return func() {
-		cancel()
-		<-done
-	}
+	return startExecutionLeaseRenewal(ctx, client, executionLeaseAuthority{
+		workerID:       w.workerID,
+		workerSession:  sessionID,
+		projectID:      w.projectID,
+		deploymentID:   w.deploymentID,
+		runID:          job.GetRunId(),
+		leaseID:        job.GetLeaseId(),
+		attempt:        attempt,
+		mode:           pb.WorkerMode_WORKER_MODE_PULL,
+		leaseTimeout:   time.Duration(leaseTimeoutMS) * time.Millisecond,
+		leaseExpiresAt: expiresAt,
+	}, onAuthorityLost)
 }
 
 func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots *atomic.Uint32, reportEvery time.Duration, sessionFailures chan<- error) {

@@ -375,12 +375,13 @@ func (e *ClientError) Error() string {
 }
 
 type runConfig struct {
-	componentType ComponentType
-	sessionID     string
-	userID        string
-	tenant        string
-	timeout       time.Duration
-	headers       map[string]string
+	componentType  ComponentType
+	sessionID      string
+	userID         string
+	tenant         string
+	timeout        time.Duration
+	headers        map[string]string
+	idempotencyKey *string
 }
 
 // RunOption mutates Run and streaming request configuration.
@@ -452,10 +453,25 @@ func WithRunHeaders(headers map[string]string) RunOption {
 	}
 }
 
+// WithIdempotencyKey sets the stable caller key used to deduplicate a Run or
+// streaming admission. It overrides an Idempotency-Key supplied through raw
+// headers regardless of option order.
+func WithIdempotencyKey(key string) RunOption {
+	return func(config *runConfig) {
+		config.idempotencyKey = &key
+	}
+}
+
+// WithRunIdempotencyKey is the scope-explicit alias for WithIdempotencyKey.
+func WithRunIdempotencyKey(key string) RunOption {
+	return WithIdempotencyKey(key)
+}
+
 type submitConfig struct {
-	componentType ComponentType
-	metadata      map[string]string
-	tenant        string
+	componentType  ComponentType
+	metadata       map[string]string
+	tenant         string
+	idempotencyKey *string
 }
 
 // SubmitOption mutates Submit request configuration.
@@ -489,12 +505,24 @@ func WithSubmitTenant(tenantID string) SubmitOption {
 	}
 }
 
+// WithSubmitIdempotencyKey sets the stable caller key used to deduplicate a
+// Submit admission.
+func WithSubmitIdempotencyKey(key string) SubmitOption {
+	return func(config *submitConfig) {
+		config.idempotencyKey = &key
+	}
+}
+
 // Run executes a component synchronously through /v1/{type}/{component}/run.
 func (c *Client) Run(ctx context.Context, component string, input any, opts ...RunOption) (*RunResponse, error) {
 	config := newRunConfig(opts...)
+	headers := c.requestHeaders(config.sessionID, config.userID, config.tenant, config.headers)
+	if config.idempotencyKey != nil {
+		headers.Set("Idempotency-Key", *config.idempotencyKey)
+	}
 	statusCode, body, endpoint, err := c.doJSON(ctx, http.MethodPost, []string{
 		"v1", componentCollection(config.componentType), component, "run",
-	}, inputOrEmptyObject(input), c.requestHeaders(config.sessionID, config.userID, config.tenant, config.headers), config.timeout)
+	}, inputOrEmptyObject(input), headers, config.timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -513,7 +541,70 @@ func (c *Client) Run(ctx context.Context, component string, input any, opts ...R
 		}
 		return nil, &ClientError{Method: http.MethodPost, URL: endpoint, StatusCode: statusCode, Body: string(body)}
 	}
-	return parseRunResponse(body, statusCode)
+	response, err := parseRunResponse(body, statusCode)
+	if err != nil {
+		return nil, err
+	}
+	if statusCode != http.StatusAccepted || response.RunID == "" {
+		return response, nil
+	}
+
+	// The gateway may durably detach excess synchronous waiters. Preserve
+	// Run's blocking contract via short status/result requests rather than one
+	// long-lived gateway tail.
+	waitTimeout := config.timeout
+	if waitTimeout <= 0 {
+		waitTimeout = c.httpClient.Timeout
+	}
+	if waitTimeout <= 0 {
+		waitTimeout = 300 * time.Second
+	}
+	return c.waitForDetachedRun(ctx, response.RunID, waitTimeout)
+}
+
+func (c *Client) waitForDetachedRun(ctx context.Context, runID string, timeout time.Duration) (*RunResponse, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	pollInterval := 100 * time.Millisecond
+	terminalStatusObserved := false
+
+	for {
+		if !terminalStatusObserved {
+			status, err := c.GetStatus(ctx, runID)
+			if err != nil {
+				return nil, err
+			}
+			terminalStatusObserved = status.IsComplete()
+		}
+		if terminalStatusObserved {
+			result, err := c.GetResult(ctx, runID)
+			if err != nil {
+				return nil, err
+			}
+			if result.Error == nil || result.Error.Code != "NOT_READY" {
+				return result, nil
+			}
+		}
+
+		pollTimer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !pollTimer.Stop() {
+				<-pollTimer.C
+			}
+			return nil, ctx.Err()
+		case <-deadline.C:
+			if !pollTimer.Stop() {
+				<-pollTimer.C
+			}
+			return timeoutRunResponse(runID, timeout), nil
+		case <-pollTimer.C:
+		}
+		pollInterval = min(pollInterval+pollInterval/2, 2*time.Second)
+	}
 }
 
 // Submit enqueues a component asynchronously through /v1/{type}/{component}/submit.
@@ -526,9 +617,13 @@ func (c *Client) Submit(ctx context.Context, component string, input any, opts .
 			"metadata": config.metadata,
 		}
 	}
+	headers := c.requestHeaders("", "", config.tenant, nil)
+	if config.idempotencyKey != nil {
+		headers.Set("Idempotency-Key", *config.idempotencyKey)
+	}
 	statusCode, body, endpoint, err := c.doJSON(ctx, http.MethodPost, []string{
 		"v1", componentCollection(config.componentType), component, "submit",
-	}, bodyValue, c.requestHeaders("", "", config.tenant, nil), 0)
+	}, bodyValue, headers, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -658,6 +753,9 @@ func (c *Client) StreamEvents(ctx context.Context, component string, input any, 
 	}
 	config := newRunConfig(opts...)
 	headers := c.requestHeaders(config.sessionID, config.userID, config.tenant, config.headers)
+	if config.idempotencyKey != nil {
+		headers.Set("Idempotency-Key", *config.idempotencyKey)
+	}
 	headers.Set("Accept", "text/event-stream")
 
 	statusCode, body, err := c.doStream(ctx, []string{
@@ -1036,7 +1134,9 @@ func syntheticRunResponse(body []byte, httpStatus int, status RunStatus, code, m
 		message = rawMessage
 	}
 	if detail := parseRunErrorDetail(data); detail != nil {
-		code = firstNonEmpty(detail.Code, code)
+		if detail.Code != "" && detail.Code != "UNKNOWN" {
+			code = detail.Code
+		}
 		message = firstNonEmpty(detail.Message, message)
 	}
 	if rawCode := fieldString(data, "error_code", "errorCode"); rawCode != "" {

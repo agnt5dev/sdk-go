@@ -77,6 +77,28 @@ func WithWorkerMode(mode WorkerMode) WorkerOption {
 	}
 }
 
+// WithDurableActivationMode selects disabled, preferred, or required startup
+// behavior for durable_activation_v1 protocol negotiation.
+func WithDurableActivationMode(mode DurableActivationMode) WorkerOption {
+	return func(w *Worker) {
+		switch mode {
+		case DurableActivationDisabled, DurableActivationPreferred, DurableActivationRequired:
+			w.durableActivationMode = mode
+		}
+	}
+}
+
+// WithDurableActivationArtifact supplies the immutable deployed artifact
+// SHA-256 used in activation definition identity. Managed runtimes normally
+// inject this value; local E2E workers may set it explicitly.
+func WithDurableActivationArtifact(sha256 string) WorkerOption {
+	return func(w *Worker) {
+		if sha256 != "" {
+			w.metadata[activationArtifactSHA256Metadata] = sha256
+		}
+	}
+}
+
 // WithMaxConcurrency sets the max in-flight invocation budget.
 func WithMaxConcurrency(maxConcurrency uint32) WorkerOption {
 	return func(w *Worker) {

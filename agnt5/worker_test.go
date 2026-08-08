@@ -218,3 +218,78 @@ func TestEventClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestInvocationMetadataStampsPushExecutionAuthority(t *testing.T) {
+	worker := NewWorker("svc", WithWorkerID("worker-1"))
+	metadata := worker.invocationMetadata(Invocation{
+		RunID:   "run-1",
+		Attempt: 7,
+		LeaseID: "lease-7",
+		Metadata: map[string]string{
+			"worker_id":         "forged-worker",
+			"worker_session_id": "forged-session",
+			"lease_id":          "forged-lease",
+			"lease_attempt":     "99",
+			"dispatch_mode":     "push",
+		},
+	})
+
+	for key, want := range map[string]string{
+		"worker_id":         "worker-1",
+		"worker_session_id": "worker-1",
+		"lease_id":          "lease-7",
+		"lease_attempt":     "7",
+		"dispatch_mode":     "push",
+	} {
+		if got := metadata[key]; got != want {
+			t.Fatalf("metadata[%q] = %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestInvocationMetadataPreservesPullSessionAuthority(t *testing.T) {
+	worker := NewWorker("svc", WithWorkerID("worker-1"), WithWorkerMode(WorkerModePull))
+	metadata := worker.invocationMetadata(Invocation{
+		RunID:   "run-1",
+		Attempt: 3,
+		LeaseID: "lease-3",
+		Metadata: map[string]string{
+			"dispatch_mode":     "pull",
+			"worker_session_id": "session-3",
+		},
+	})
+
+	if got := metadata["worker_session_id"]; got != "session-3" {
+		t.Fatalf("worker_session_id = %q, want session-3", got)
+	}
+	if got := metadata["lease_attempt"]; got != "3" {
+		t.Fatalf("lease_attempt = %q, want 3", got)
+	}
+}
+
+func TestInvocationEventMetadataCannotOverrideExecutionAuthority(t *testing.T) {
+	metadata := mergeInvocationEventMetadata(
+		map[string]string{
+			"dispatch_mode":     "pull",
+			"worker_id":         "worker-1",
+			"worker_session_id": "session-1",
+			"lease_id":          "lease-1",
+			"lease_attempt":     "1",
+		},
+		map[string]string{
+			"worker_id": "forged-worker",
+			"lease_id":  "forged-lease",
+			"custom":    "preserved",
+		},
+	)
+
+	if got := metadata["worker_id"]; got != "worker-1" {
+		t.Fatalf("worker_id = %q, want worker-1", got)
+	}
+	if got := metadata["lease_id"]; got != "lease-1" {
+		t.Fatalf("lease_id = %q, want lease-1", got)
+	}
+	if got := metadata["custom"]; got != "preserved" {
+		t.Fatalf("custom = %q, want preserved", got)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -220,10 +221,17 @@ func TestRunWorkerStreamHandlesSingleDispatch(t *testing.T) {
 			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
 			ComponentName: "greet",
 			InputData:     []byte(`{"name":"Ada"}`),
-			Metadata:      map[string]string{"request_id": "req-1"},
-			Attempt:       2,
-			IsStreaming:   true,
-			LeaseId:       "lease-1",
+			Metadata: map[string]string{
+				"request_id":        "req-1",
+				"dispatch_mode":     "pull",
+				"worker_id":         "forged-worker",
+				"worker_session_id": "forged-session",
+				"lease_id":          "forged-lease",
+				"lease_attempt":     "99",
+			},
+			Attempt:     2,
+			IsStreaming: true,
+			LeaseId:     "lease-1",
 		},
 		received: make(chan *pb.ServiceMessage, 1),
 		response: make(chan *pb.DispatchComponentResponse, 1),
@@ -242,6 +250,17 @@ func TestRunWorkerStreamHandlesSingleDispatch(t *testing.T) {
 		}
 		if ctx.Metadata("request_id") != "req-1" {
 			t.Fatalf("metadata: %#v", ctx.MetadataMap())
+		}
+		for key, want := range map[string]string{
+			"dispatch_mode":     "push",
+			"worker_id":         "worker-1",
+			"worker_session_id": "worker-1",
+			"lease_id":          "lease-1",
+			"lease_attempt":     "2",
+		} {
+			if got := ctx.Metadata(key); got != want {
+				t.Fatalf("metadata[%q] = %q, want %q", key, got, want)
+			}
 		}
 		if ctx.Attempt() != 2 || !ctx.IsStreaming() || ctx.LeaseID() != "lease-1" {
 			t.Fatalf("dispatch context: attempt=%d streaming=%t lease=%q", ctx.Attempt(), ctx.IsStreaming(), ctx.LeaseID())
@@ -277,6 +296,69 @@ func TestRunWorkerStreamHandlesSingleDispatch(t *testing.T) {
 	}
 	if output.Message != "hello Ada" {
 		t.Fatalf("output: %#v", output)
+	}
+}
+
+func TestRunWorkerStreamCancelsAndSuppressesAfterPushLeaseLoss(t *testing.T) {
+	leaseTimeout := 40 * time.Millisecond
+	server := &testCoordinator{
+		ack: true,
+		dispatch: &pb.DispatchComponentRequest{
+			InvocationId:  "run-lease-loss:invoke",
+			ServiceName:   "svc",
+			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
+			ComponentName: "block",
+			InputData:     []byte(`{}`),
+			Metadata: map[string]string{
+				"project_id":          "proj-1",
+				"deployment_id":       "dep-1",
+				"lease_timeout_ms":    strconv.FormatInt(leaseTimeout.Milliseconds(), 10),
+				"lease_expires_at_ms": strconv.FormatInt(time.Now().Add(leaseTimeout).UnixMilli(), 10),
+			},
+			DeploymentId: "dep-1",
+			LeaseId:      "lease-rejected",
+		},
+		received: make(chan *pb.ServiceMessage, 1),
+		response: make(chan *pb.DispatchComponentResponse, 1),
+	}
+	coordinatorClient := newTestCoordinatorClient(t, server)
+	engine := &testEngine{
+		renewResults: []*pb.RenewJobLeaseResponse{{
+			Renewed: false,
+			Outcome: pb.LeaseRenewalOutcome_LEASE_RENEWAL_OUTCOME_AUTHORITY_LOST,
+		}},
+		renewed: make(chan *pb.RenewJobLeaseRequest, 1),
+	}
+	engineClient := newTestEngineClient(t, engine)
+	worker := NewWorker("svc",
+		WithWorkerID("worker-1"),
+		WithProjectID("proj-1"),
+		WithDeploymentID("dep-1"),
+	)
+	if err := RegisterFunction(worker, "block", func(ctx *Context, _ map[string]string) (map[string]string, error) {
+		<-ctx.Done()
+		return map[string]string{"late": "true"}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- worker.runWorkerStreamWithLeaseClient(ctx, coordinatorClient, engineClient)
+	}()
+	renewal := <-engine.renewed
+	if renewal.GetMode() != pb.WorkerMode_WORKER_MODE_PUSH || renewal.GetAttempt() != 0 {
+		t.Fatalf("push renewal authority: %#v", renewal)
+	}
+	select {
+	case response := <-server.response:
+		t.Fatalf("stale push response was forwarded: %#v", response)
+	case <-time.After(100 * time.Millisecond):
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("run worker stream: %v", err)
 	}
 }
 

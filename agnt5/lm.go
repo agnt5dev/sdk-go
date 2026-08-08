@@ -60,6 +60,9 @@ type GenerateRequest struct {
 	CacheTTL            string         `json:"cache_ttl,omitempty"`
 	GoogleCachedContent string         `json:"google_cached_content,omitempty"`
 	Metadata            map[string]any `json:"metadata,omitempty"`
+	// RecoveryPolicy controls how an interrupted model call is settled.
+	// The default is unknown_outcome.
+	RecoveryPolicy RecoveryPolicy `json:"recovery_policy,omitempty"`
 }
 
 // PromptCache is a provider-neutral prompt-cache policy.
@@ -714,9 +717,16 @@ func (c *Context) Generate(model LanguageModel, request GenerateRequest) (Genera
 		err  error
 	)
 	if streamingModel, ok := model.(StreamingLanguageModel); ok && c.IsStreaming() {
-		resp, err = streamingModel.Stream(c, request, func(chunk ModelStreamChunk) error {
+		emit := func(chunk ModelStreamChunk) error {
 			return c.Emit(modelStreamEvent(chunk, lmCorrelationID, parentCorrelationID, modelName))
-		})
+		}
+		if c.Metadata(durableActivationV1Capability) == "true" {
+			resp, err = c.streamDurableModel(streamingModel, request, modelName, provider, emit)
+		} else {
+			resp, err = streamingModel.Stream(c, request, emit)
+		}
+	} else if c.Metadata(durableActivationV1Capability) == "true" {
+		resp, err = c.generateDurableModel(model, request, modelName, provider)
 	} else {
 		resp, err = model.Generate(c, request)
 	}

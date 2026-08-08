@@ -7,7 +7,10 @@ import (
 
 type contextKey uint8
 
-const stateAuthorityContextKey contextKey = iota
+const (
+	stateAuthorityContextKey contextKey = iota
+	activationExecutionContextKey
+)
 
 // Context is passed to Go component handlers.
 type Context struct {
@@ -23,6 +26,7 @@ type Context struct {
 
 	stateStore       StateStore
 	checkpointWriter stepCheckpointWriter
+	activationWriter stepActivationWriter
 }
 
 type contextShared struct {
@@ -66,6 +70,9 @@ func newContext(parent context.Context, inv Invocation, checkpointWriter stepChe
 		runCID:           runCorrelationIDFromRunID(inv.RunID),
 		stateStore:       stateStore,
 		checkpointWriter: checkpointWriter,
+	}
+	if writer, ok := checkpointWriter.(stepActivationWriter); ok {
+		ctx.activationWriter = writer
 	}
 	ctx.loadReplayMetadata(inv.Metadata)
 	ctx.logger = &Logger{ctx: ctx}
@@ -259,9 +266,30 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 		componentCID:     c.componentCID,
 		stateStore:       c.stateStore,
 		checkpointWriter: c.checkpointWriter,
+		activationWriter: c.activationWriter,
 	}
 	child.logger = &Logger{ctx: child}
 	return child
+}
+
+func (c *Context) withActivationExecution(execution ActivationExecution) *Context {
+	child := c.withParentCorrelationID(c.parentCID)
+	child.Context = context.WithValue(c.Context, activationExecutionContextKey, execution)
+	return child
+}
+
+// ActivationFromContext returns the current durable activation and downstream key.
+func ActivationFromContext(ctx context.Context) (ActivationExecution, bool) {
+	if ctx == nil {
+		return ActivationExecution{}, false
+	}
+	execution, ok := ctx.Value(activationExecutionContextKey).(ActivationExecution)
+	return execution, ok
+}
+
+// Activation returns the current durable activation for this component context.
+func (c *Context) Activation() (ActivationExecution, bool) {
+	return ActivationFromContext(c)
 }
 
 func (c *Context) managesAgent(name string) bool {
@@ -286,9 +314,14 @@ func (c *Context) Events() []Event {
 }
 
 func (c *Context) nextStepKey(name string) string {
+	return c.nextActivationKey("step", name)
+}
+
+func (c *Context) nextActivationKey(kind, name string) string {
 	c.shared.stepMu.Lock()
 	defer c.shared.stepMu.Unlock()
-	idx := c.shared.stepCounts[name]
-	c.shared.stepCounts[name] = idx + 1
-	return "step:" + name + ":" + intString(idx)
+	namespace := kind + ":" + name
+	idx := c.shared.stepCounts[namespace]
+	c.shared.stepCounts[namespace] = idx + 1
+	return namespace + ":" + intString(idx)
 }

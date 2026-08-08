@@ -22,6 +22,9 @@ func TestClientBatchSubmitsPythonCompatibleItems(t *testing.T) {
 		if r.Header.Get("X-TENANT-ID") != "tenant-batch" {
 			t.Fatalf("tenant: %q", r.Header.Get("X-TENANT-ID"))
 		}
+		if r.Header.Get("Idempotency-Key") != "batch-idem" {
+			t.Fatalf("idempotency header: %q", r.Header.Get("Idempotency-Key"))
+		}
 		var body struct {
 			Items []struct {
 				Input    map[string]int    `json:"input"`
@@ -81,6 +84,7 @@ func TestClientBatchSubmitsPythonCompatibleItems(t *testing.T) {
 		WithBatchTimeoutMS(60_000),
 		WithBatchDefaultItemTimeoutMS(10_000),
 		WithBatchMetadata(map[string]string{"batch_group": "nightly"}),
+		WithBatchIdempotencyKey("batch-idem"),
 	)
 	if err != nil {
 		t.Fatalf("batch: %v", err)
