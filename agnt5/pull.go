@@ -2,6 +2,7 @@ package agnt5
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -25,14 +26,27 @@ const (
 	defaultCompleteJobTimeout  = 3 * time.Second
 	defaultCompleteJobAttempts = 3
 	defaultCompleteJobBackoff  = 100 * time.Millisecond
+	defaultRetireEmptyPolls    = 2
 )
 
 type pullSlotConfig struct {
 	minSlots       uint32
 	maxSlots       uint32
-	desiredSlots   uint32
 	claimTimeoutMS int64
-	rampThrottle   time.Duration
+}
+
+type pullSlotEventType uint8
+
+const (
+	pullSlotStarted pullSlotEventType = iota
+	pullSlotExited
+)
+
+type pullSlotEvent struct {
+	type_         pullSlotEventType
+	activeStarted uint32
+	retired       bool
+	err           error
 }
 
 func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClient) error {
@@ -65,44 +79,70 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 		if policy.GetMaxSlots() > 0 {
 			config.maxSlots = clampUint32(policy.GetMaxSlots(), config.minSlots, 100)
 		}
-		if policy.GetRampThrottleMs() > 0 {
-			config.rampThrottle = time.Duration(policy.GetRampThrottleMs()) * time.Millisecond
-		}
 	}
-	config.desiredSlots = clampUint32(config.maxSlots, config.minSlots, config.maxSlots)
 
 	var openPollSlots atomic.Uint32
 	var activeSlots atomic.Uint32
-	// PollJob is a long-lived unary RPC. Keep only the configured minimum
-	// parked at once so idle polls cannot starve CompleteJob, lease renewal,
-	// and capacity calls on the shared gRPC connection. A claimed job releases
-	// its permit before execution, allowing waiting slots to claim immediately
-	// and active execution to ramp independently toward maxSlots.
-	pollPermits := make(chan struct{}, pollConcurrencyLimit(config))
+	var totalSlots atomic.Uint32
 	sessionFailures := make(chan error, 1)
 	var sessionTasks sync.WaitGroup
 	sessionTasks.Add(1)
 	go func() {
 		defer sessionTasks.Done()
-		w.reportPullCapacity(runCtx, client, sessionID, config, &openPollSlots, &activeSlots, defaultCapacityEvery, sessionFailures)
+		w.reportPullCapacity(runCtx, client, sessionID, config, &openPollSlots, &activeSlots, &totalSlots, defaultCapacityEvery, sessionFailures)
 	}()
 
-	sessionTasks.Add(1)
-	errCh := make(chan error, config.desiredSlots)
-	go func() {
-		defer sessionTasks.Done()
-		w.launchPullSlots(runCtx, client, sessionID, config, pollPermits, &openPollSlots, &activeSlots, sessionFailures, errCh, &sessionTasks)
-	}()
+	slotEvents := make(chan pullSlotEvent, config.maxSlots*2)
+	var nextSlot uint32
+	spawnSlots := func(count uint32) {
+		for range count {
+			w.launchPullSlot(
+				runCtx,
+				client,
+				sessionID,
+				config,
+				nextSlot,
+				&openPollSlots,
+				&activeSlots,
+				&totalSlots,
+				sessionFailures,
+				slotEvents,
+				&sessionTasks,
+			)
+			nextSlot++
+		}
+	}
+	spawnSlots(config.minSlots)
 
 	var result error
-	select {
-	case <-ctx.Done():
-		result = ctx.Err()
-	case err := <-sessionFailures:
-		result = err
-	case err := <-errCh:
-		if err != nil {
+
+run:
+	for {
+		select {
+		case <-ctx.Done():
+			result = ctx.Err()
+			break run
+		case err := <-sessionFailures:
 			result = err
+			break run
+		case event := <-slotEvents:
+			switch event.type_ {
+			case pullSlotStarted:
+				spawnSlots(pullRampSpawnCount(
+					totalSlots.Load(),
+					event.activeStarted,
+					config.maxSlots,
+				))
+			case pullSlotExited:
+				if event.err != nil {
+					result = event.err
+					break run
+				}
+				if !event.retired {
+					result = errors.New("agnt5: pull slot exited unexpectedly")
+					break run
+				}
+			}
 		}
 	}
 	cancel()
@@ -155,43 +195,58 @@ func (w *Worker) pullSlotConfig() pullSlotConfig {
 	return pullSlotConfig{
 		minSlots:       minSlots,
 		maxSlots:       maxSlots,
-		desiredSlots:   minSlots,
 		claimTimeoutMS: claimTimeoutMS,
-		rampThrottle:   time.Second,
 	}
 }
 
-func pollConcurrencyLimit(config pullSlotConfig) int {
-	return int(clampUint32(config.minSlots, 1, config.maxSlots))
-}
-
-func (w *Worker) launchPullSlots(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32, sessionFailures chan<- error, errCh chan<- error, sessionTasks *sync.WaitGroup) {
-	desiredSlots := clampUint32(config.desiredSlots, config.minSlots, config.maxSlots)
-	for slot := uint32(0); slot < desiredSlots; slot++ {
-		if slot >= config.minSlots {
-			if err := sleepContext(ctx, config.rampThrottle); err != nil {
-				return
-			}
-		}
-		sessionTasks.Add(1)
-		go func(slot uint32) {
-			defer sessionTasks.Done()
-			errCh <- w.runPullSlot(ctx, client, sessionID, config, slot, pollPermits, openPollSlots, activeSlots, sessionFailures)
-		}(slot)
+func pullRampSpawnCount(totalSlots, activeSlots, maxSlots uint32) uint32 {
+	target := activeSlots * 2
+	if target > maxSlots {
+		target = maxSlots
 	}
+	if target <= totalSlots {
+		return 0
+	}
+	return target - totalSlots
 }
 
-func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, pollPermits chan struct{}, openPollSlots, activeSlots *atomic.Uint32, sessionFailures chan<- error) error {
-	pollBackoff := defaultPollErrorBackoff
-	consecutiveSessionRejects := 0
+func tryRetirePullSlot(totalSlots, activeSlots *atomic.Uint32, minSlots uint32) bool {
 	for {
-		if err := ctx.Err(); err != nil {
-			return err
+		current := totalSlots.Load()
+		busy := activeSlots.Load()
+		if current <= minSlots+busy {
+			return false
+		}
+		if totalSlots.CompareAndSwap(current, current-1) {
+			return true
+		}
+	}
+}
+
+func (w *Worker) launchPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, openPollSlots, activeSlots, totalSlots *atomic.Uint32, sessionFailures chan<- error, slotEvents chan<- pullSlotEvent, sessionTasks *sync.WaitGroup) {
+	totalSlots.Add(1)
+	sessionTasks.Add(1)
+	go func() {
+		defer sessionTasks.Done()
+		retired, err := w.runPullSlot(ctx, client, sessionID, config, slot, openPollSlots, activeSlots, totalSlots, sessionFailures, slotEvents)
+		if !retired {
+			totalSlots.Add(^uint32(0))
 		}
 		select {
-		case pollPermits <- struct{}{}:
+		case slotEvents <- pullSlotEvent{type_: pullSlotExited, retired: retired, err: err}:
 		case <-ctx.Done():
-			return ctx.Err()
+		}
+	}()
+}
+
+func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, slot uint32, openPollSlots, activeSlots, totalSlots *atomic.Uint32, sessionFailures chan<- error, slotEvents chan<- pullSlotEvent) (bool, error) {
+	pollBackoff := defaultPollErrorBackoff
+	consecutiveSessionRejects := 0
+	consecutiveEmptyPolls := 0
+	retireThreshold := defaultRetireEmptyPolls + int(slot%2)
+	for {
+		if err := ctx.Err(); err != nil {
+			return false, err
 		}
 		openPollSlots.Add(1)
 		pollResp, err := client.PollJob(ctx, &pb.PollJobRequest{
@@ -201,25 +256,24 @@ func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient,
 			ClaimTimeoutMs:  config.claimTimeoutMS,
 		})
 		openPollSlots.Add(^uint32(0))
-		<-pollPermits
 		if err != nil {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return false, ctx.Err()
 			}
 			if code := status.Code(err); code == codes.PermissionDenied || code == codes.Unauthenticated {
 				consecutiveSessionRejects++
 				if consecutiveSessionRejects >= sessionRejectThreshold {
-					return fmt.Errorf("agnt5: pull worker session rejected: %w", err)
+					return false, fmt.Errorf("agnt5: pull worker session rejected: %w", err)
 				}
 				if sleepErr := sleepContext(ctx, pollBackoff); sleepErr != nil {
-					return sleepErr
+					return false, sleepErr
 				}
 				pollBackoff = nextBackoff(pollBackoff, defaultPollErrorBackoffMax)
 				continue
 			}
 			consecutiveSessionRejects = 0
 			if sleepErr := sleepContext(ctx, pollBackoff); sleepErr != nil {
-				return sleepErr
+				return false, sleepErr
 			}
 			pollBackoff = nextBackoff(pollBackoff, defaultPollErrorBackoffMax)
 			continue
@@ -228,14 +282,25 @@ func (w *Worker) runPullSlot(ctx context.Context, client pb.EngineServiceClient,
 		pollBackoff = defaultPollErrorBackoff
 		job := pollResp.GetJob()
 		if job == nil {
+			consecutiveEmptyPolls++
+			if consecutiveEmptyPolls >= retireThreshold && tryRetirePullSlot(totalSlots, activeSlots, config.minSlots) {
+				return true, nil
+			}
 			continue
 		}
+		consecutiveEmptyPolls = 0
 
-		activeSlots.Add(1)
+		activeStarted := activeSlots.Add(1)
+		select {
+		case slotEvents <- pullSlotEvent{type_: pullSlotStarted, activeStarted: activeStarted}:
+		case <-ctx.Done():
+			activeSlots.Add(^uint32(0))
+			return false, ctx.Err()
+		}
 		err = w.executePolledJob(ctx, client, sessionID, config.claimTimeoutMS, job, sessionFailures)
 		activeSlots.Add(^uint32(0))
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
 }
@@ -521,7 +586,7 @@ func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceC
 	}, onAuthorityLost)
 }
 
-func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots *atomic.Uint32, reportEvery time.Duration, sessionFailures chan<- error) {
+func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots, desiredSlots *atomic.Uint32, reportEvery time.Duration, sessionFailures chan<- error) {
 	consecutiveSessionRejects := 0
 	report := func() bool {
 		_, err := client.ReportWorkerCapacity(ctx, &pb.ReportWorkerCapacityRequest{
@@ -529,7 +594,7 @@ func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineService
 			WorkerSessionId:   sessionID,
 			OpenPollSlots:     openPollSlots.Load(),
 			ActiveSlots:       activeSlots.Load(),
-			DesiredSlots:      config.desiredSlots,
+			DesiredSlots:      desiredSlots.Load(),
 			EffectiveMaxSlots: config.maxSlots,
 			ObservedAtMs:      time.Now().UnixMilli(),
 		})
