@@ -7,6 +7,31 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-08
+
+### Added
+
+- Add durable activation V1 bindings, capability negotiation, deployment
+  artifact fencing, and replay-safe tool, model, timer, and delegated-child
+  execution.
+- Preserve execution lease authority and renew both push and pull worker
+  leases.
+- Expose invocation idempotency keys and wait for durably detached runs to be
+  accepted by the runtime.
+
+### Changed
+
+- Grow pull polling capacity as jobs become active, retire surplus idle
+  pollers, and report the live desired slot count while preserving the
+  runtime-provided idle floor.
+- Serialize streaming sends through the writer actor.
+
+### Fixed
+
+- Retry transient exact activation writes and preserve required child errors.
+- Skip completed durable sleeps during replay and preserve activation events
+  across pull pauses.
+
 ## [0.3.1] - 2026-07-31
 
 ### Fixed
@@ -76,7 +101,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/agnt5dev/sdk-go/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/agnt5dev/sdk-go/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/agnt5dev/sdk-go/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/agnt5dev/sdk-go/compare/v0.2.2...v0.2.3

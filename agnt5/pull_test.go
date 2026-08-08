@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -22,31 +23,35 @@ import (
 type testEngine struct {
 	pb.UnimplementedEngineServiceServer
 
-	mu             sync.Mutex
-	job            *pb.JobAssignment
-	jobPolled      bool
-	pollErrs       []error
-	renewErrs      []error
-	renewResults   []*pb.RenewJobLeaseResponse
-	completeErrs   []error
-	suspendErrs    []error
-	capacityErrs   []error
-	polled         chan *pb.PollJobRequest
-	registered     chan *pb.RegisterWorkerSessionRequest
-	completed      chan *pb.CompleteJobRequest
-	suspended      chan *pb.SuspendActivationRequest
-	renewed        chan *pb.RenewJobLeaseRequest
-	appends        chan *pb.AppendRequest
-	batches        chan *pb.AppendBatchRequest
-	streamed       chan *pb.EventStreamMessage
-	streamClosed   chan int64
-	streamAckBlock <-chan struct{}
-	capacity       chan *pb.ReportWorkerCapacityRequest
-	statePuts      chan *pb.PutEntityStateRequest
-	statePutErrs   []error
-	completeWait   bool
-	registerIDs    []string
-	registerCall   int
+	mu                sync.Mutex
+	job               *pb.JobAssignment
+	jobs              []*pb.JobAssignment
+	jobPolled         bool
+	pollErrs          []error
+	renewErrs         []error
+	renewResults      []*pb.RenewJobLeaseResponse
+	completeErrs      []error
+	suspendErrs       []error
+	capacityErrs      []error
+	polled            chan *pb.PollJobRequest
+	registered        chan *pb.RegisterWorkerSessionRequest
+	completed         chan *pb.CompleteJobRequest
+	suspended         chan *pb.SuspendActivationRequest
+	renewed           chan *pb.RenewJobLeaseRequest
+	appends           chan *pb.AppendRequest
+	batches           chan *pb.AppendBatchRequest
+	streamed          chan *pb.EventStreamMessage
+	streamClosed      chan int64
+	streamAckBlock    <-chan struct{}
+	capacity          chan *pb.ReportWorkerCapacityRequest
+	statePuts         chan *pb.PutEntityStateRequest
+	statePutErrs      []error
+	completeWait      bool
+	registerIDs       []string
+	registerCall      int
+	effectiveMinSlots uint32
+	pollActive        atomic.Int32
+	pollMax           atomic.Int32
 }
 
 func (s *testEngine) RegisterWorkerSession(_ context.Context, req *pb.RegisterWorkerSessionRequest) (*pb.RegisterWorkerSessionResponse, error) {
@@ -57,12 +62,16 @@ func (s *testEngine) RegisterWorkerSession(_ context.Context, req *pb.RegisterWo
 		sessionID = s.registerIDs[s.registerCall]
 	}
 	s.registerCall++
+	minSlots := s.effectiveMinSlots
+	if minSlots == 0 {
+		minSlots = 1
+	}
 	s.mu.Unlock()
 	return &pb.RegisterWorkerSessionResponse{
 		WorkerSessionId: sessionID,
 		ExpiresAtMs:     999999,
 		EffectiveSlotPolicy: &pb.WorkerSlotPolicy{
-			MinSlots:       1,
+			MinSlots:       minSlots,
 			MaxSlots:       req.GetMaxSlots(),
 			RampThrottleMs: 1,
 		},
@@ -80,6 +89,12 @@ func (s *testEngine) PollJob(ctx context.Context, req *pb.PollJobRequest) (*pb.P
 		s.mu.Unlock()
 		return nil, err
 	}
+	if len(s.jobs) > 0 {
+		job := s.jobs[0]
+		s.jobs = s.jobs[1:]
+		s.mu.Unlock()
+		return &pb.PollJobResponse{Job: job}, nil
+	}
 	if !s.jobPolled {
 		s.jobPolled = true
 		job := s.job
@@ -87,6 +102,14 @@ func (s *testEngine) PollJob(ctx context.Context, req *pb.PollJobRequest) (*pb.P
 		return &pb.PollJobResponse{Job: job}, nil
 	}
 	s.mu.Unlock()
+	active := s.pollActive.Add(1)
+	defer s.pollActive.Add(-1)
+	for {
+		maximum := s.pollMax.Load()
+		if active <= maximum || s.pollMax.CompareAndSwap(maximum, active) {
+			break
+		}
+	}
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
@@ -373,11 +396,27 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 }
 
 func TestWorkerRunPullRampsPollSlotsAboveMinimum(t *testing.T) {
+	t.Setenv(envMinSlots, "2")
+	t.Setenv(envMaxSlots, "8")
+	jobs := make([]*pb.JobAssignment, 4)
+	for i := range jobs {
+		id := fmt.Sprintf("run-ramp-%d", i)
+		jobs[i] = &pb.JobAssignment{
+			JobId:         id,
+			RunId:         id,
+			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
+			ComponentName: "block",
+			InputData:     []byte(`{}`),
+			LeaseId:       "lease-" + id,
+		}
+	}
 	server := &testEngine{
-		polled:     make(chan *pb.PollJobRequest, 2),
-		registered: make(chan *pb.RegisterWorkerSessionRequest, 1),
-		completed:  make(chan *pb.CompleteJobRequest, 1),
-		capacity:   make(chan *pb.ReportWorkerCapacityRequest, 2),
+		jobs:              jobs,
+		polled:            make(chan *pb.PollJobRequest, 12),
+		registered:        make(chan *pb.RegisterWorkerSessionRequest, 1),
+		completed:         make(chan *pb.CompleteJobRequest, 8),
+		capacity:          make(chan *pb.ReportWorkerCapacityRequest, 2),
+		effectiveMinSlots: 2,
 	}
 	listener := newTestEngineListener(t, server)
 	worker := NewWorker("svc",
@@ -386,9 +425,15 @@ func TestWorkerRunPullRampsPollSlotsAboveMinimum(t *testing.T) {
 		WithDeploymentID("dep-1"),
 		WithWorkerMode(WorkerModePull),
 		WithCoordinatorEndpoint("http://bufnet"),
-		WithMaxConcurrency(2),
+		WithMaxConcurrency(8),
 		withGRPCDialOptions(grpc.WithContextDialer(testBufconnDialer(listener))),
 	)
+	if err := RegisterFunction(worker, "block", func(ctx *Context, _ map[string]string) (map[string]string, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -396,12 +441,14 @@ func TestWorkerRunPullRampsPollSlotsAboveMinimum(t *testing.T) {
 		done <- worker.Run(ctx)
 	}()
 	<-server.registered
-	first := <-server.polled
-	second := <-server.polled
-	cancel()
-	if first.GetWorkerSessionId() != "session-1" || second.GetWorkerSessionId() != "session-1" {
-		t.Fatalf("poll sessions: %#v %#v", first, second)
+	deadline := time.Now().Add(time.Second)
+	for server.pollMax.Load() < 4 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
 	}
+	if got := server.pollMax.Load(); got < 4 {
+		t.Fatalf("maximum concurrent parked polls = %d, want at least 4", got)
+	}
+	cancel()
 	err := <-done
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("worker run: %v", err)
@@ -719,9 +766,11 @@ func TestReportPullCapacitySignalsRepeatedPermissionDenied(t *testing.T) {
 		WithProjectID("proj-1"),
 		WithDeploymentID("dep-1"),
 	)
-	config := pullSlotConfig{minSlots: 1, maxSlots: 1, desiredSlots: 1}
+	config := pullSlotConfig{minSlots: 1, maxSlots: 1}
 	var openPollSlots atomic.Uint32
 	var activeSlots atomic.Uint32
+	var desiredSlots atomic.Uint32
+	desiredSlots.Store(1)
 	sessionFailures := make(chan error, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -733,6 +782,7 @@ func TestReportPullCapacitySignalsRepeatedPermissionDenied(t *testing.T) {
 		config,
 		&openPollSlots,
 		&activeSlots,
+		&desiredSlots,
 		time.Millisecond,
 		sessionFailures,
 	)
@@ -965,18 +1015,39 @@ func TestDispatchRequestFromJobStampsPullDispatchMode(t *testing.T) {
 	}
 }
 
-func TestPollConcurrencyLimitReservesControlStream(t *testing.T) {
+func TestPullRampSpawnCount(t *testing.T) {
 	for _, test := range []struct {
-		config pullSlotConfig
-		want   int
+		total  uint32
+		active uint32
+		max    uint32
+		want   uint32
 	}{
-		{config: pullSlotConfig{minSlots: 1, maxSlots: 10}, want: 1},
-		{config: pullSlotConfig{minSlots: 2, maxSlots: 10}, want: 2},
-		{config: pullSlotConfig{minSlots: 10, maxSlots: 10}, want: 10},
+		{total: 2, active: 1, max: 10, want: 0},
+		{total: 2, active: 2, max: 10, want: 2},
+		{total: 4, active: 4, max: 10, want: 4},
+		{total: 8, active: 8, max: 10, want: 2},
+		{total: 10, active: 8, max: 10, want: 0},
 	} {
-		if got := pollConcurrencyLimit(test.config); got != test.want {
-			t.Fatalf("pollConcurrencyLimit(%+v) = %d, want %d", test.config, got, test.want)
+		if got := pullRampSpawnCount(test.total, test.active, test.max); got != test.want {
+			t.Fatalf("pullRampSpawnCount(%d, %d, %d) = %d, want %d", test.total, test.active, test.max, got, test.want)
 		}
+	}
+}
+
+func TestTryRetirePullSlotPreservesIdleFloor(t *testing.T) {
+	var totalSlots atomic.Uint32
+	var activeSlots atomic.Uint32
+	totalSlots.Store(5)
+	activeSlots.Store(2)
+
+	if !tryRetirePullSlot(&totalSlots, &activeSlots, 2) {
+		t.Fatal("expected surplus slot to retire")
+	}
+	if got := totalSlots.Load(); got != 4 {
+		t.Fatalf("total slots after retirement = %d, want 4", got)
+	}
+	if tryRetirePullSlot(&totalSlots, &activeSlots, 2) {
+		t.Fatal("retirement must preserve two idle slots")
 	}
 }
 
