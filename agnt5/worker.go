@@ -76,6 +76,9 @@ type Worker struct {
 	durableActivationOn   bool
 	durableSuspensionOn   bool
 	durableActivationWhy  string
+	externalMu            sync.Mutex
+	externalSession       *externalWorkerSession
+	legacyRoutingSet      bool
 }
 
 // NewWorker constructs a Go worker with environment-compatible defaults.
@@ -101,6 +104,7 @@ func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 		journalBatchSize:      uint32FromEnvDefault(envJournalBatchSize, defaultJournalBatchSize),
 		journalFlushEvery:     time.Duration(int64FromEnvDefault(envJournalFlushIntervalMS, defaultJournalFlushMS)) * time.Millisecond,
 		durableActivationMode: durableActivationModeFromEnv(),
+		legacyRoutingSet:      legacyRoutingConfiguredFromEnv(),
 	}
 	if w.projectID != "" {
 		w.metadata["project_id"] = w.projectID
@@ -276,8 +280,18 @@ func (w *Worker) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if err := w.configureExternalWorker(ctx); err != nil {
+		return err
+	}
 	if w.workerMode == WorkerModePull {
+		rediscoverBeforeAttempt := false
 		return w.runWithReconnect(ctx, func(ctx context.Context) error {
+			if rediscoverBeforeAttempt && w.externalSession != nil {
+				if err := w.rediscoverExternalWorker(ctx); err != nil {
+					return err
+				}
+			}
+			rediscoverBeforeAttempt = true
 			return w.runPull(ctx)
 		})
 	}
