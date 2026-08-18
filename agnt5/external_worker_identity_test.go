@@ -71,26 +71,18 @@ func TestExternalWorkerIdentityFileIsPrivateAtomicAndAuthorityBound(t *testing.T
 	}
 }
 
-func TestBootstrapIdentityConfigurationRequiresFileBackedSecretAndTmpfsPath(t *testing.T) {
+func TestExternalWorkerConfigurationDefersAuthenticationToDiscovery(t *testing.T) {
 	keyPath := filepath.Join(t.TempDir(), "bootstrap-key")
 	if err := os.WriteFile(keyPath, []byte("credential"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv(envExternalWorker, "true")
 	t.Setenv(envAPIKey, "")
 	t.Setenv(envAPIKeyFile, keyPath)
 	t.Setenv(envControlPlaneURL, "https://api.example.com")
-	t.Setenv(envWorkerIdentityMode, "bootstrap")
-	t.Setenv(envIdentityMTLSURL, "https://identity.example.com")
 	t.Setenv(envWorkerSessionDir, t.TempDir())
 	config, enabled, err := externalWorkerConfigFromEnv(false)
-	if err != nil || !enabled || !config.identityMode || config.sessionPath == "" {
+	if err != nil || !enabled || config.identityMode || config.identityURL != nil || config.sessionPath != "" {
 		t.Fatalf("identity config = %#v, enabled=%t, err=%v", config, enabled, err)
-	}
-	t.Setenv(envAPIKeyFile, "")
-	t.Setenv(envAPIKey, "inline-is-forbidden")
-	if _, _, err := externalWorkerConfigFromEnv(false); err == nil {
-		t.Fatal("inline bootstrap secret was accepted in identity mode")
 	}
 }
 

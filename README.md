@@ -171,8 +171,9 @@ the negotiated `MCP-Session-Id`.
 ### Customer-hosted workers
 
 For a worker on a customer Docker host or Kubernetes cluster, set
-`AGNT5_API_KEY_FILE` and `AGNT5_EXTERNAL_WORKER=true` instead of coordinator,
-engine, project, and deployment coordinates. `AGNT5_ENVIRONMENT` is an optional
+`AGNT5_API_KEY_FILE` instead of coordinator, engine, project, and deployment coordinates. The SDK
+recognizes the file-backed bootstrap automatically; there is no separate external-worker mode.
+`AGNT5_ENVIRONMENT` is an optional
 placement selector, and `AGNT5_CONTROL_PLANE_URL` defaults to
 `https://api.agnt5.com`.
 

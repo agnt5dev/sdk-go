@@ -21,7 +21,6 @@ func clearExternalWorkerEnv(t *testing.T) {
 		envAPIKey,
 		envAPIKeyFile,
 		envControlPlaneURL,
-		envExternalWorker,
 		envEnvironment,
 		envCoordinatorEndpoint,
 		envEngineURL,
@@ -112,12 +111,18 @@ func TestExternalWorkerDiscoversExchangesAndRefreshes(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		switch request.URL.Path {
 		case "/api/v1/worker-discovery":
-			var body map[string]string
+			var body struct {
+				Environment           string   `json:"environment"`
+				SupportedAuthProfiles []string `json:"supported_auth_profiles"`
+			}
 			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
 				t.Errorf("decode discovery request: %v", err)
 			}
-			if body["environment"] != "production" {
-				t.Errorf("environment = %q", body["environment"])
+			if body.Environment != "production" {
+				t.Errorf("environment = %q", body.Environment)
+			}
+			if len(body.SupportedAuthProfiles) != 2 || body.SupportedAuthProfiles[0] != authProfileBootstrapMTLS {
+				t.Errorf("supported auth profiles = %v", body.SupportedAuthProfiles)
 			}
 			_ = json.NewEncoder(writer).Encode(externalWorkerConnection{
 				ProjectID:       "project-1",

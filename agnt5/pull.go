@@ -71,7 +71,7 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 		return err
 	}
 	if w.externalSession != nil {
-		fmt.Printf("AGNT5 external worker registered (deployment=%s)\n", w.deploymentID)
+		fmt.Printf("AGNT5 worker registered (deployment=%s)\n", w.deploymentID)
 	}
 	w.writeHealthMarker()
 	defer w.removeHealthMarker()
@@ -117,7 +117,7 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 	}
 	spawnSlots(config.minSlots)
 	if w.externalSession != nil {
-		fmt.Printf("AGNT5 external worker ready (deployment=%s min_slots=%d max_slots=%d)\n", w.deploymentID, config.minSlots, config.maxSlots)
+		fmt.Printf("AGNT5 worker ready (deployment=%s min_slots=%d max_slots=%d)\n", w.deploymentID, config.minSlots, config.maxSlots)
 	}
 
 	var result error

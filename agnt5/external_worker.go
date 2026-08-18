@@ -22,13 +22,12 @@ import (
 const (
 	defaultControlPlaneURL       = "https://api.agnt5.com"
 	externalWorkerProtocolPullV1 = "pull.v1"
+	authProfileBootstrapMTLS     = "bootstrap-mtls"
+	authProfileTokenAuth         = "token-auth"
 	externalTokenRefreshSkew     = time.Minute
 	envAPIKeyFile                = "AGNT5_API_KEY_FILE"
 	envControlPlaneURL           = "AGNT5_CONTROL_PLANE_URL"
-	envExternalWorker            = "AGNT5_EXTERNAL_WORKER"
 	envEnvironment               = "AGNT5_ENVIRONMENT"
-	envWorkerIdentityMode        = "AGNT5_WORKER_IDENTITY_MODE"
-	envIdentityMTLSURL           = "AGNT5_IDENTITY_MTLS_URL"
 	envWorkerSessionDir          = "AGNT5_WORKER_SESSION_DIR"
 )
 
@@ -64,13 +63,15 @@ type externalWorkerBootstrapConfig struct {
 }
 
 type externalWorkerConnection struct {
-	ProjectID       string `json:"project_id"`
-	EnvironmentID   string `json:"environment_id"`
-	DeploymentID    string `json:"deployment_id"`
-	WorkerPoolID    string `json:"worker_pool_id"`
-	Placement       string `json:"placement"`
-	RuntimeEndpoint string `json:"runtime_endpoint"`
-	Protocol        string `json:"protocol"`
+	ProjectID        string `json:"project_id"`
+	EnvironmentID    string `json:"environment_id"`
+	DeploymentID     string `json:"deployment_id"`
+	WorkerPoolID     string `json:"worker_pool_id"`
+	Placement        string `json:"placement"`
+	RuntimeEndpoint  string `json:"runtime_endpoint"`
+	Protocol         string `json:"protocol"`
+	AuthProfile      string `json:"auth_profile"`
+	IdentityEndpoint string `json:"identity_endpoint,omitempty"`
 }
 
 type externalWorkerTokenResponse struct {
@@ -91,15 +92,14 @@ type externalWorkerSession struct {
 func externalWorkerConfigFromEnv(legacyRoutingSet bool) (externalWorkerBootstrapConfig, bool, error) {
 	keyFile := strings.TrimSpace(os.Getenv(envAPIKeyFile))
 	inlineKey := strings.TrimSpace(os.Getenv(envAPIKey))
-	explicit := envBool(envExternalWorker)
-	if keyFile == "" && !explicit && (inlineKey == "" || legacyRoutingSet) {
+	if keyFile == "" && (inlineKey == "" || legacyRoutingSet) {
 		return externalWorkerBootstrapConfig{}, false, nil
 	}
 	if keyFile != "" && inlineKey != "" {
 		return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: configure only one of %s or %s", envAPIKeyFile, envAPIKey)
 	}
 	if keyFile == "" && inlineKey == "" {
-		return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: %s requires %s or %s", envExternalWorker, envAPIKeyFile, envAPIKey)
+		return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: remote worker bootstrap requires %s or %s", envAPIKeyFile, envAPIKey)
 	}
 	controlPlane := strings.TrimSpace(os.Getenv(envControlPlaneURL))
 	if controlPlane == "" {
@@ -115,35 +115,11 @@ func externalWorkerConfigFromEnv(legacyRoutingSet bool) (externalWorkerBootstrap
 			return errors.New("external worker bootstrap redirects are not allowed")
 		},
 	}
-	identityMode := bootstrapIdentityMode()
-	var identityURL *url.URL
-	var sessionPath string
-	if identityMode {
-		if keyFile == "" || inlineKey != "" {
-			return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: bootstrap identity requires %s and forbids inline API keys", envAPIKeyFile)
-		}
-		rawIdentityURL := strings.TrimSpace(os.Getenv(envIdentityMTLSURL))
-		if rawIdentityURL == "" {
-			rawIdentityURL = controlPlane
-		}
-		identityURL, err = validateExternalEndpoint(rawIdentityURL, "identity mTLS")
-		if err != nil {
-			return externalWorkerBootstrapConfig{}, false, err
-		}
-		sessionDir := strings.TrimSpace(os.Getenv(envWorkerSessionDir))
-		if sessionDir == "" {
-			return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: %s is required for bootstrap identity", envWorkerSessionDir)
-		}
-		sessionPath = filepath.Join(sessionDir, externalWorkerSessionFile)
-	}
 	return externalWorkerBootstrapConfig{
 		controlPlaneURL: parsed,
 		environment:     strings.TrimSpace(os.Getenv(envEnvironment)),
 		credential:      externalWorkerCredential{inline: inlineKey, file: keyFile},
 		httpClient:      client,
-		identityMode:    identityMode,
-		identityURL:     identityURL,
-		sessionPath:     sessionPath,
 	}, true, nil
 }
 
@@ -153,13 +129,36 @@ func connectExternalWorker(ctx context.Context, config externalWorkerBootstrapCo
 		return nil, err
 	}
 	var connection externalWorkerConnection
-	if err := externalWorkerRequest(ctx, config, credential, "api/v1/worker-discovery", map[string]string{
-		"environment": config.environment,
+	if err := externalWorkerRequest(ctx, config, credential, "api/v1/worker-discovery", map[string]any{
+		"environment":             config.environment,
+		"supported_auth_profiles": []string{authProfileBootstrapMTLS, authProfileTokenAuth},
 	}, &connection); err != nil {
 		return nil, err
 	}
 	if err := validateExternalWorkerConnection(connection); err != nil {
 		return nil, err
+	}
+	if connection.AuthProfile == "" {
+		connection.AuthProfile = authProfileTokenAuth
+	}
+	switch connection.AuthProfile {
+	case authProfileBootstrapMTLS:
+		if config.credential.file == "" || config.credential.inline != "" {
+			return nil, fmt.Errorf("agnt5: bootstrap-mtls requires %s and forbids inline API keys", envAPIKeyFile)
+		}
+		config.identityURL, err = validateExternalEndpoint(connection.IdentityEndpoint, "discovered identity")
+		if err != nil {
+			return nil, err
+		}
+		sessionDir := strings.TrimSpace(os.Getenv(envWorkerSessionDir))
+		if sessionDir == "" {
+			return nil, fmt.Errorf("agnt5: %s is required for bootstrap-mtls", envWorkerSessionDir)
+		}
+		config.identityMode = true
+		config.sessionPath = filepath.Join(sessionDir, externalWorkerSessionFile)
+	case authProfileTokenAuth:
+	default:
+		return nil, fmt.Errorf("agnt5: worker discovery selected unsupported authentication profile %q", connection.AuthProfile)
 	}
 	session := &externalWorkerSession{config: config, connection: connection}
 	if config.identityMode {
@@ -361,7 +360,7 @@ func (w *Worker) configureExternalWorker(ctx context.Context) error {
 	}
 	w.externalSession = session
 	w.syncRuntimeMetadata()
-	fmt.Printf("AGNT5 external worker authenticated (environment=%s deployment=%s)\n", session.connection.EnvironmentID, session.connection.DeploymentID)
+	fmt.Printf("AGNT5 worker authenticated through remote bootstrap (environment=%s deployment=%s)\n", session.connection.EnvironmentID, session.connection.DeploymentID)
 	return nil
 }
 
@@ -402,13 +401,4 @@ func (w *Worker) rediscoverExternalWorker(ctx context.Context) error {
 	w.deploymentID = refreshed.connection.DeploymentID
 	w.syncRuntimeMetadata()
 	return nil
-}
-
-func bootstrapIdentityMode() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(envWorkerIdentityMode))) {
-	case "bootstrap", "required":
-		return true
-	default:
-		return false
-	}
 }
