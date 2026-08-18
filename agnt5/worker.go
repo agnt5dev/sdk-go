@@ -78,6 +78,7 @@ type Worker struct {
 	durableActivationWhy  string
 	externalMu            sync.Mutex
 	externalSession       *externalWorkerSession
+	externalTLSOption     int
 	legacyRoutingSet      bool
 }
 
@@ -105,6 +106,7 @@ func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 		journalFlushEvery:     time.Duration(int64FromEnvDefault(envJournalFlushIntervalMS, defaultJournalFlushMS)) * time.Millisecond,
 		durableActivationMode: durableActivationModeFromEnv(),
 		legacyRoutingSet:      legacyRoutingConfiguredFromEnv(),
+		externalTLSOption:     -1,
 	}
 	if w.projectID != "" {
 		w.metadata["project_id"] = w.projectID

@@ -27,6 +27,9 @@ const (
 	envControlPlaneURL           = "AGNT5_CONTROL_PLANE_URL"
 	envExternalWorker            = "AGNT5_EXTERNAL_WORKER"
 	envEnvironment               = "AGNT5_ENVIRONMENT"
+	envWorkerIdentityMode        = "AGNT5_WORKER_IDENTITY_MODE"
+	envIdentityMTLSURL           = "AGNT5_IDENTITY_MTLS_URL"
+	envWorkerSessionDir          = "AGNT5_WORKER_SESSION_DIR"
 )
 
 type externalWorkerCredential struct {
@@ -55,6 +58,9 @@ type externalWorkerBootstrapConfig struct {
 	environment     string
 	credential      externalWorkerCredential
 	httpClient      *http.Client
+	identityMode    bool
+	identityURL     *url.URL
+	sessionPath     string
 }
 
 type externalWorkerConnection struct {
@@ -79,6 +85,7 @@ type externalWorkerSession struct {
 	mu         sync.Mutex
 	token      string
 	expiresAt  time.Time
+	identity   *externalWorkerIdentity
 }
 
 func externalWorkerConfigFromEnv(legacyRoutingSet bool) (externalWorkerBootstrapConfig, bool, error) {
@@ -108,11 +115,35 @@ func externalWorkerConfigFromEnv(legacyRoutingSet bool) (externalWorkerBootstrap
 			return errors.New("external worker bootstrap redirects are not allowed")
 		},
 	}
+	identityMode := bootstrapIdentityMode()
+	var identityURL *url.URL
+	var sessionPath string
+	if identityMode {
+		if keyFile == "" || inlineKey != "" {
+			return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: bootstrap identity requires %s and forbids inline API keys", envAPIKeyFile)
+		}
+		rawIdentityURL := strings.TrimSpace(os.Getenv(envIdentityMTLSURL))
+		if rawIdentityURL == "" {
+			rawIdentityURL = controlPlane
+		}
+		identityURL, err = validateExternalEndpoint(rawIdentityURL, "identity mTLS")
+		if err != nil {
+			return externalWorkerBootstrapConfig{}, false, err
+		}
+		sessionDir := strings.TrimSpace(os.Getenv(envWorkerSessionDir))
+		if sessionDir == "" {
+			return externalWorkerBootstrapConfig{}, false, fmt.Errorf("agnt5: %s is required for bootstrap identity", envWorkerSessionDir)
+		}
+		sessionPath = filepath.Join(sessionDir, externalWorkerSessionFile)
+	}
 	return externalWorkerBootstrapConfig{
 		controlPlaneURL: parsed,
 		environment:     strings.TrimSpace(os.Getenv(envEnvironment)),
 		credential:      externalWorkerCredential{inline: inlineKey, file: keyFile},
 		httpClient:      client,
+		identityMode:    identityMode,
+		identityURL:     identityURL,
+		sessionPath:     sessionPath,
 	}, true, nil
 }
 
@@ -131,8 +162,18 @@ func connectExternalWorker(ctx context.Context, config externalWorkerBootstrapCo
 		return nil, err
 	}
 	session := &externalWorkerSession{config: config, connection: connection}
-	if err := session.refreshLocked(ctx, credential); err != nil {
-		return nil, err
+	if config.identityMode {
+		identity, err := loadOrOpenExternalWorkerIdentity(ctx, config, credential, connection)
+		if err != nil {
+			return nil, err
+		}
+		session.identity = identity
+		session.token = identity.WorkloadToken
+		session.expiresAt = identity.TokenExpiresAt
+	} else {
+		if err := session.refreshLocked(ctx, credential); err != nil {
+			return nil, err
+		}
 	}
 	return session, nil
 }
@@ -143,7 +184,19 @@ func connectExternalWorker(ctx context.Context, config externalWorkerBootstrapCo
 func (s *externalWorkerSession) GetRequestMetadata(ctx context.Context, _ ...string) (map[string]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.identity != nil && !time.Now().Before(s.identity.RenewAfter) {
+		if err := s.renewIdentityLocked(ctx); err != nil {
+			return nil, err
+		}
+		return nil, errExternalWorkerIdentityRotated
+	}
 	if s.token == "" || time.Until(s.expiresAt) <= externalTokenRefreshSkew {
+		if s.identity != nil {
+			if err := s.refreshIdentityTokenLocked(ctx); err != nil {
+				return nil, err
+			}
+			return map[string]string{"authorization": "Bearer " + s.token}, nil
+		}
 		credential, err := s.config.credential.load()
 		if err != nil {
 			return nil, err
@@ -158,7 +211,7 @@ func (s *externalWorkerSession) GetRequestMetadata(ctx context.Context, _ ...str
 // Endpoint validation already rejects non-loopback plaintext. Returning false
 // here permits the explicit localhost development exception while production
 // endpoints remain protected by verified TLS transport credentials.
-func (*externalWorkerSession) RequireTransportSecurity() bool { return false }
+func (s *externalWorkerSession) RequireTransportSecurity() bool { return s.identity != nil }
 
 func (s *externalWorkerSession) refreshLocked(ctx context.Context, credential string) error {
 	var token externalWorkerTokenResponse
@@ -297,6 +350,15 @@ func (w *Worker) configureExternalWorker(ctx context.Context) error {
 	w.deploymentID = session.connection.DeploymentID
 	w.workerMode = WorkerModePull
 	w.grpcDialOptions = append(w.grpcDialOptions, grpc.WithPerRPCCredentials(session))
+	if session.identity != nil {
+		transport, err := session.transportCredentials()
+		if err != nil {
+			return err
+		}
+		w.externalTLSOption = len(w.grpcDialOptions)
+		w.grpcDialOptions = append(w.grpcDialOptions, grpc.WithTransportCredentials(transport))
+		w.workerID = session.identity.WorkerID
+	}
 	w.externalSession = session
 	w.syncRuntimeMetadata()
 	fmt.Printf("AGNT5 external worker authenticated (environment=%s deployment=%s)\n", session.connection.EnvironmentID, session.connection.DeploymentID)
@@ -323,7 +385,16 @@ func (w *Worker) rediscoverExternalWorker(ctx context.Context) error {
 	current.connection = refreshed.connection
 	current.token = refreshed.token
 	current.expiresAt = refreshed.expiresAt
+	current.identity = refreshed.identity
 	current.mu.Unlock()
+	if current.identity != nil && w.externalTLSOption >= 0 {
+		transport, err := current.transportCredentials()
+		if err != nil {
+			return err
+		}
+		w.grpcDialOptions[w.externalTLSOption] = grpc.WithTransportCredentials(transport)
+		w.workerID = current.identity.WorkerID
+	}
 
 	w.coordinatorEndpoint = refreshed.connection.RuntimeEndpoint
 	w.engineEndpoint = refreshed.connection.RuntimeEndpoint
@@ -331,4 +402,13 @@ func (w *Worker) rediscoverExternalWorker(ctx context.Context) error {
 	w.deploymentID = refreshed.connection.DeploymentID
 	w.syncRuntimeMetadata()
 	return nil
+}
+
+func bootstrapIdentityMode() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(envWorkerIdentityMode))) {
+	case "bootstrap", "required":
+		return true
+	default:
+		return false
+	}
 }
