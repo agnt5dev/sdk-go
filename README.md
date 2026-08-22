@@ -168,6 +168,20 @@ the negotiated `MCP-Session-Id`.
 | `AGNT5_API_KEY` | Service key used by the client |
 | `AGNT5_GATEWAY_URL` | Gateway base URL used by the client |
 
+### Customer-hosted workers
+
+For a worker on a customer Docker host or Kubernetes cluster, set
+`AGNT5_API_KEY_FILE` instead of coordinator, engine, project, and deployment coordinates. The SDK
+recognizes the file-backed bootstrap automatically; there is no separate external-worker mode.
+`AGNT5_ENVIRONMENT` is an optional
+placement selector, and `AGNT5_CONTROL_PLANE_URL` defaults to
+`https://api.agnt5.com`.
+
+`Worker.Run` discovers its authorized placement, exchanges the service key for
+a short-lived workload bearer, switches to pull mode, and refreshes credentials
+on reconnect. The service key is never sent to the runtime. External endpoints
+require verified TLS except for the explicit loopback development path.
+
 See the package configuration types for retry, slot, lease, queue, and
 streaming controls.
 

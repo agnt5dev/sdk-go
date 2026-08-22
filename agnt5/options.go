@@ -1,6 +1,9 @@
 package agnt5
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // WorkerOption mutates Worker configuration during construction.
 type WorkerOption func(*Worker)
@@ -36,6 +39,7 @@ func WithServiceType(serviceType string) WorkerOption {
 func WithCoordinatorEndpoint(endpoint string) WorkerOption {
 	return func(w *Worker) {
 		w.coordinatorEndpoint = endpoint
+		w.legacyRoutingSet = w.legacyRoutingSet || strings.TrimSpace(endpoint) != ""
 	}
 }
 
@@ -44,6 +48,7 @@ func WithCoordinatorEndpoint(endpoint string) WorkerOption {
 func WithEngineEndpoint(endpoint string) WorkerOption {
 	return func(w *Worker) {
 		w.engineEndpoint = endpoint
+		w.legacyRoutingSet = w.legacyRoutingSet || strings.TrimSpace(endpoint) != ""
 	}
 }
 
@@ -51,6 +56,7 @@ func WithEngineEndpoint(endpoint string) WorkerOption {
 func WithProjectID(projectID string) WorkerOption {
 	return func(w *Worker) {
 		w.projectID = projectID
+		w.legacyRoutingSet = w.legacyRoutingSet || strings.TrimSpace(projectID) != ""
 		if projectID != "" {
 			w.metadata["project_id"] = projectID
 		}
@@ -61,6 +67,7 @@ func WithProjectID(projectID string) WorkerOption {
 func WithDeploymentID(deploymentID string) WorkerOption {
 	return func(w *Worker) {
 		w.deploymentID = deploymentID
+		w.legacyRoutingSet = w.legacyRoutingSet || strings.TrimSpace(deploymentID) != ""
 		if deploymentID != "" {
 			w.metadata["deployment_id"] = deploymentID
 		}
