@@ -75,6 +75,18 @@ func TestNewWorkerDefaultsAndOptions(t *testing.T) {
 	}
 }
 
+func TestNewWorkerRegistersEnvironmentConcurrencyWithoutExplicitOption(t *testing.T) {
+	t.Setenv(envMaxConcurrency, "16")
+
+	worker := NewWorker("svc")
+	if worker.MaxConcurrency() != 16 {
+		t.Fatalf("max concurrency: %d", worker.MaxConcurrency())
+	}
+	if got := worker.registerService().GetMaxConcurrency(); got != 16 {
+		t.Fatalf("registered max concurrency: %d", got)
+	}
+}
+
 func TestRunWithReconnectRetriesTransientErrors(t *testing.T) {
 	worker := NewWorker("svc",
 		WithMaxReconnects(2),

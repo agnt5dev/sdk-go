@@ -70,6 +70,7 @@ func (w *Worker) runPullWorker(ctx context.Context, client pb.EngineServiceClien
 	); err != nil {
 		return err
 	}
+	w.printConnected()
 	if w.externalSession != nil {
 		fmt.Printf("AGNT5 worker registered (deployment=%s)\n", w.deploymentID)
 	}

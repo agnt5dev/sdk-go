@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"sync"
@@ -80,6 +81,7 @@ type Worker struct {
 	externalSession       *externalWorkerSession
 	externalTLSOption     int
 	legacyRoutingSet      bool
+	startupWriter         io.Writer
 }
 
 // NewWorker constructs a Go worker with environment-compatible defaults.
@@ -107,6 +109,7 @@ func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 		durableActivationMode: durableActivationModeFromEnv(),
 		legacyRoutingSet:      legacyRoutingConfiguredFromEnv(),
 		externalTLSOption:     -1,
+		startupWriter:         os.Stdout,
 	}
 	if w.projectID != "" {
 		w.metadata["project_id"] = w.projectID
@@ -285,6 +288,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err := w.configureExternalWorker(ctx); err != nil {
 		return err
 	}
+	w.printStartupBanner()
 	if w.workerMode == WorkerModePull {
 		rediscoverBeforeAttempt := false
 		return w.runWithReconnect(ctx, func(ctx context.Context) error {
@@ -298,6 +302,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		})
 	}
 	return w.runWithReconnect(ctx, func(ctx context.Context) error {
+		w.printConnecting()
 		conn, err := dialCoordinator(ctx, w.coordinatorEndpoint, w.grpcDialOptions...)
 		if err != nil {
 			return err
@@ -330,6 +335,7 @@ func (w *Worker) runPull(ctx context.Context) error {
 	if endpoint == "" {
 		endpoint = w.coordinatorEndpoint
 	}
+	w.printConnecting()
 	conn, err := dialEngine(ctx, endpoint, w.grpcDialOptions...)
 	if err != nil {
 		return err
