@@ -7,6 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-24
+
+### Added
+
+- Add the remote worker bootstrap identity lifecycle and negotiate managed
+  worker authentication and transport security from the bootstrap profile.
+
+### Fixed
+
+- Print the registered Go component tree, project dashboard URL, and
+  coordinator connection lifecycle during `agnt5 dev` startup.
+
 ## [0.4.0] - 2026-08-08
 
 ### Added
@@ -101,7 +113,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/agnt5dev/sdk-go/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/agnt5dev/sdk-go/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/agnt5dev/sdk-go/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/agnt5dev/sdk-go/compare/v0.2.3...v0.3.0

@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+func TestNewWorkerDefaultServiceVersion(t *testing.T) {
+	worker := NewWorker("svc")
+	if got := worker.ServiceVersion(); got != "0.4.1" {
+		t.Fatalf("default service version: %q", got)
+	}
+}
+
 func TestNewWorkerDefaultsAndOptions(t *testing.T) {
 	t.Setenv(envCoordinatorEndpoint, "http://runtime.example:34186")
 	t.Setenv(envEngineURL, "http://engine.example:34182")
