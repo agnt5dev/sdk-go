@@ -128,6 +128,7 @@ func (w *Worker) openRegisteredStream(ctx context.Context, client pb.WorkerCoord
 	); err != nil {
 		return nil, err
 	}
+	w.printConnected()
 	return stream, nil
 }
 

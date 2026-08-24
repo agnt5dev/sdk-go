@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+func TestNewWorkerDefaultServiceVersion(t *testing.T) {
+	worker := NewWorker("svc")
+	if got := worker.ServiceVersion(); got != "0.4.1" {
+		t.Fatalf("default service version: %q", got)
+	}
+}
+
 func TestNewWorkerDefaultsAndOptions(t *testing.T) {
 	t.Setenv(envCoordinatorEndpoint, "http://runtime.example:34186")
 	t.Setenv(envEngineURL, "http://engine.example:34182")
@@ -72,6 +79,18 @@ func TestNewWorkerDefaultsAndOptions(t *testing.T) {
 	metadata["owner"] = "mutated"
 	if worker.Metadata()["owner"] != "sdk" {
 		t.Fatal("metadata was not defensively copied")
+	}
+}
+
+func TestNewWorkerRegistersEnvironmentConcurrencyWithoutExplicitOption(t *testing.T) {
+	t.Setenv(envMaxConcurrency, "16")
+
+	worker := NewWorker("svc")
+	if worker.MaxConcurrency() != 16 {
+		t.Fatalf("max concurrency: %d", worker.MaxConcurrency())
+	}
+	if got := worker.registerService().GetMaxConcurrency(); got != 16 {
+		t.Fatalf("registered max concurrency: %d", got)
 	}
 }
 
