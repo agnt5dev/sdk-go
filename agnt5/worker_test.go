@@ -289,16 +289,18 @@ func TestInvocationMetadataPreservesPullSessionAuthority(t *testing.T) {
 func TestInvocationEventMetadataCannotOverrideExecutionAuthority(t *testing.T) {
 	metadata := mergeInvocationEventMetadata(
 		map[string]string{
-			"dispatch_mode":     "pull",
-			"worker_id":         "worker-1",
-			"worker_session_id": "session-1",
-			"lease_id":          "lease-1",
-			"lease_attempt":     "1",
+			"dispatch_mode":            "pull",
+			"worker_id":                "worker-1",
+			"worker_session_id":        "session-1",
+			"lease_id":                 "lease-1",
+			"lease_attempt":            "1",
+			"assignment_commit_offset": "42",
 		},
 		map[string]string{
-			"worker_id": "forged-worker",
-			"lease_id":  "forged-lease",
-			"custom":    "preserved",
+			"worker_id":                "forged-worker",
+			"lease_id":                 "forged-lease",
+			"assignment_commit_offset": "999",
+			"custom":                   "preserved",
 		},
 	)
 
@@ -307,6 +309,9 @@ func TestInvocationEventMetadataCannotOverrideExecutionAuthority(t *testing.T) {
 	}
 	if got := metadata["lease_id"]; got != "lease-1" {
 		t.Fatalf("lease_id = %q, want lease-1", got)
+	}
+	if got := metadata["assignment_commit_offset"]; got != "42" {
+		t.Fatalf("assignment_commit_offset = %q, want 42", got)
 	}
 	if got := metadata["custom"]; got != "preserved" {
 		t.Fatalf("custom = %q, want preserved", got)

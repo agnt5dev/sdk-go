@@ -77,6 +77,9 @@ type Worker struct {
 	durableActivationOn   bool
 	durableSuspensionOn   bool
 	durableActivationWhy  string
+	pullLifecycleOn       bool
+	foldMu                sync.Mutex
+	lifecycleFolds        map[string]*lifecycleFold
 	externalMu            sync.Mutex
 	externalSession       *externalWorkerSession
 	externalTLSOption     int
@@ -487,7 +490,7 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 		return InvocationResult{}, err
 	}
 	inv = w.withActivationMetadata(inv, component)
-	runCtx := newContext(ctx, inv, w.checkpointWriter, canonicalProjectID(inv.Metadata), w.stateStore)
+	runCtx := newContext(ctx, inv, w.foldingCheckpointWriterFor(inv.RunID), canonicalProjectID(inv.Metadata), w.stateStore)
 	runCorrelationID := runCorrelationIDFromRunID(inv.RunID)
 	if len(streamParentCorrelationID) > 1 && streamParentCorrelationID[1] != "" {
 		runCorrelationID = streamParentCorrelationID[1]

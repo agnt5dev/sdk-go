@@ -7,6 +7,37 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-02
+
+### Changed
+
+- Durable activations are now the step boundary records. When the runtime
+  negotiates `durable_activation_v1`, the SDK no longer emits its own
+  `workflow.step.*`, `lm.*`, `tool_call.*`, or child `agent.*` lifecycle
+  events for STEP, TIMER, MODEL, TOOL, and CHILD activations; the runtime
+  journals one kind-named record per side from the activation RPCs. The SDK
+  now supplies `display_name` and a JSON `input_data` (capped at 64 KiB) on
+  `BeginActivation`, `latency_ms` on `FailActivation`, and `cached_tokens` in
+  model usage. A replayed activation emits nothing.
+- Events emitted inside a durable activation (nested activations, `Task`
+  `function.*` events, model stream deltas, child-agent iteration events)
+  now use the activation ID as their parent correlation ID, so they attach to
+  the journal record instead of the enclosing component.
+- Regenerated `internal/pb/api/v1/engine.pb.go` from the updated SDK proto;
+  the `Activation*Record` / `ActivationJournalRecord` messages were removed.
+- Trace assertions (`LMCalls`, `MaxTokens`, `MaxLMCalls`, `NoErrors`) now
+  match the runtime's `lm.completed` / `lm.failed` event names, and
+  `StepMemoized` also accepts a record whose `decision` is `replay`.
+
+Legacy (non-durable) contexts, HITL, top-level `agent.*` / `function.*`
+dispatch lifecycle, and stream deltas are unchanged.
+
+### Fixed
+
+- Pin the runtime-authored assignment commit offset on lifecycle records so
+  append-time lease fencing can bridge projection lag immediately after a
+  pull claim.
+
 ## [0.4.1] - 2026-08-24
 
 ### Added

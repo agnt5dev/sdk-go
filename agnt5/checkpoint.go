@@ -427,10 +427,22 @@ func (w *Worker) writeEvent(ctx context.Context, event journalEvent) error {
 	if w.eventWriter == nil {
 		return nil
 	}
+	if fold := w.lifecycleFoldFor(event.RunID); fold != nil {
+		fold.push(event)
+		return nil
+	}
 	return w.eventWriter.WriteEvent(ctx, event)
 }
 
+// writeEvents appends events, holding back those whose run is folded into a
+// pending CompleteJob bundle.
 func (w *Worker) writeEvents(ctx context.Context, events []journalEvent) error {
+	return w.writeEventsDirect(ctx, w.foldEvents(events))
+}
+
+// writeEventsDirect appends events through the configured writer regardless
+// of any fold; used to flush held events and by writeEvents after folding.
+func (w *Worker) writeEventsDirect(ctx context.Context, events []journalEvent) error {
 	if w.eventWriter == nil || len(events) == 0 {
 		return nil
 	}

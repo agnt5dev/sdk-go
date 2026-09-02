@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,7 @@ type testEngine struct {
 	streamed          chan *pb.EventStreamMessage
 	streamClosed      chan int64
 	streamAckBlock    <-chan struct{}
+	protocolCaps      []string
 	capacity          chan *pb.ReportWorkerCapacityRequest
 	statePuts         chan *pb.PutEntityStateRequest
 	statePutErrs      []error
@@ -68,8 +70,9 @@ func (s *testEngine) RegisterWorkerSession(_ context.Context, req *pb.RegisterWo
 	}
 	s.mu.Unlock()
 	return &pb.RegisterWorkerSessionResponse{
-		WorkerSessionId: sessionID,
-		ExpiresAtMs:     999999,
+		WorkerSessionId:               sessionID,
+		ExpiresAtMs:                   999999,
+		SupportedProtocolCapabilities: s.protocolCaps,
 		EffectiveSlotPolicy: &pb.WorkerSlotPolicy{
 			MinSlots:       minSlots,
 			MaxSlots:       req.GetMaxSlots(),
@@ -320,6 +323,7 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 		registered: make(chan *pb.RegisterWorkerSessionRequest, 1),
 		completed:  make(chan *pb.CompleteJobRequest, 1),
 		appends:    make(chan *pb.AppendRequest, 4),
+		batches:    make(chan *pb.AppendBatchRequest, 2),
 		capacity:   make(chan *pb.ReportWorkerCapacityRequest, 2),
 	}
 	listener := newTestEngineListener(t, server)
@@ -381,12 +385,24 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 		t.Fatalf("output: %#v", output)
 	}
 
-	eventTypes := collectAppendTypes(t, server.appends, 3)
-	want := []string{"run.started", "function.started", "function.completed"}
-	for i := range want {
-		if eventTypes[i] != want[i] {
-			t.Fatalf("event types = %#v, want %#v", eventTypes, want)
-		}
+	// Without the lifecycle capability the started pair still travels as one
+	// acknowledged batch and the completion as its own append.
+	var batch *pb.AppendBatchRequest
+	select {
+	case batch = <-server.batches:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the started batch")
+	}
+	var batchTypes []string
+	for _, record := range batch.GetRecords() {
+		batchTypes = append(batchTypes, record.GetEventType())
+	}
+	if !reflect.DeepEqual(batchTypes, []string{"run.started", "function.started"}) {
+		t.Fatalf("started batch = %#v", batchTypes)
+	}
+	eventTypes := collectAppendTypes(t, server.appends, 1)
+	if eventTypes[0] != "function.completed" {
+		t.Fatalf("event types = %#v", eventTypes)
 	}
 
 	err := <-done
@@ -1080,6 +1096,7 @@ func TestCompletePolledJobRejectsMismatchedLease(t *testing.T) {
 			Success:      true,
 			LeaseId:      "lease-stale",
 		},
+		nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "stale lease") {
 		t.Fatalf("expected stale lease error, got %v", err)
@@ -1439,4 +1456,141 @@ func newTestEngineClient(t *testing.T, server *testEngine) pb.EngineServiceClien
 		}
 	})
 	return pb.NewEngineServiceClient(conn)
+}
+
+func TestWorkerRunPullBundlesLifecycleRecordsWhenNegotiated(t *testing.T) {
+	server := &testEngine{
+		job: &pb.JobAssignment{
+			JobId:         "run-bundle",
+			RunId:         "run-bundle",
+			ComponentType: pb.ComponentType_COMPONENT_TYPE_FUNCTION,
+			ComponentName: "greet",
+			InputData:     []byte(`{"name":"Ada"}`),
+			Metadata:      map[string]string{"request_id": "req-bundle"},
+			Attempt:       1,
+			LeaseId:       "lease-bundle",
+		},
+		protocolCaps: []string{pullCompletionLifecycleV1Capability},
+		registered:   make(chan *pb.RegisterWorkerSessionRequest, 1),
+		completed:    make(chan *pb.CompleteJobRequest, 1),
+		appends:      make(chan *pb.AppendRequest, 4),
+		capacity:     make(chan *pb.ReportWorkerCapacityRequest, 2),
+	}
+	listener := newTestEngineListener(t, server)
+	worker := NewWorker("svc",
+		WithWorkerID("worker-bundle"),
+		WithProjectID("proj-1"),
+		WithDeploymentID("dep-1"),
+		WithWorkerMode(WorkerModePull),
+		WithMaxConcurrency(1),
+		WithCoordinatorEndpoint("http://bufnet"),
+		withGRPCDialOptions(grpc.WithContextDialer(testBufconnDialer(listener))),
+	)
+	if err := RegisterFunction(worker, "greet", func(_ *Context, in dispatchGreetInput) (dispatchGreetOutput, error) {
+		return dispatchGreetOutput{Message: "hello " + in.Name}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- worker.Run(ctx)
+	}()
+
+	registration := <-server.registered
+	if !stringSliceContains(registration.GetSupportedProtocolCapabilities(), pullCompletionLifecycleV1Capability) {
+		t.Fatalf("registration must advertise the lifecycle capability: %#v", registration.GetSupportedProtocolCapabilities())
+	}
+	completion := <-server.completed
+	cancel()
+
+	var got []string
+	for _, record := range completion.GetLifecycleRecords() {
+		if record.GetRunId() != "run-bundle" || record.GetProjectId() != "proj-1" {
+			t.Fatalf("lifecycle record targets %s/%s", record.GetProjectId(), record.GetRunId())
+		}
+		got = append(got, record.GetEventType())
+	}
+	want := []string{"run.started", "function.started", "function.completed"}
+	if len(got) != len(want) {
+		t.Fatalf("lifecycle records = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("lifecycle records = %#v, want %#v", got, want)
+		}
+	}
+	select {
+	case appended := <-server.appends:
+		t.Fatalf("lifecycle event %q was appended separately", appended.GetRecord().GetEventType())
+	default:
+	}
+
+	err := <-done
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("worker run: %v", err)
+	}
+}
+
+func TestLifecycleFoldHoldsEventsUntilFlushedOrEnded(t *testing.T) {
+	writer := &recordingEventWriter{}
+	worker := NewWorker("svc", WithProjectID("proj-1"))
+	worker.eventWriter = writer
+	event := func(runID, eventType string) journalEvent {
+		return journalEvent{RunID: runID, EventType: eventType, Metadata: map[string]string{"project_id": "proj-1"}}
+	}
+
+	worker.beginLifecycleFold("run-fold")
+	if err := worker.writeEvent(context.Background(), event("run-fold", "run.started")); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.writeEvents(context.Background(), []journalEvent{
+		event("run-fold", "function.started"),
+		event("run-other", "run.started"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	writer.assertTypes(t, "run.started")
+	if writer.Events()[0].RunID != "run-other" {
+		t.Fatalf("unfolded run must pass through: %#v", writer.Events())
+	}
+
+	// A durable write for the folded run flushes what is held so far and
+	// keeps the fold open for later events.
+	if err := worker.flushLifecycleFold(context.Background(), "run-fold"); err != nil {
+		t.Fatal(err)
+	}
+	writer.assertTypes(t, "run.started", "run.started", "function.started")
+	if err := worker.writeEvent(context.Background(), event("run-fold", "function.completed")); err != nil {
+		t.Fatal(err)
+	}
+	held := worker.endLifecycleFold("run-fold")
+	if len(held) != 1 || held[0].EventType != "function.completed" {
+		t.Fatalf("held after flush = %#v", held)
+	}
+	if worker.endLifecycleFold("run-fold") != nil {
+		t.Fatal("a closed fold must not be returned twice")
+	}
+	if err := worker.writeEvent(context.Background(), event("run-fold", "late.event")); err != nil {
+		t.Fatal(err)
+	}
+	writer.assertTypes(t, "run.started", "run.started", "function.started", "late.event")
+
+	records, ok := lifecycleRecordsFromEvents(held)
+	if !ok || len(records) != 1 || records[0].GetEventType() != "function.completed" {
+		t.Fatalf("records = %#v ok=%v", records, ok)
+	}
+	tooMany := make([]journalEvent, pullLifecycleMaxRecords+1)
+	for i := range tooMany {
+		tooMany[i] = event("run-fold", "log.emitted")
+	}
+	if _, ok := lifecycleRecordsFromEvents(tooMany); ok {
+		t.Fatal("record cap must reject the bundle")
+	}
+	big := event("run-fold", "function.completed")
+	big.Data = make([]byte, pullLifecycleMaxBytes+1)
+	if _, ok := lifecycleRecordsFromEvents([]journalEvent{big}); ok {
+		t.Fatal("byte cap must reject the bundle")
+	}
 }

@@ -691,81 +691,93 @@ func NewOllamaModel(config OpenAIConfig) *OpenAIModel {
 	return NewOpenAIModel(config)
 }
 
-// Generate runs a model and emits LLM lifecycle events.
+// Generate runs a model. Under a negotiated durable_activation_v1 runtime the
+// MODEL activation record is the lm boundary (the runtime journals
+// lm.started/completed/failed from the activation RPCs) and only stream deltas
+// are emitted, correlated to the activation ID. Otherwise the SDK emits the
+// lm lifecycle events itself.
 func (c *Context) Generate(model LanguageModel, request GenerateRequest) (GenerateResponse, error) {
 	if model == nil {
 		return GenerateResponse{}, errors.New("agnt5: nil language model")
 	}
 	modelName, provider := languageModelIdentity(model, request)
+	durable := c.Metadata(durableActivationV1Capability) == "true"
 	lmCorrelationID := newCorrelationID("lm")
 	parentCorrelationID := c.parentCorrelationID()
 	startedAt := time.Now()
-	_ = c.Emit(lifecycleEvent(
-		"lm.started",
-		modelName,
-		"lm",
-		lmCorrelationID,
-		parentCorrelationID,
-		map[string]any{
-			"model":      modelName,
-			"provider":   provider,
-			"input_data": map[string]any{"messages": request.Messages, "tools_count": len(request.Tools)},
-		},
-	))
-	var (
-		resp GenerateResponse
-		err  error
-	)
-	if streamingModel, ok := model.(StreamingLanguageModel); ok && c.IsStreaming() {
-		emit := func(chunk ModelStreamChunk) error {
-			return c.Emit(modelStreamEvent(chunk, lmCorrelationID, parentCorrelationID, modelName))
-		}
-		if c.Metadata(durableActivationV1Capability) == "true" {
-			resp, err = c.streamDurableModel(streamingModel, request, modelName, provider, emit)
-		} else {
-			resp, err = streamingModel.Stream(c, request, emit)
-		}
-	} else if c.Metadata(durableActivationV1Capability) == "true" {
-		resp, err = c.generateDurableModel(model, request, modelName, provider)
-	} else {
-		resp, err = model.Generate(c, request)
-	}
-	if err != nil {
+	if !durable {
 		_ = c.Emit(lifecycleEvent(
-			"lm.failed",
+			"lm.started",
 			modelName,
 			"lm",
 			lmCorrelationID,
 			parentCorrelationID,
 			map[string]any{
-				"model":         modelName,
-				"provider":      provider,
-				"error":         err.Error(),
-				"duration_ms":   time.Since(startedAt).Milliseconds(),
-				"error_message": err.Error(),
+				"model":      modelName,
+				"provider":   provider,
+				"input_data": map[string]any{"messages": request.Messages, "tools_count": len(request.Tools)},
 			},
 		))
+	}
+	var (
+		resp GenerateResponse
+		err  error
+	)
+	if streamingModel, ok := model.(StreamingLanguageModel); ok && c.IsStreaming() {
+		if durable {
+			resp, err = c.streamDurableModel(streamingModel, request, modelName, provider, func(chunk ModelStreamChunk, activationID string) error {
+				return c.Emit(modelStreamEvent(chunk, activationID, parentCorrelationID, modelName))
+			})
+		} else {
+			resp, err = streamingModel.Stream(c, request, func(chunk ModelStreamChunk) error {
+				return c.Emit(modelStreamEvent(chunk, lmCorrelationID, parentCorrelationID, modelName))
+			})
+		}
+	} else if durable {
+		resp, err = c.generateDurableModel(model, request, modelName, provider)
+	} else {
+		resp, err = model.Generate(c, request)
+	}
+	if err != nil {
+		if !durable {
+			_ = c.Emit(lifecycleEvent(
+				"lm.failed",
+				modelName,
+				"lm",
+				lmCorrelationID,
+				parentCorrelationID,
+				map[string]any{
+					"model":         modelName,
+					"provider":      provider,
+					"error":         err.Error(),
+					"duration_ms":   time.Since(startedAt).Milliseconds(),
+					"error_message": err.Error(),
+				},
+			))
+		}
 		return GenerateResponse{}, err
 	}
-	_ = c.Emit(lifecycleEvent(
-		"lm.completed",
-		modelName,
-		"lm",
-		lmCorrelationID,
-		parentCorrelationID,
-		map[string]any{
-			"model":          modelName,
-			"provider":       provider,
-			"response_model": resp.Model,
-			"usage":          resp.Usage,
-			"input_tokens":   resp.Usage.InputTokens,
-			"output_tokens":  resp.Usage.OutputTokens,
-			"total_tokens":   resp.Usage.TotalTokens,
-			"cached_tokens":  resp.Usage.CachedTokens,
-			"duration_ms":    time.Since(startedAt).Milliseconds(),
-			"output_data":    map[string]any{"output": resp.Content, "tool_calls": resp.ToolCalls},
-		},
-	))
+	if !durable {
+		_ = c.Emit(lifecycleEvent(
+			"lm.completed",
+			modelName,
+			"lm",
+			lmCorrelationID,
+			parentCorrelationID,
+			map[string]any{
+				"model":          modelName,
+				"provider":       provider,
+				"response_model": resp.Model,
+				"usage":          resp.Usage,
+				"input_tokens":   resp.Usage.InputTokens,
+				"output_tokens":  resp.Usage.OutputTokens,
+				"total_tokens":   resp.Usage.TotalTokens,
+				"cached_tokens":  resp.Usage.CachedTokens,
+				"duration_ms":    time.Since(startedAt).Milliseconds(),
+				"output_data":    map[string]any{"output": resp.Content, "tool_calls": resp.ToolCalls},
+			},
+		))
+	}
 	return resp, nil
 }
 

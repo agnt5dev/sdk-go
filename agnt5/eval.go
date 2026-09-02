@@ -75,7 +75,7 @@ func (c EvalContext) EventsByType(eventType string) []TraceEvent {
 }
 
 func (c EvalContext) LMCalls() []TraceEvent {
-	return c.EventsByType("lm.call.completed")
+	return c.EventsByType("lm.completed")
 }
 
 func (c EvalContext) TotalTokens() int64 {
@@ -352,7 +352,7 @@ func MaxTokens(max int64) TraceAssertion {
 	return TraceAssertion{check: func(trace []TraceEvent) AssertionResult {
 		var total int64
 		for _, event := range trace {
-			if event.EventType == "lm.call.completed" {
+			if event.EventType == "lm.completed" {
 				total += int64Value(event.Data["total_tokens"])
 			}
 		}
@@ -364,7 +364,7 @@ func MaxLMCalls(max int) TraceAssertion {
 	return TraceAssertion{check: func(trace []TraceEvent) AssertionResult {
 		count := 0
 		for _, event := range trace {
-			if event.EventType == "lm.call.completed" {
+			if event.EventType == "lm.completed" {
 				count++
 			}
 		}
@@ -393,7 +393,7 @@ func StepMemoized(stepName string) TraceAssertion {
 	return TraceAssertion{check: func(trace []TraceEvent) AssertionResult {
 		memoized := false
 		for _, event := range trace {
-			if event.EventType == "workflow.step.completed" && event.Name == stepName && boolValue(event.Data["is_memoized"]) {
+			if event.EventType == "workflow.step.completed" && event.Name == stepName && stepEventMemoized(event) {
 				memoized = true
 				break
 			}
@@ -406,10 +406,20 @@ func StepMemoized(stepName string) TraceAssertion {
 	}}
 }
 
+// stepEventMemoized recognizes both the legacy is_memoized flag and the
+// durable activation record's replay decision.
+func stepEventMemoized(event TraceEvent) bool {
+	if boolValue(event.Data["is_memoized"]) {
+		return true
+	}
+	decision, _ := event.Data["decision"].(string)
+	return decision == "replay"
+}
+
 func NoErrors() TraceAssertion {
 	errors := map[string]struct{}{
 		"run.failed": {}, "workflow.step.failed": {}, "agent.failed": {},
-		"lm.call.failed": {}, "function.failed": {},
+		"lm.failed": {}, "function.failed": {},
 	}
 	return TraceAssertion{check: func(trace []TraceEvent) AssertionResult {
 		count := 0
