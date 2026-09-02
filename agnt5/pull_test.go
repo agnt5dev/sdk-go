@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -322,6 +323,7 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 		registered: make(chan *pb.RegisterWorkerSessionRequest, 1),
 		completed:  make(chan *pb.CompleteJobRequest, 1),
 		appends:    make(chan *pb.AppendRequest, 4),
+		batches:    make(chan *pb.AppendBatchRequest, 2),
 		capacity:   make(chan *pb.ReportWorkerCapacityRequest, 2),
 	}
 	listener := newTestEngineListener(t, server)
@@ -383,12 +385,24 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 		t.Fatalf("output: %#v", output)
 	}
 
-	eventTypes := collectAppendTypes(t, server.appends, 3)
-	want := []string{"run.started", "function.started", "function.completed"}
-	for i := range want {
-		if eventTypes[i] != want[i] {
-			t.Fatalf("event types = %#v, want %#v", eventTypes, want)
-		}
+	// Without the lifecycle capability the started pair still travels as one
+	// acknowledged batch and the completion as its own append.
+	var batch *pb.AppendBatchRequest
+	select {
+	case batch = <-server.batches:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the started batch")
+	}
+	var batchTypes []string
+	for _, record := range batch.GetRecords() {
+		batchTypes = append(batchTypes, record.GetEventType())
+	}
+	if !reflect.DeepEqual(batchTypes, []string{"run.started", "function.started"}) {
+		t.Fatalf("started batch = %#v", batchTypes)
+	}
+	eventTypes := collectAppendTypes(t, server.appends, 1)
+	if eventTypes[0] != "function.completed" {
+		t.Fatalf("event types = %#v", eventTypes)
 	}
 
 	err := <-done

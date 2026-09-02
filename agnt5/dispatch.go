@@ -27,10 +27,14 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 	}
 
 	if !isHITLResume {
-		if err := w.writeRunStarted(ctx, invocation, metadata, runCorrelationID, startedAtNS); err != nil {
-			return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
+		// run.started and <component>.started always travel together: one
+		// acknowledged batch for streaming or legacy runs, and one held pair
+		// for a run whose lifecycle rides in CompleteJob.
+		started := []journalEvent{
+			runStartedEvent(invocation, metadata, runCorrelationID, startedAtNS),
+			componentStartedEvent(invocation, metadata, componentCorrelationID, runCorrelationID, startedAtNS),
 		}
-		if err := w.writeComponentStarted(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, startedAtNS); err != nil {
+		if err := w.writeEvents(ctx, started); err != nil {
 			return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
 		}
 	}
@@ -275,9 +279,9 @@ func mergeInvocationEventMetadata(baseMetadata, eventMetadata map[string]string)
 	return metadata
 }
 
-func (w *Worker) writeRunStarted(ctx context.Context, inv Invocation, metadata map[string]string, correlationID string, timestampNS int64) error {
+func runStartedEvent(inv Invocation, metadata map[string]string, correlationID string, timestampNS int64) journalEvent {
 	eventType := "run.started"
-	return w.writeEvent(ctx, journalEvent{
+	return journalEvent{
 		RunID:               inv.RunID,
 		EventType:           eventType,
 		CorrelationID:       correlationID,
@@ -291,13 +295,13 @@ func (w *Worker) writeRunStarted(ctx context.Context, inv Invocation, metadata m
 			"input_type":            "json",
 			"attempt":               inv.Attempt,
 		}),
-	})
+	}
 }
 
-func (w *Worker) writeComponentStarted(ctx context.Context, inv Invocation, metadata map[string]string, correlationID, parentCorrelationID string, timestampNS int64) error {
+func componentStartedEvent(inv Invocation, metadata map[string]string, correlationID, parentCorrelationID string, timestampNS int64) journalEvent {
 	componentType := lifecycleComponentType(inv.ComponentType)
 	eventType := lifecycleEventType(componentType, "started")
-	return w.writeEvent(ctx, journalEvent{
+	return journalEvent{
 		RunID:               inv.RunID,
 		EventType:           eventType,
 		CorrelationID:       correlationID,
@@ -311,7 +315,7 @@ func (w *Worker) writeComponentStarted(ctx context.Context, inv Invocation, meta
 			"input_type":            "json",
 			"attempt":               inv.Attempt,
 		}),
-	})
+	}
 }
 
 func (w *Worker) writeComponentCompleted(ctx context.Context, inv Invocation, metadata map[string]string, correlationID, parentCorrelationID string, durationMS int64, result InvocationResult) error {

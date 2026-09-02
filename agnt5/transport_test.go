@@ -458,9 +458,11 @@ func TestRunWorkerStreamBatchesBufferedBoundaryEvents(t *testing.T) {
 		"agent.iteration.completed",
 		"function.completed",
 	)
+	// The started pair is one acknowledged batch; the buffered boundary
+	// events are another.
 	batches := writer.Batches()
-	if len(batches) != 1 || len(batches[0]) != 2 {
-		t.Fatalf("boundary batches: %#v", batches)
+	if len(batches) != 2 || len(batches[0]) != 2 || len(batches[1]) != 2 {
+		t.Fatalf("boundary batches: %d", len(batches))
 	}
 	events := writer.Events()
 	componentCorrelationID := events[1].CorrelationID
