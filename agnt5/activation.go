@@ -87,6 +87,26 @@ type activationPlan struct {
 	stableKey        string
 	inputDigest      []byte
 	definitionDigest []byte
+	input            any
+}
+
+// activationInputDataLimit caps the display-oriented input_data carried on
+// BeginActivation; the digest, not this payload, binds the activation identity.
+const activationInputDataLimit = 64 << 10
+
+// activationInputData encodes the human-readable input for an activation's
+// journal record. Oversized or unencodable inputs collapse to a small marker so
+// the record is still written.
+func activationInputData(value any) []byte {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		payload, _ = json.Marshal(map[string]any{"encode_error": err.Error()})
+		return payload
+	}
+	if len(payload) > activationInputDataLimit {
+		payload, _ = json.Marshal(map[string]any{"truncated": true, "bytes": len(payload)})
+	}
+	return payload
 }
 
 func activationPlanForStep(ctx *Context, stableKey string, input any) (activationPlan, bool, error) {
@@ -115,6 +135,7 @@ func activationPlanForStep(ctx *Context, stableKey string, input any) (activatio
 		stableKey:        stableKey,
 		inputDigest:      inputDigest[:],
 		definitionDigest: definitionDigest,
+		input:            input,
 	}, true, nil
 }
 

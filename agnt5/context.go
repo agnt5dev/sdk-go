@@ -23,6 +23,10 @@ type Context struct {
 	parentCID    string
 	runCID       string
 	componentCID string
+	// managedAgent names the agent whose lifecycle is owned by the enclosing
+	// durable CHILD activation record, so Agent.Run does not emit its own
+	// agent.started/completed/failed for it.
+	managedAgent string
 
 	stateStore       StateStore
 	checkpointWriter stepCheckpointWriter
@@ -264,6 +268,7 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 		parentCID:        correlationID,
 		runCID:           c.runCID,
 		componentCID:     c.componentCID,
+		managedAgent:     c.managedAgent,
 		stateStore:       c.stateStore,
 		checkpointWriter: c.checkpointWriter,
 		activationWriter: c.activationWriter,
@@ -272,8 +277,11 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 	return child
 }
 
+// withActivationExecution scopes a durable activation: nested activations chain
+// their parent_activation_id to it and events emitted inside it parent to the
+// activation's journal record (the activation ID is the record correlation ID).
 func (c *Context) withActivationExecution(execution ActivationExecution) *Context {
-	child := c.withParentCorrelationID(c.parentCID)
+	child := c.withParentCorrelationID(execution.ActivationID)
 	child.Context = context.WithValue(c.Context, activationExecutionContextKey, execution)
 	return child
 }

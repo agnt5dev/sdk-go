@@ -160,8 +160,25 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, input map[stri
 	return tool.Handler(ctx, input)
 }
 
+// agentToolCallOptions carries the agent-loop identity of one tool call so the
+// TOOL activation record can display it.
+type agentToolCallOptions struct {
+	toolCallID string
+	iteration  int
+}
+
+// toolTakesDurablePath reports whether invokeAgentTool will journal the call
+// as a TOOL activation (the record then owns the tool_call lifecycle).
+func toolTakesDurablePath(ctx *Context, tool Tool) bool {
+	return !tool.DisableDurableActivation && ctx.Metadata(durableActivationV1Capability) == "true"
+}
+
 func invokeAgentTool(ctx *Context, tool Tool, stableKey string, input map[string]any) (any, error) {
-	if tool.DisableDurableActivation || ctx.Metadata(durableActivationV1Capability) != "true" {
+	return invokeAgentToolWithOptions(ctx, tool, stableKey, input, agentToolCallOptions{})
+}
+
+func invokeAgentToolWithOptions(ctx *Context, tool Tool, stableKey string, input map[string]any, options agentToolCallOptions) (any, error) {
+	if !toolTakesDurablePath(ctx, tool) {
 		return tool.Handler(ctx, input)
 	}
 	if ctx.activationWriter == nil {
@@ -235,6 +252,13 @@ func invokeAgentTool(ctx *Context, tool Tool, stableKey string, input map[string
 		WorkerSessionId:    workerSessionID,
 		RunAuthority:       []byte(runAuthority),
 		LeaseAuthority:     []byte(leaseAuthority),
+		DisplayName:        tool.Name,
+		InputData: activationInputData(map[string]any{
+			"name":         tool.Name,
+			"arguments":    input,
+			"tool_call_id": options.toolCallID,
+			"iteration":    options.iteration,
+		}),
 	})
 	if err != nil {
 		return nil, err
@@ -294,6 +318,7 @@ func invokeAgentTool(ctx *Context, tool Tool, stableKey string, input map[string
 			ErrorData:                inlineActivationPayload(errorData),
 			Retryable:                retryable,
 			ExternalOutcomeCertainty: pb.ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN,
+			LatencyMs:                time.Since(startedAt).Milliseconds(),
 		})
 		if failErr != nil {
 			return nil, fmt.Errorf("agnt5: record failure for tool %q: %w (tool error: %v)", tool.Name, failErr, userErr)

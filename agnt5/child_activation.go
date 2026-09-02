@@ -100,6 +100,11 @@ func runDelegatedChild(
 			ChildDefinitionDigest: cloneBytes(childDefinition),
 			JoinPolicy:            protoJoinPolicy,
 		},
+		DisplayName: target.Name,
+		InputData: activationInputData(map[string]any{
+			"agent":   target.Name,
+			"message": input.Message,
+		}),
 	})
 	if err != nil {
 		return AgentResult{}, err
@@ -141,8 +146,13 @@ func runDelegatedChild(
 		Attempt:        begin.GetAttempt(),
 		IdempotencyKey: "agnt5:" + begin.GetActivationId(),
 	}
+	// The CHILD activation record is the child agent's lifecycle boundary:
+	// the runtime journals agent.started/completed/failed for it, and the
+	// child's iteration events parent to the activation ID.
+	childCtx := ctx.withActivationExecution(execution)
+	childCtx.managedAgent = target.Name
 	startedAt := time.Now()
-	result, childErr := target.Run(ctx.withActivationExecution(execution), input)
+	result, childErr := target.Run(childCtx, input)
 	if childErr != nil {
 		errorData, _ := json.Marshal(map[string]string{
 			"message": childErr.Error(),
@@ -158,6 +168,7 @@ func runDelegatedChild(
 			ErrorData:                inlineActivationPayload(errorData),
 			Retryable:                true,
 			ExternalOutcomeCertainty: pb.ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN,
+			LatencyMs:                time.Since(startedAt).Milliseconds(),
 		})
 		if failErr != nil {
 			return AgentResult{}, fmt.Errorf("agnt5: record child %q failure: %w (child error: %v)", target.Name, failErr, childErr)

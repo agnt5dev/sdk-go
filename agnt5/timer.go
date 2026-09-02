@@ -158,6 +158,11 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 		WorkerSessionId:    workerSessionID,
 		RunAuthority:       []byte(runAuthority),
 		LeaseAuthority:     []byte(leaseAuthority),
+		DisplayName:        timerKey,
+		InputData: activationInputData(map[string]any{
+			"delay_ms":  delayMS,
+			"timer_key": timerKey,
+		}),
 	})
 	if err != nil {
 		return err

@@ -155,7 +155,7 @@ func TestBatchEvalAndResponseHelpers(t *testing.T) {
 
 func TestTraceAssertionsAndMetrics(t *testing.T) {
 	events := []TraceEvent{
-		{EventType: "lm.call.completed", TimestampNS: 1_000_000, Data: map[string]any{"total_tokens": 10}},
+		{EventType: "lm.completed", TimestampNS: 1_000_000, Data: map[string]any{"total_tokens": 10}},
 		{EventType: "tool.call.completed", EventID: "event-2", CorrelationID: "call-1", TimestampNS: 2_000_000, Name: "search", Data: map[string]any{"name": "search", "arguments": `{"q":"go"}`}},
 	}
 	assertionResult := TraceScorer(events, []TraceAssertion{MaxTokens(20), MaxLMCalls(1), NoErrors(), DurationUnder(5 * time.Millisecond)})

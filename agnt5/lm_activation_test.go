@@ -3,7 +3,9 @@ package agnt5
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -285,5 +287,67 @@ func TestInterruptedModelStreamRecordsBoundedEvidence(t *testing.T) {
 		!bytes.Contains(payload, []byte(`"partial_utf8_bytes":7`)) ||
 		bytes.Contains(payload, []byte(`"partial"`)) {
 		t.Fatalf("evidence payload = %s", payload)
+	}
+}
+
+func TestDurableModelEmitsNoLifecycleAndDeltasCarryActivationID(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.IsStreaming = true
+	ctx.setParentCorrelationID("corr-parent")
+	model := &activationStreamingTestModel{response: GenerateResponse{
+		Content: "final",
+		Usage:   TokenUsage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5, CachedTokens: 1},
+	}}
+	temperature := 0.2
+
+	if _, err := ctx.Generate(model, GenerateRequest{
+		Model:       "openai/gpt-test",
+		Messages:    []Message{{Role: MessageRoleUser, Content: "hello"}},
+		Temperature: &temperature,
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	begin := writer.beginRequests[0]
+	activationID := activationID(begin.GetProjectId(), begin.GetRunId(), begin.GetParentActivationId(), begin.GetKind(), begin.GetStableKey())
+	if begin.GetDisplayName() != "openai/gpt-test" {
+		t.Fatalf("display name = %q", begin.GetDisplayName())
+	}
+	var inputData map[string]any
+	if err := json.Unmarshal(begin.GetInputData(), &inputData); err != nil {
+		t.Fatalf("input data: %v", err)
+	}
+	if inputData["model"] != "openai/gpt-test" || inputData["tools_count"] != float64(0) || inputData["temperature"] != 0.2 {
+		t.Fatalf("input data = %#v", inputData)
+	}
+	if _, ok := inputData["messages"].([]any); !ok {
+		t.Fatalf("input data messages = %#v", inputData["messages"])
+	}
+	if usage := writer.completeRequests[0].GetUsage(); usage.GetCachedTokens() != 1 {
+		t.Fatalf("usage = %#v", usage)
+	}
+	events := ctx.Events()
+	if gotTypes := eventTypes(events); !reflect.DeepEqual(gotTypes, []string{"lm.message.delta"}) {
+		t.Fatalf("events = %#v, want only stream deltas", gotTypes)
+	}
+	delta := events[0]
+	if delta.CorrelationID != activationID || delta.ParentCorrelationID != "corr-parent" {
+		t.Fatalf("delta correlation = %q parent = %q, want activation %q under corr-parent", delta.CorrelationID, delta.ParentCorrelationID, activationID)
+	}
+}
+
+func TestDurableModelFailureEmitsNoLifecycleAndCarriesLatency(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	model := &activationAwareModel{err: errors.New("provider down")}
+
+	if _, err := ctx.Generate(model, GenerateRequest{Model: "openai/gpt-test"}); err == nil {
+		t.Fatal("expected provider error")
+	}
+	if len(writer.failRequests) != 1 || writer.failRequests[0].GetLatencyMs() < 0 {
+		t.Fatalf("fail requests = %#v", writer.failRequests)
+	}
+	if gotTypes := eventTypes(ctx.Events()); len(gotTypes) != 0 {
+		t.Fatalf("events = %#v, want none", gotTypes)
 	}
 }

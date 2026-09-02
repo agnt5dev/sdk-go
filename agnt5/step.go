@@ -35,14 +35,16 @@ func StepWithKey[T any](ctx *Context, name, key string, fn func(*Context) (T, er
 	if strings.TrimSpace(key) == "" {
 		return zero, newActivationError(ActivationErrorInvalidArgument, "explicit step key is required", "", 0, nil)
 	}
-	return runStep(ctx, name, key, nil, func(_ context.Context, stepCorrelationID string) (T, error) {
-		return fn(ctx.withParentCorrelationID(stepCorrelationID))
+	return runStep(ctx, name, key, nil, func(stepContext context.Context, stepCorrelationID string) (T, error) {
+		return fn(stepScope(ctx, stepContext).withParentCorrelationID(stepCorrelationID))
 	})
 }
 
 // Task invokes a registered-style handler as a durable workflow step. In
-// addition to workflow.step lifecycle events, it emits a function lifecycle
-// child so Studio can show each nested component consistently across SDKs.
+// addition to the step boundary (a journaled activation record when the
+// runtime negotiated durable activations, workflow.step events otherwise), it
+// emits a function lifecycle child so Studio can show each nested component
+// consistently across SDKs.
 func Task[TInput any, TOutput any](
 	ctx *Context,
 	name string,
@@ -53,7 +55,8 @@ func Task[TInput any, TOutput any](
 	if fn == nil {
 		return zero, ErrNilHandler
 	}
-	return runStep(ctx, name, "", input, func(_ context.Context, stepCorrelationID string) (TOutput, error) {
+	return runStep(ctx, name, "", input, func(stepContext context.Context, stepCorrelationID string) (TOutput, error) {
+		ctx := stepScope(ctx, stepContext)
 		functionCorrelationID := newCorrelationID("function")
 		startedAt := time.Now()
 		_ = ctx.Emit(Event{
@@ -109,6 +112,16 @@ func Task[TInput any, TOutput any](
 		})
 		return out, nil
 	})
+}
+
+// stepScope returns the step-scoped Context handed to the step body when the
+// runner produced one (durable activations scope nested work to the
+// activation), falling back to the caller's Context otherwise.
+func stepScope(ctx *Context, stepContext context.Context) *Context {
+	if scoped, ok := stepContext.(*Context); ok && scoped != nil {
+		return scoped
+	}
+	return ctx
 }
 
 func runStep[T any](ctx *Context, name, explicitKey string, input any, fn func(context.Context, string) (T, error)) (T, error) {
@@ -340,6 +353,12 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		WorkerSessionId:    workerSessionID,
 		RunAuthority:       []byte(runAuthority),
 		LeaseAuthority:     []byte(leaseAuthority),
+		DisplayName:        name,
+		InputData: activationInputData(map[string]any{
+			"step_name": name,
+			"step_key":  stepKey,
+			"input":     plan.input,
+		}),
 	})
 	if err != nil {
 		return zero, err
@@ -364,9 +383,8 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		if err := json.Unmarshal(payload, &cached); err != nil {
 			return zero, fmt.Errorf("agnt5: decode replayed activation step %q: %w", name, err)
 		}
-		stepCorrelationID := newCorrelationID("step")
-		emitAcceptedStepStarted(ctx, name, stepKey, stepCorrelationID, begin)
-		emitAcceptedStepCompleted(ctx, name, stepKey, stepCorrelationID, begin.GetActivationId(), begin.GetAttempt(), begin.GetAcceptedJournalOffset(), true)
+		// A replayed begin appends nothing to the journal; the accepted
+		// record already carries the step boundary.
 		ctx.recordCompletedStep(stepKey, payload)
 		return cached, nil
 	case pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_WAIT:
@@ -397,10 +415,16 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		return zero, newActivationError(ActivationErrorUnknownOutcome, "runtime returned an unspecified activation decision", begin.GetActivationId(), begin.GetAttempt(), nil)
 	}
 
-	stepCorrelationID := newCorrelationID("step")
-	emitAcceptedStepStarted(ctx, name, stepKey, stepCorrelationID, begin)
+	// The activation record is the step boundary: its ID is the correlation
+	// ID nested events parent to, and the runtime journals started/completed/
+	// failed from the activation RPCs themselves.
+	execution := ActivationExecution{
+		ActivationID:   begin.GetActivationId(),
+		Attempt:        begin.GetAttempt(),
+		IdempotencyKey: "agnt5:" + begin.GetActivationId(),
+	}
 	startedAt := time.Now()
-	out, userErr := fn(ctx, stepCorrelationID)
+	out, userErr := fn(ctx.withActivationExecution(execution), begin.GetActivationId())
 	if userErr != nil {
 		errorData, _ := json.Marshal(map[string]string{"message": userErr.Error(), "type": fmt.Sprintf("%T", userErr)})
 		failed, failErr := ctx.activationWriter.FailActivation(ctx, &pb.FailActivationRequest{
@@ -413,6 +437,7 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 			ErrorData:                inlineActivationPayload(errorData),
 			Retryable:                false,
 			ExternalOutcomeCertainty: pb.ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN,
+			LatencyMs:                time.Since(startedAt).Milliseconds(),
 		})
 		if failErr != nil {
 			return zero, fmt.Errorf("agnt5: record failure for step %q: %w (user error: %v)", name, failErr, userErr)
@@ -420,24 +445,6 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		if !failed.GetAccepted() {
 			return zero, newActivationError(ActivationErrorUnknownOutcome, "runtime did not accept the step failure", begin.GetActivationId(), begin.GetAttempt(), userErr)
 		}
-		_ = ctx.Emit(Event{
-			Type:                "workflow.step.failed",
-			CorrelationID:       stepCorrelationID,
-			ParentCorrelationID: ctx.parentCorrelationID(),
-			SourceTimestampNS:   time.Now().UnixNano(),
-			Data: map[string]any{
-				"name":                    name,
-				"step_key":                stepKey,
-				"error":                   userErr.Error(),
-				"component_type":          "step",
-				"activation_id":           begin.GetActivationId(),
-				"activation_attempt":      begin.GetAttempt(),
-				"accepted_journal_offset": failed.GetAcceptedJournalOffset(),
-				"correlation_id":          stepCorrelationID,
-				"parent_correlation_id":   ctx.parentCorrelationID(),
-				"duration_ms":             time.Since(startedAt).Milliseconds(),
-			},
-		})
 		return zero, userErr
 	}
 
@@ -463,47 +470,5 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		return zero, newActivationError(ActivationErrorUnknownOutcome, "runtime returned an invalid completion receipt", begin.GetActivationId(), begin.GetAttempt(), nil)
 	}
 	ctx.recordCompletedStep(stepKey, payload)
-	emitAcceptedStepCompleted(ctx, name, stepKey, stepCorrelationID, begin.GetActivationId(), begin.GetAttempt(), completed.GetAcceptedJournalOffset(), false)
 	return out, nil
-}
-
-func emitAcceptedStepStarted(ctx *Context, name, stepKey, correlationID string, begin *pb.BeginActivationResponse) {
-	timestampNS := time.Now().UnixNano()
-	_ = ctx.Emit(Event{
-		Type:                "workflow.step.started",
-		CorrelationID:       correlationID,
-		ParentCorrelationID: ctx.parentCorrelationID(),
-		SourceTimestampNS:   timestampNS,
-		Data: map[string]any{
-			"name":                    name,
-			"step_key":                stepKey,
-			"component_type":          "step",
-			"activation_id":           begin.GetActivationId(),
-			"activation_attempt":      begin.GetAttempt(),
-			"accepted_journal_offset": begin.GetAcceptedJournalOffset(),
-			"correlation_id":          correlationID,
-			"parent_correlation_id":   ctx.parentCorrelationID(),
-			"timestamp_ns":            timestampNS,
-		},
-	})
-}
-
-func emitAcceptedStepCompleted(ctx *Context, name, stepKey, correlationID, activationID string, attempt uint32, offset uint64, cacheHit bool) {
-	_ = ctx.Emit(Event{
-		Type:                "workflow.step.completed",
-		CorrelationID:       correlationID,
-		ParentCorrelationID: ctx.parentCorrelationID(),
-		SourceTimestampNS:   time.Now().UnixNano(),
-		Data: map[string]any{
-			"name":                    name,
-			"step_key":                stepKey,
-			"cache_hit":               cacheHit,
-			"component_type":          "step",
-			"activation_id":           activationID,
-			"activation_attempt":      attempt,
-			"accepted_journal_offset": offset,
-			"correlation_id":          correlationID,
-			"parent_correlation_id":   ctx.parentCorrelationID(),
-		},
-	})
 }

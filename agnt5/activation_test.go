@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 	"google.golang.org/grpc/codes"
@@ -155,13 +157,83 @@ func TestStepExecutesOnlyAfterActivationAdmissionAndCompletionAck(t *testing.T) 
 	if string(completed.GetOutput().GetInlineData()) != `"value"` || len(completed.GetOutputDigest()) != 32 {
 		t.Fatalf("complete request: %#v", completed)
 	}
+	// The activation record is the step boundary: no decorative
+	// workflow.step.* events are emitted alongside it.
+	if gotTypes := eventTypes(ctx.Events()); len(gotTypes) != 0 {
+		t.Fatalf("events = %#v, want none", gotTypes)
+	}
+	if begin.GetDisplayName() != "load" {
+		t.Fatalf("display name = %q", begin.GetDisplayName())
+	}
+	var inputData map[string]any
+	if err := json.Unmarshal(begin.GetInputData(), &inputData); err != nil {
+		t.Fatalf("input data %q: %v", begin.GetInputData(), err)
+	}
+	if inputData["step_name"] != "load" || inputData["step_key"] != "step:load:0" {
+		t.Fatalf("input data = %#v", inputData)
+	}
+	if _, ok := inputData["input"]; !ok {
+		t.Fatalf("input data is missing the step input: %#v", inputData)
+	}
+	if completed.GetUsage().GetLatencyMs() < 0 {
+		t.Fatalf("completion usage = %#v", completed.GetUsage())
+	}
+}
+
+func TestTaskInsideDurableStepParentsFunctionLifecycleToActivation(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+
+	got, err := Task(ctx, "greet", greetInput{Name: "Ada"}, func(taskCtx *Context, in greetInput) (greetOutput, error) {
+		execution, ok := taskCtx.Activation()
+		if !ok || execution.ActivationID == "" {
+			t.Fatal("task body did not run under the step activation")
+		}
+		return greetOutput{Message: "hi " + in.Name}, nil
+	})
+	if err != nil {
+		t.Fatalf("task: %v", err)
+	}
+	if got.Message != "hi Ada" || len(writer.beginRequests) != 1 || len(writer.completeRequests) != 1 {
+		t.Fatalf("output=%#v begin=%d complete=%d", got, len(writer.beginRequests), len(writer.completeRequests))
+	}
+	begin := writer.beginRequests[0]
+	activationID := activationID(begin.GetProjectId(), begin.GetRunId(), begin.GetParentActivationId(), begin.GetKind(), begin.GetStableKey())
+	var inputData map[string]any
+	if err := json.Unmarshal(begin.GetInputData(), &inputData); err != nil {
+		t.Fatalf("input data: %v", err)
+	}
+	if input, _ := inputData["input"].(map[string]any); input["name"] != "Ada" {
+		t.Fatalf("input data = %#v", inputData)
+	}
 	events := ctx.Events()
-	if gotTypes := eventTypes(events); !reflect.DeepEqual(gotTypes, []string{"workflow.step.started", "workflow.step.completed"}) {
+	if gotTypes := eventTypes(events); !reflect.DeepEqual(gotTypes, []string{"function.started", "function.completed"}) {
 		t.Fatalf("events = %#v", gotTypes)
 	}
-	data := events[1].Data.(map[string]any)
-	if data["activation_id"] == "" || data["accepted_journal_offset"] != uint64(12) {
-		t.Fatalf("completion event data: %#v", data)
+	for _, event := range events {
+		if event.ParentCorrelationID != activationID {
+			t.Fatalf("%s parent correlation = %q, want activation %q", event.Type, event.ParentCorrelationID, activationID)
+		}
+	}
+}
+
+func TestDurableStepFailureCarriesLatency(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	userErr := errors.New("boom")
+
+	_, err := Step(ctx, "load", func(context.Context) (string, error) {
+		time.Sleep(2 * time.Millisecond)
+		return "", userErr
+	})
+	if !errors.Is(err, userErr) {
+		t.Fatalf("step error = %v", err)
+	}
+	if len(writer.failRequests) != 1 || writer.failRequests[0].GetLatencyMs() < 1 {
+		t.Fatalf("fail requests = %#v", writer.failRequests)
+	}
+	if gotTypes := eventTypes(ctx.Events()); len(gotTypes) != 0 {
+		t.Fatalf("events = %#v, want none", gotTypes)
 	}
 }
 
@@ -178,8 +250,8 @@ func TestStepDoesNotReturnOrMemoizeBeforeCompletionAck(t *testing.T) {
 	if _, ok := ctx.completedStepPayload("step:load:0"); ok {
 		t.Fatal("step was memoized before completion acknowledgement")
 	}
-	if gotTypes := eventTypes(ctx.Events()); !reflect.DeepEqual(gotTypes, []string{"workflow.step.started"}) {
-		t.Fatalf("events = %#v", gotTypes)
+	if gotTypes := eventTypes(ctx.Events()); len(gotTypes) != 0 {
+		t.Fatalf("events = %#v, want none", gotTypes)
 	}
 }
 
@@ -233,6 +305,11 @@ func TestStepReplaySkipsUserCode(t *testing.T) {
 	}
 	if called || got.Message != "cached" || len(writer.completeRequests) != 0 {
 		t.Fatalf("called=%t output=%#v complete=%d", called, got, len(writer.completeRequests))
+	}
+	// A replayed begin appends nothing to the journal and the SDK emits
+	// nothing for it either.
+	if gotTypes := eventTypes(ctx.Events()); len(gotTypes) != 0 {
+		t.Fatalf("replay events = %#v, want none", gotTypes)
 	}
 }
 

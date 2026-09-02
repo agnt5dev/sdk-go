@@ -2,6 +2,7 @@ package agnt5
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -113,5 +114,46 @@ func TestDelegatedAgentReplaysAcceptedChildWithoutModelCall(t *testing.T) {
 	}
 	if len(writer.completeRequests) != 0 || len(writer.failRequests) != 0 {
 		t.Fatalf("replay wrote complete=%d fail=%d", len(writer.completeRequests), len(writer.failRequests))
+	}
+}
+
+func TestDurableChildRecordOwnsAgentLifecycle(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.setParentCorrelationID("corr-parent")
+	target, err := NewAgent("researcher", WithAgentModel(&activationAwareModel{response: GenerateResponse{Content: "handled"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := runDelegatedChild(ctx, target, AgentInput{Message: "investigate"}, ChildJoinPolicyRequired); err != nil {
+		t.Fatal(err)
+	}
+	child := writer.beginRequests[0]
+	childID := activationID(child.GetProjectId(), child.GetRunId(), child.GetParentActivationId(), child.GetKind(), child.GetStableKey())
+	if child.GetDisplayName() != "researcher" {
+		t.Fatalf("display name = %q", child.GetDisplayName())
+	}
+	var inputData map[string]any
+	if err := json.Unmarshal(child.GetInputData(), &inputData); err != nil {
+		t.Fatalf("input data: %v", err)
+	}
+	if inputData["agent"] != "researcher" || inputData["message"] != "investigate" {
+		t.Fatalf("input data = %#v", inputData)
+	}
+	events := ctx.Events()
+	if gotTypes := eventTypes(events); !reflect.DeepEqual(gotTypes, []string{"agent.iteration.started", "agent.iteration.completed"}) {
+		t.Fatalf("events = %#v, want only iteration events", gotTypes)
+	}
+	for _, event := range events {
+		if event.ParentCorrelationID != childID {
+			t.Fatalf("%s parent correlation = %q, want child activation %q", event.Type, event.ParentCorrelationID, childID)
+		}
+	}
+	if _, ok := ctx.Activation(); ok {
+		t.Fatal("child activation leaked into the parent context")
+	}
+	if ctx.managedAgent != "" {
+		t.Fatal("managed agent leaked into the parent context")
 	}
 }

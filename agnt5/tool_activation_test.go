@@ -2,7 +2,9 @@ package agnt5
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
@@ -167,5 +169,85 @@ func TestToolDurabilityCanBeDisabledAndPoliciesAreValidated(t *testing.T) {
 		WithToolRecoveryPolicy("blind_retry"),
 	); err == nil {
 		t.Fatal("invalid recovery policy was accepted")
+	}
+}
+
+type toolCallingTestModel struct {
+	calls int
+}
+
+func (m *toolCallingTestModel) Generate(context.Context, GenerateRequest) (GenerateResponse, error) {
+	m.calls++
+	if m.calls == 1 {
+		return GenerateResponse{ToolCalls: []ToolCall{{ID: "call-1", Name: "charge", Arguments: map[string]any{"amount": int64(42)}}}}, nil
+	}
+	return GenerateResponse{Content: "done"}, nil
+}
+
+func TestDurableAgentToolEmitsNoToolCallLifecycle(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	tool, err := NewTool("charge", func(_ context.Context, input map[string]any) (any, error) {
+		return map[string]any{"charged": input["amount"]}, nil
+	})
+	if err != nil {
+		t.Fatalf("NewTool: %v", err)
+	}
+	agent, err := NewAgent("biller", WithAgentModel(&toolCallingTestModel{}), WithAgentTools(tool))
+	if err != nil {
+		t.Fatalf("NewAgent: %v", err)
+	}
+
+	result, err := agent.Run(ctx, AgentInput{Message: "charge 42"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Response != "done" || result.ToolCalls != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	var toolBegin *pb.BeginActivationRequest
+	for _, begin := range writer.beginRequests {
+		if begin.GetKind() == pb.ActivationKind_ACTIVATION_KIND_TOOL {
+			toolBegin = begin
+		}
+	}
+	if toolBegin == nil {
+		t.Fatalf("no TOOL activation in %#v", writer.beginRequests)
+	}
+	if toolBegin.GetDisplayName() != "charge" {
+		t.Fatalf("display name = %q", toolBegin.GetDisplayName())
+	}
+	var inputData map[string]any
+	if err := json.Unmarshal(toolBegin.GetInputData(), &inputData); err != nil {
+		t.Fatalf("input data: %v", err)
+	}
+	if inputData["name"] != "charge" || inputData["tool_call_id"] != "call-1" || inputData["iteration"] != float64(1) {
+		t.Fatalf("input data = %#v", inputData)
+	}
+	if arguments, _ := inputData["arguments"].(map[string]any); arguments["amount"] != float64(42) {
+		t.Fatalf("input data arguments = %#v", inputData["arguments"])
+	}
+	for _, event := range ctx.Events() {
+		if strings.HasPrefix(event.Type, "tool_call.") || strings.HasPrefix(event.Type, "lm.") {
+			t.Fatalf("decorative lifecycle %q emitted under durable activation", event.Type)
+		}
+	}
+}
+
+func TestDurableAgentToolFailureCarriesLatency(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	tool, err := NewTool("charge", func(context.Context, map[string]any) (any, error) {
+		return nil, errors.New("declined")
+	})
+	if err != nil {
+		t.Fatalf("NewTool: %v", err)
+	}
+
+	if _, err := invokeAgentTool(ctx, tool, "call-1", map[string]any{}); err == nil {
+		t.Fatal("expected tool error")
+	}
+	if len(writer.failRequests) != 1 || writer.failRequests[0].GetLatencyMs() < 0 {
+		t.Fatalf("fail requests = %#v", writer.failRequests)
 	}
 }

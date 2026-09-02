@@ -221,7 +221,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 
 	agentParentCorrelationID := ctx.parentCorrelationID()
 	agentCorrelationID := agentParentCorrelationID
-	if !ctx.managesAgent(a.Name) {
+	if !a.lifecycleOwnedByCaller(ctx) {
 		agentCorrelationID = newCorrelationID("agent")
 	}
 	if agentCorrelationID == "" {
@@ -341,23 +341,36 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 			}
 			toolCorrelationID := newCorrelationID("tool")
 			toolStartedAt := time.Now()
-			_ = iterationContext.Emit(lifecycleEvent(
-				"tool_call.started",
-				call.Name,
-				"agent",
-				toolCorrelationID,
-				iterationCorrelationID,
-				map[string]any{
-					"agent_name":   a.Name,
-					"operation":    "tool_call",
-					"tool_name":    call.Name,
-					"tool_call_id": call.ID,
-					"input_data":   cloneAnyMap(call.Arguments),
-					"tool_call":    record,
-				},
-			))
+			handoff, isHandoff := handoffsByTool[call.Name]
+			tool, toolFound := a.lookupTool(call.Name)
+			// When the call is journaled as a TOOL (or CHILD) activation the
+			// record is the tool_call boundary and the SDK emits no
+			// decorative tool_call.* events of its own.
+			durableToolCall := false
+			if isHandoff {
+				durableToolCall = iterationContext.Metadata(durableActivationV1Capability) == "true"
+			} else if toolFound && tool.Handler != nil {
+				durableToolCall = toolTakesDurablePath(iterationContext, tool)
+			}
+			if !durableToolCall {
+				_ = iterationContext.Emit(lifecycleEvent(
+					"tool_call.started",
+					call.Name,
+					"agent",
+					toolCorrelationID,
+					iterationCorrelationID,
+					map[string]any{
+						"agent_name":   a.Name,
+						"operation":    "tool_call",
+						"tool_name":    call.Name,
+						"tool_call_id": call.ID,
+						"input_data":   cloneAnyMap(call.Arguments),
+						"tool_call":    record,
+					},
+				))
+			}
 
-			if handoff, ok := handoffsByTool[call.Name]; ok {
+			if isHandoff {
 				result, err := a.runHandoff(
 					iterationContext,
 					handoff,
@@ -373,6 +386,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 					toolCorrelationID,
 					toolStartedAt,
 					iterationStartedAt,
+					!durableToolCall,
 				)
 				if err != nil {
 					return AgentResult{}, err
@@ -380,8 +394,7 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				return result, nil
 			}
 
-			tool, ok := a.lookupTool(call.Name)
-			if !ok || tool.Handler == nil {
+			if !toolFound || tool.Handler == nil {
 				err := fmt.Errorf("%w: %s", ErrToolNotFound, call.Name)
 				record.Error = err.Error()
 				toolCalls = append(toolCalls, record)
@@ -410,26 +423,31 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				continue
 			}
 
-			output, err := invokeAgentTool(iterationContext, tool, call.ID, call.Arguments)
+			output, err := invokeAgentToolWithOptions(iterationContext, tool, call.ID, call.Arguments, agentToolCallOptions{
+				toolCallID: call.ID,
+				iteration:  iteration,
+			})
 			if err != nil {
 				record.Error = err.Error()
 				toolCalls = append(toolCalls, record)
-				_ = iterationContext.Emit(lifecycleEvent(
-					"tool_call.failed",
-					call.Name,
-					"agent",
-					toolCorrelationID,
-					iterationCorrelationID,
-					map[string]any{
-						"agent_name":   a.Name,
-						"operation":    "tool_call",
-						"tool_name":    call.Name,
-						"tool_call_id": call.ID,
-						"error":        err.Error(),
-						"tool_call":    record,
-						"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
-					},
-				))
+				if !durableToolCall {
+					_ = iterationContext.Emit(lifecycleEvent(
+						"tool_call.failed",
+						call.Name,
+						"agent",
+						toolCorrelationID,
+						iterationCorrelationID,
+						map[string]any{
+							"agent_name":   a.Name,
+							"operation":    "tool_call",
+							"tool_name":    call.Name,
+							"tool_call_id": call.ID,
+							"error":        err.Error(),
+							"tool_call":    record,
+							"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+						},
+					))
+				}
 				if IsWaitingForUserInput(err) {
 					return AgentResult{}, err
 				}
@@ -450,22 +468,24 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 				ToolCallID: call.ID,
 				Content:    serializeAgentValue(output),
 			})
-			_ = iterationContext.Emit(lifecycleEvent(
-				"tool_call.completed",
-				call.Name,
-				"agent",
-				toolCorrelationID,
-				iterationCorrelationID,
-				map[string]any{
-					"agent_name":   a.Name,
-					"operation":    "tool_call",
-					"tool_name":    call.Name,
-					"tool_call_id": call.ID,
-					"output_data":  output,
-					"tool_call":    record,
-					"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
-				},
-			))
+			if !durableToolCall {
+				_ = iterationContext.Emit(lifecycleEvent(
+					"tool_call.completed",
+					call.Name,
+					"agent",
+					toolCorrelationID,
+					iterationCorrelationID,
+					map[string]any{
+						"agent_name":   a.Name,
+						"operation":    "tool_call",
+						"tool_name":    call.Name,
+						"tool_call_id": call.ID,
+						"output_data":  output,
+						"tool_call":    record,
+						"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+					},
+				))
+			}
 		}
 
 		_ = agentContext.Emit(lifecycleEvent(
@@ -518,8 +538,15 @@ func RegisterAgent(w *Worker, agent *Agent, opts ...ComponentOption) error {
 	}, opts...)
 }
 
+// lifecycleOwnedByCaller reports whether something outside Agent.Run already
+// owns this agent's lifecycle: the worker dispatch (agent.* for a top-level
+// component) or a durable CHILD activation record.
+func (a *Agent) lifecycleOwnedByCaller(ctx *Context) bool {
+	return ctx.managesAgent(a.Name) || (ctx.managedAgent != "" && ctx.managedAgent == a.Name)
+}
+
 func (a *Agent) emitLifecycle(ctx *Context, event Event) {
-	if ctx == nil || ctx.managesAgent(a.Name) {
+	if ctx == nil || a.lifecycleOwnedByCaller(ctx) {
 		return
 	}
 	_ = ctx.Emit(event)
@@ -702,6 +729,7 @@ func (a *Agent) runHandoff(
 	toolCorrelationID string,
 	toolStartedAt time.Time,
 	iterationStartedAt time.Time,
+	emitToolLifecycle bool,
 ) (AgentResult, error) {
 	message := firstHandoffMessage(call.Arguments)
 	if message == "" {
@@ -715,22 +743,24 @@ func (a *Agent) runHandoff(
 	if err != nil {
 		record.Error = err.Error()
 		toolCalls := append(cloneAgentToolCalls(previousCalls), record)
-		_ = ctx.Emit(lifecycleEvent(
-			"tool_call.failed",
-			call.Name,
-			"agent",
-			toolCorrelationID,
-			iterationCorrelationID,
-			map[string]any{
-				"agent_name":   a.Name,
-				"operation":    "tool_call",
-				"tool_name":    call.Name,
-				"tool_call_id": call.ID,
-				"error":        err.Error(),
-				"tool_call":    record,
-				"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
-			},
-		))
+		if emitToolLifecycle {
+			_ = ctx.Emit(lifecycleEvent(
+				"tool_call.failed",
+				call.Name,
+				"agent",
+				toolCorrelationID,
+				iterationCorrelationID,
+				map[string]any{
+					"agent_name":   a.Name,
+					"operation":    "tool_call",
+					"tool_name":    call.Name,
+					"tool_call_id": call.ID,
+					"error":        err.Error(),
+					"tool_call":    record,
+					"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+				},
+			))
+		}
 		a.emitLifecycle(ctx, lifecycleEvent(
 			"agent.failed",
 			a.Name,
@@ -750,22 +780,24 @@ func (a *Agent) runHandoff(
 	record.Result = map[string]any{"agent_name": result.AgentName, "response": result.Response}
 	record.Handoff = handoff.Agent.Name
 	toolCalls := append(cloneAgentToolCalls(previousCalls), record)
-	_ = ctx.Emit(lifecycleEvent(
-		"tool_call.completed",
-		call.Name,
-		"agent",
-		toolCorrelationID,
-		iterationCorrelationID,
-		map[string]any{
-			"agent_name":   a.Name,
-			"operation":    "tool_call",
-			"tool_name":    call.Name,
-			"tool_call_id": call.ID,
-			"output_data":  record.Result,
-			"tool_call":    record,
-			"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
-		},
-	))
+	if emitToolLifecycle {
+		_ = ctx.Emit(lifecycleEvent(
+			"tool_call.completed",
+			call.Name,
+			"agent",
+			toolCorrelationID,
+			iterationCorrelationID,
+			map[string]any{
+				"agent_name":   a.Name,
+				"operation":    "tool_call",
+				"tool_name":    call.Name,
+				"tool_call_id": call.ID,
+				"output_data":  record.Result,
+				"tool_call":    record,
+				"duration_ms":  time.Since(toolStartedAt).Milliseconds(),
+			},
+		))
+	}
 	_ = ctx.Emit(lifecycleEvent(
 		"agent.iteration.completed",
 		a.Name,

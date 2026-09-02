@@ -22,8 +22,9 @@ type modelActivationFailureEvidence interface {
 }
 
 type activationStreamingModel struct {
-	model            StreamingLanguageModel
-	emit             func(ModelStreamChunk) error
+	model StreamingLanguageModel
+	// emit receives each chunk with the activation ID the delta correlates to.
+	emit             func(ModelStreamChunk, string) error
 	partialHash      hash.Hash
 	partialChunks    int
 	partialUTF8Bytes int
@@ -33,6 +34,10 @@ func (m *activationStreamingModel) Generate(
 	ctx context.Context,
 	request GenerateRequest,
 ) (GenerateResponse, error) {
+	activationID := ""
+	if execution, ok := ActivationFromContext(ctx); ok {
+		activationID = execution.ActivationID
+	}
 	return m.model.Stream(ctx, request, func(chunk ModelStreamChunk) error {
 		partial := chunk.Content
 		if chunk.ArgumentsDelta != "" {
@@ -43,7 +48,7 @@ func (m *activationStreamingModel) Generate(
 			m.partialChunks++
 			m.partialUTF8Bytes += len([]byte(partial))
 		}
-		return m.emit(chunk)
+		return m.emit(chunk, activationID)
 	})
 }
 
@@ -75,7 +80,7 @@ func (c *Context) streamDurableModel(
 	request GenerateRequest,
 	modelName string,
 	provider string,
-	emit func(ModelStreamChunk) error,
+	emit func(ModelStreamChunk, string) error,
 ) (GenerateResponse, error) {
 	wrapper := &activationStreamingModel{
 		model:       model,
@@ -194,6 +199,15 @@ func (c *Context) generateDurableModel(
 		WorkerSessionId:    workerSessionID,
 		RunAuthority:       []byte(runAuthority),
 		LeaseAuthority:     []byte(leaseAuthority),
+		DisplayName:        modelName,
+		InputData: activationInputData(map[string]any{
+			"model":       modelName,
+			"provider":    provider,
+			"messages":    request.Messages,
+			"tools_count": len(request.Tools),
+			"temperature": request.Temperature,
+			"max_tokens":  request.MaxTokens,
+		}),
 	})
 	if err != nil {
 		return GenerateResponse{}, err
@@ -254,6 +268,7 @@ func (c *Context) generateDurableModel(
 			Retryable:                retryable,
 			ExternalOutcomeCertainty: pb.ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN,
 			Evidence:                 modelFailureEvidence(model, begin.GetAttempt()),
+			LatencyMs:                time.Since(startedAt).Milliseconds(),
 		})
 		if failErr != nil {
 			return GenerateResponse{}, fmt.Errorf("agnt5: record failure for model %q: %w (model error: %v)", modelName, failErr, modelErr)
@@ -283,11 +298,12 @@ func (c *Context) generateDurableModel(
 		Output:       inlineActivationPayload(payload),
 		OutputDigest: outputDigest[:],
 		Usage: &pb.ActivationUsage{
-			TokensIn:  int64(response.Usage.InputTokens),
-			TokensOut: int64(response.Usage.OutputTokens),
-			LatencyMs: time.Since(startedAt).Milliseconds(),
-			Provider:  provider,
-			Model:     modelName,
+			TokensIn:     int64(response.Usage.InputTokens),
+			TokensOut:    int64(response.Usage.OutputTokens),
+			CachedTokens: int64(response.Usage.CachedTokens),
+			LatencyMs:    time.Since(startedAt).Milliseconds(),
+			Provider:     provider,
+			Model:        modelName,
 		},
 		Evidence: modelTerminalEvidence(response),
 	})
