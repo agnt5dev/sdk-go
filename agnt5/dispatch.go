@@ -262,6 +262,7 @@ var executionAuthorityMetadataKeys = [...]string{
 	"worker_session_id",
 	"lease_id",
 	"lease_attempt",
+	"assignment_commit_offset",
 }
 
 func mergeInvocationEventMetadata(baseMetadata, eventMetadata map[string]string) map[string]string {

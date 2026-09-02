@@ -30,6 +30,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 Legacy (non-durable) contexts, HITL, top-level `agent.*` / `function.*`
 dispatch lifecycle, and stream deltas are unchanged.
 
+### Fixed
+
+- Pin the runtime-authored assignment commit offset on lifecycle records so
+  append-time lease fencing can bridge projection lag immediately after a
+  pull claim.
+
 ## [0.4.1] - 2026-08-24
 
 ### Added
