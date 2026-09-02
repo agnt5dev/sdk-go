@@ -361,8 +361,12 @@ func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	if !reflect.DeepEqual(supported, []string{
 		durableActivationV1Capability,
 		durableSuspensionV1Capability,
+		pullCompletionLifecycleV1Capability,
 	}) || len(required) != 0 {
 		t.Fatalf("preferred protocols: supported=%v required=%v", supported, required)
+	}
+	if preferred.pullCompletionLifecycleEnabled() {
+		t.Fatal("lifecycle bundling must be off before negotiation")
 	}
 	if err := preferred.applyProtocolNegotiation(nil, nil); err != nil {
 		t.Fatalf("preferred old runtime: %v", err)
@@ -378,6 +382,23 @@ func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	if !status.Enabled || status.Degraded {
 		t.Fatalf("preferred v1 status: %#v", status)
 	}
+	if preferred.pullCompletionLifecycleEnabled() {
+		t.Fatal("lifecycle bundling requires the runtime to advertise it")
+	}
+	if err := preferred.applyProtocolNegotiation([]string{
+		durableActivationV1Capability,
+		pullCompletionLifecycleV1Capability,
+	}, nil); err != nil {
+		t.Fatalf("preferred lifecycle runtime: %v", err)
+	}
+	if !preferred.pullCompletionLifecycleEnabled() {
+		t.Fatal("lifecycle bundling must turn on once both sides advertise it")
+	}
+	t.Setenv(envPullCompletionLifecycle, "disabled")
+	if supported, _ := preferred.protocolRegistrationCapabilities(); stringSliceContains(supported, pullCompletionLifecycleV1Capability) {
+		t.Fatalf("kill switch must stop advertising the capability: %v", supported)
+	}
+	t.Setenv(envPullCompletionLifecycle, "")
 
 	requiredWorker := NewWorker(
 		"svc",
@@ -388,6 +409,7 @@ func TestWorkerNegotiatesDurableActivationCapability(t *testing.T) {
 	if !reflect.DeepEqual(supported, []string{
 		durableActivationV1Capability,
 		durableSuspensionV1Capability,
+		pullCompletionLifecycleV1Capability,
 	}) ||
 		!reflect.DeepEqual(required, []string{durableActivationV1Capability}) {
 		t.Fatalf("required protocols: supported=%v required=%v", supported, required)

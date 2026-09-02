@@ -331,8 +331,19 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 	})
 	defer stopRenewal()
 
+	// Hold lifecycle events so CompleteJob can carry them. Streaming jobs keep
+	// per-event delivery so SSE viewers see boundaries live.
+	runID := job.GetRunId()
+	if w.pullCompletionLifecycleEnabled() && !pullJobStreamingRequested(job.GetMetadata()) {
+		w.beginLifecycleFold(runID)
+	}
 	messages := w.dispatchServiceMessages(jobCtx, req)
+	held := w.endLifecycleFold(runID)
 	if authorityLost.Load() {
+		// The lease is gone; the runtime drops late lifecycle events after
+		// it re-leases the run, so a best-effort inline append is all that
+		// remains useful.
+		_ = w.writeEventsDirect(ctx, held)
 		return nil
 	}
 	var terminal *pb.DispatchComponentResponse
@@ -356,6 +367,11 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 			_ = w.flushStreamEvents(flushCtx)
 			cancel()
 		}
+		// A suspension has no CompleteJob to carry held events; append them
+		// before the run parks so they precede the suspension in the journal.
+		if err := w.writeEventsDirect(ctx, held); err != nil {
+			return err
+		}
 		return w.suspendPolledJob(ctx, client, job, suspension)
 	}
 	if terminal == nil {
@@ -366,7 +382,7 @@ func (w *Worker) executePolledJob(ctx context.Context, client pb.EngineServiceCl
 		_ = w.flushStreamEvents(flushCtx)
 		cancel()
 	}
-	return w.completePolledJob(ctx, client, sessionID, job, terminal)
+	return w.completePolledJob(ctx, client, sessionID, job, terminal, held)
 }
 
 func (w *Worker) suspendPolledJob(ctx context.Context, client pb.EngineServiceClient, job *pb.JobAssignment, suspension *pb.WorkerSuspension) error {
@@ -482,10 +498,17 @@ func validatePolledJobAssignment(job *pb.JobAssignment) error {
 	return nil
 }
 
-func (w *Worker) completePolledJob(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse) error {
+func (w *Worker) completePolledJob(ctx context.Context, client pb.EngineServiceClient, sessionID string, job *pb.JobAssignment, resp *pb.DispatchComponentResponse, held []journalEvent) error {
 	request, err := w.polledJobCompletionRequest(sessionID, job, resp)
 	if err != nil {
 		return err
+	}
+	if len(held) > 0 {
+		if records, ok := lifecycleRecordsFromEvents(held); ok && w.pullCompletionLifecycleEnabled() {
+			request.LifecycleRecords = records
+		} else if err := w.writeEventsDirect(ctx, held); err != nil {
+			return err
+		}
 	}
 	return w.completePolledJobRequestWithRetry(ctx, client, request, defaultCompleteJobTimeout, defaultCompleteJobAttempts, defaultCompleteJobBackoff)
 }

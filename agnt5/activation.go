@@ -119,12 +119,14 @@ func activationPlanForStep(ctx *Context, stableKey string, input any) (activatio
 }
 
 func (w *Worker) protocolRegistrationCapabilities() (supported, required []string) {
-	if w.durableActivationMode == DurableActivationDisabled {
-		return nil, nil
+	if w.durableActivationMode != DurableActivationDisabled {
+		supported = []string{durableActivationV1Capability, durableSuspensionV1Capability}
+		if w.durableActivationMode == DurableActivationRequired {
+			required = []string{durableActivationV1Capability}
+		}
 	}
-	supported = []string{durableActivationV1Capability, durableSuspensionV1Capability}
-	if w.durableActivationMode == DurableActivationRequired {
-		required = []string{durableActivationV1Capability}
+	if pullCompletionLifecycleAdvertised() {
+		supported = append(supported, pullCompletionLifecycleV1Capability)
 	}
 	return supported, required
 }
@@ -178,11 +180,14 @@ func (w *Worker) applyProtocolNegotiation(runtimeSupported, runtimeRequired []st
 			reason = "runtime did not advertise durable_activation_v1; legacy checkpoints remain enabled"
 		}
 	}
+	pullLifecycleEnabled := stringSliceContains(runtimeSupported, pullCompletionLifecycleV1Capability) &&
+		stringSliceContains(workerSupported, pullCompletionLifecycleV1Capability)
 	w.protocolMu.Lock()
 	previousReason := w.durableActivationWhy
 	w.durableActivationOn = enabled
 	w.durableSuspensionOn = enabled && suspensionEnabled
 	w.durableActivationWhy = reason
+	w.pullLifecycleOn = pullLifecycleEnabled
 	w.protocolMu.Unlock()
 	if reason != "" && reason != previousReason {
 		fmt.Fprintf(os.Stderr, "[WARN] agnt5 durable activation degraded: %s\n", reason)
