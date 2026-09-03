@@ -32,8 +32,9 @@ func pullCompletionLifecycleAdvertised() bool {
 // lifecycleFold buffers one run's lifecycle journal events while the handler
 // runs so the run's CompleteJob can carry them.
 type lifecycleFold struct {
-	mu     sync.Mutex
-	events []journalEvent
+	mu      sync.Mutex
+	flushMu sync.Mutex
+	events  []journalEvent
 }
 
 func (f *lifecycleFold) push(events ...journalEvent) {
@@ -105,6 +106,8 @@ func (w *Worker) flushLifecycleFold(ctx context.Context, runID string) error {
 	if fold == nil {
 		return nil
 	}
+	fold.flushMu.Lock()
+	defer fold.flushMu.Unlock()
 	return w.writeEventsDirect(ctx, fold.take())
 }
 
@@ -165,11 +168,43 @@ type foldingCheckpointWriter struct {
 	inner  stepCheckpointWriter
 }
 
-func (f *foldingCheckpointWriter) Checkpoint(ctx context.Context, req *pb.CheckpointRequest) (*pb.CheckpointResponse, error) {
-	if err := f.worker.flushLifecycleFold(ctx, f.runID); err != nil {
-		return nil, err
+func (f *foldingCheckpointWriter) withLifecycleFlush(ctx context.Context, operation func() error) error {
+	fold := f.worker.lifecycleFoldFor(f.runID)
+	if fold == nil {
+		return operation()
 	}
-	return f.inner.Checkpoint(ctx, req)
+	fold.flushMu.Lock()
+	defer fold.flushMu.Unlock()
+
+	if runCtx, ok := ctx.(*Context); ok {
+		events := runCtx.takeEvents()
+		if len(events) > 0 {
+			_, err := f.worker.flushInvocationEvents(
+				ctx,
+				runCtx.invocation,
+				events,
+				f.worker.invocationMetadata(runCtx.invocation),
+				runCtx.componentCorrelationID(),
+			)
+			if err != nil {
+				runCtx.prependEvents(events)
+				return err
+			}
+		}
+	}
+	if err := f.worker.writeEventsDirect(ctx, fold.take()); err != nil {
+		return err
+	}
+	return operation()
+}
+
+func (f *foldingCheckpointWriter) Checkpoint(ctx context.Context, req *pb.CheckpointRequest) (*pb.CheckpointResponse, error) {
+	var response *pb.CheckpointResponse
+	err := f.withLifecycleFlush(ctx, func() (err error) {
+		response, err = f.inner.Checkpoint(ctx, req)
+		return err
+	})
+	return response, err
 }
 
 // foldingActivationWriter is the activation-capable variant. It exists as a
@@ -181,24 +216,30 @@ type foldingActivationWriter struct {
 }
 
 func (f *foldingActivationWriter) BeginActivation(ctx context.Context, req *pb.BeginActivationRequest) (*pb.BeginActivationResponse, error) {
-	if err := f.worker.flushLifecycleFold(ctx, f.runID); err != nil {
-		return nil, err
-	}
-	return f.activations.BeginActivation(ctx, req)
+	var response *pb.BeginActivationResponse
+	err := f.withLifecycleFlush(ctx, func() (err error) {
+		response, err = f.activations.BeginActivation(ctx, req)
+		return err
+	})
+	return response, err
 }
 
 func (f *foldingActivationWriter) CompleteActivation(ctx context.Context, req *pb.CompleteActivationRequest) (*pb.CompleteActivationResponse, error) {
-	if err := f.worker.flushLifecycleFold(ctx, f.runID); err != nil {
-		return nil, err
-	}
-	return f.activations.CompleteActivation(ctx, req)
+	var response *pb.CompleteActivationResponse
+	err := f.withLifecycleFlush(ctx, func() (err error) {
+		response, err = f.activations.CompleteActivation(ctx, req)
+		return err
+	})
+	return response, err
 }
 
 func (f *foldingActivationWriter) FailActivation(ctx context.Context, req *pb.FailActivationRequest) (*pb.FailActivationResponse, error) {
-	if err := f.worker.flushLifecycleFold(ctx, f.runID); err != nil {
-		return nil, err
-	}
-	return f.activations.FailActivation(ctx, req)
+	var response *pb.FailActivationResponse
+	err := f.withLifecycleFlush(ctx, func() (err error) {
+		response, err = f.activations.FailActivation(ctx, req)
+		return err
+	})
+	return response, err
 }
 
 // foldingCheckpointWriterFor wraps the worker's checkpoint writer for a run
