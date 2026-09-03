@@ -61,9 +61,18 @@ type Agent struct {
 	Handoffs     []Handoff
 	MaxTurns     int
 	Cache        *PromptCache
+	Sandbox      SandboxRunner
 	// Deprecated compatibility aliases. Prefer Cache.
 	CacheControl bool
 	CacheTTL     string
+
+	skills           map[string]Skill
+	skillsCatalog    string
+	skillsDir        string
+	skillNames       []string
+	configuredSkills []Skill
+	agentsMDSources  []string
+	agentsMDGuidance string
 }
 
 // AgentOption mutates Agent construction.
@@ -79,6 +88,32 @@ func WithAgentModel(model LanguageModel) AgentOption {
 
 func WithAgentTools(tools ...Tool) AgentOption {
 	return func(a *Agent) { a.Tools = append(a.Tools, tools...) }
+}
+
+// WithAgentSandbox attaches a sandbox and exposes the standard sandbox tools
+// to the agent.
+func WithAgentSandbox(sandbox SandboxRunner) AgentOption {
+	return func(a *Agent) { a.Sandbox = sandbox }
+}
+
+// WithAgentSkills adds already-resolved skills to the agent.
+func WithAgentSkills(skills ...Skill) AgentOption {
+	return func(a *Agent) { a.configuredSkills = append(a.configuredSkills, skills...) }
+}
+
+// WithAgentSkillsFromDir selects named skills from a pool directory. Omitting
+// names selects every valid skill in the directory.
+func WithAgentSkillsFromDir(skillsDir string, names ...string) AgentOption {
+	return func(a *Agent) {
+		a.skillsDir = skillsDir
+		a.skillNames = append([]string(nil), names...)
+	}
+}
+
+// WithAgentGuidance loads always-on AGENTS.md guidance from file or directory
+// sources. Sources are composed in order, with the most specific last.
+func WithAgentGuidance(sources ...string) AgentOption {
+	return func(a *Agent) { a.agentsMDSources = append([]string(nil), sources...) }
 }
 
 func WithAgentHandoffs(handoffs ...Handoff) AgentOption {
@@ -183,6 +218,36 @@ func NewAgent(name string, opts ...AgentOption) (*Agent, error) {
 	if agent.Model == nil {
 		return nil, ErrAgentModelRequired
 	}
+	resolved, err := ResolveSkills(agent.skillNames, agent.skillsDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, skill := range agent.configuredSkills {
+		resolved[skill.Name] = skill
+	}
+	agent.skills = resolved
+	agent.skillsCatalog = RenderSkillsCatalog(resolved)
+	guidance, err := LoadAgentsMD(agent.agentsMDSources...)
+	if err != nil {
+		return nil, err
+	}
+	agent.agentsMDGuidance = RenderProjectGuidance(guidance)
+	builtInTools := make([]Tool, 0, 5)
+	if agent.Sandbox != nil {
+		sandboxTools, err := SandboxTools(agent.Sandbox)
+		if err != nil {
+			return nil, err
+		}
+		builtInTools = append(builtInTools, sandboxTools...)
+	}
+	if len(agent.skills) > 0 {
+		loader, err := NewLoadSkillTool(agent.skills, agent.Sandbox)
+		if err != nil {
+			return nil, err
+		}
+		builtInTools = append(builtInTools, loader)
+	}
+	agent.Tools = mergeAgentTools(builtInTools, agent.Tools)
 	return agent, nil
 }
 
@@ -196,6 +261,9 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 	}
 	if ctx == nil {
 		ctx = newContext(context.Background(), Invocation{ID: a.Name, RunID: a.Name, ComponentName: a.Name, ComponentType: ComponentTypeAgent}, nil, "")
+	}
+	if a.Sandbox != nil {
+		ctx.SetSandbox(a.Sandbox)
 	}
 
 	messages := a.initialMessages(input)
@@ -658,13 +726,44 @@ func (m *AgentManager) Run(ctx *Context, name string, input AgentInput) (AgentRe
 
 func (a *Agent) initialMessages(input AgentInput) []Message {
 	messages := cloneMessages(input.Messages)
-	if a.Instructions != "" {
-		messages = append([]Message{{Role: MessageRoleSystem, Content: a.Instructions}}, messages...)
+	if instructions := a.systemInstructions(); instructions != "" {
+		messages = append([]Message{{Role: MessageRoleSystem, Content: instructions}}, messages...)
 	}
 	if input.Message != "" {
 		messages = append(messages, Message{Role: MessageRoleUser, Content: input.Message})
 	}
 	return messages
+}
+
+func (a *Agent) systemInstructions() string {
+	blocks := make([]string, 0, 3)
+	if a.Instructions != "" {
+		blocks = append(blocks, a.Instructions)
+	}
+	if a.agentsMDGuidance != "" {
+		blocks = append(blocks, a.agentsMDGuidance)
+	}
+	if a.skillsCatalog != "" {
+		blocks = append(blocks, a.skillsCatalog)
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
+func mergeAgentTools(base []Tool, overrides []Tool) []Tool {
+	out := append([]Tool(nil), base...)
+	positions := make(map[string]int, len(out))
+	for index, tool := range out {
+		positions[tool.Name] = index
+	}
+	for _, tool := range overrides {
+		if index, ok := positions[tool.Name]; ok {
+			out[index] = tool
+			continue
+		}
+		positions[tool.Name] = len(out)
+		out = append(out, tool)
+	}
+	return out
 }
 
 func (a *Agent) lookupTool(name string) (Tool, bool) {

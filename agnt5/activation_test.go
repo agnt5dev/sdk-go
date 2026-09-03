@@ -217,6 +217,27 @@ func TestTaskInsideDurableStepParentsFunctionLifecycleToActivation(t *testing.T)
 	}
 }
 
+func TestTaskWithKeyUsesExplicitStableIdentityAndFunctionLifecycle(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+
+	got, err := TaskWithKey(ctx, "greet", "parallel-ada", greetInput{Name: "Ada"}, func(_ *Context, in greetInput) (greetOutput, error) {
+		return greetOutput{Message: "hi " + in.Name}, nil
+	})
+	if err != nil {
+		t.Fatalf("task with key: %v", err)
+	}
+	if got.Message != "hi Ada" {
+		t.Fatalf("output = %#v", got)
+	}
+	if gotKey := writer.beginRequests[0].GetStableKey(); gotKey != "step:greet:parallel-ada" {
+		t.Fatalf("stable key = %q", gotKey)
+	}
+	if gotTypes := eventTypes(ctx.Events()); !reflect.DeepEqual(gotTypes, []string{"function.started", "function.completed"}) {
+		t.Fatalf("events = %#v", gotTypes)
+	}
+}
+
 func TestDurableStepFailureCarriesLatency(t *testing.T) {
 	writer := &recordingActivationWriter{}
 	ctx := newActivationTestContext(writer)

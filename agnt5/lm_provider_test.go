@@ -269,6 +269,123 @@ func TestGoogleModelUsesCachedContentAndParsesUsage(t *testing.T) {
 	}
 }
 
+func TestGoogleModelSendsToolsParsesCallsAndReplaysResults(t *testing.T) {
+	var captured []map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		var payload map[string]any
+		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		captured = append(captured, payload)
+
+		if len(captured) == 1 {
+			return jsonResponse(req, http.StatusOK, `{
+				"candidates":[{
+					"finishReason":"STOP",
+					"content":{"parts":[{
+						"functionCall":{"id":"google-call-123","name":"calculate","args":{"expression":"15 * 23"}},
+						"thoughtSignature":"opaque-google-signature"
+					}]}
+				}]
+			}`), nil
+		}
+		return jsonResponse(req, http.StatusOK, `{
+			"candidates":[{
+				"finishReason":"STOP",
+				"content":{"parts":[{"text":"345"}]}
+			}]
+		}`), nil
+	})}
+
+	tool, err := NewTool(
+		"calculate",
+		func(context.Context, map[string]any) (any, error) { return 345, nil },
+		WithToolDescription("Evaluate an arithmetic expression"),
+		WithToolSchema(map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"expression": map[string]any{"type": "string"},
+			},
+			"required": []any{"expression"},
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	model := NewGoogleModel(GoogleConfig{
+		BaseURL:    "http://provider.test",
+		APIKey:     "google-key",
+		Model:      "google/gemini-3.5-flash-lite",
+		HTTPClient: client,
+	})
+	first, err := model.Generate(context.Background(), GenerateRequest{
+		Messages: []Message{{Role: MessageRoleUser, Content: "Calculate 15 * 23"}},
+		Tools:    []Tool{tool},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.ToolCalls) != 1 ||
+		first.ToolCalls[0].ID != "google-call-123" ||
+		first.ToolCalls[0].Name != "calculate" ||
+		first.ToolCalls[0].Arguments["expression"] != "15 * 23" ||
+		first.ToolCalls[0].Raw["thoughtSignature"] != "opaque-google-signature" {
+		t.Fatalf("tool calls = %#v", first.ToolCalls)
+	}
+
+	second, err := model.Generate(context.Background(), GenerateRequest{
+		Messages: []Message{
+			{Role: MessageRoleUser, Content: "Calculate 15 * 23"},
+			{Role: MessageRoleAssistant, ToolCalls: first.ToolCalls},
+			{Role: MessageRoleTool, Name: "calculate", ToolCallID: "google-call-123", Content: "345"},
+		},
+		Tools: []Tool{tool},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Content != "345" {
+		t.Fatalf("second response = %#v", second)
+	}
+	if len(captured) != 2 {
+		t.Fatalf("captured requests = %d", len(captured))
+	}
+
+	tools, ok := captured[0]["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("captured tools = %#v", captured[0]["tools"])
+	}
+	declarations, _ := tools[0].(map[string]any)["functionDeclarations"].([]any)
+	if len(declarations) != 1 || declarations[0].(map[string]any)["name"] != "calculate" {
+		t.Fatalf("function declarations = %#v", declarations)
+	}
+
+	contents, _ := captured[1]["contents"].([]any)
+	if len(contents) != 3 {
+		t.Fatalf("contents = %#v", contents)
+	}
+	assistantParts := contents[1].(map[string]any)["parts"].([]any)
+	assistantCall := assistantParts[0].(map[string]any)
+	if assistantCall["functionCall"].(map[string]any)["id"] != "google-call-123" {
+		t.Fatalf("assistant function call = %#v", assistantCall)
+	}
+	if assistantCall["thoughtSignature"] != "opaque-google-signature" {
+		t.Fatalf("assistant function call = %#v", assistantCall)
+	}
+	functionResponse := contents[2].(map[string]any)["parts"].([]any)[0].(map[string]any)["functionResponse"].(map[string]any)
+	if functionResponse["name"] != "calculate" {
+		t.Fatalf("function response = %#v", functionResponse)
+	}
+	if functionResponse["id"] != "google-call-123" {
+		t.Fatalf("function response = %#v", functionResponse)
+	}
+	responseObject, ok := functionResponse["response"].(map[string]any)
+	if !ok || responseObject["result"] != float64(345) {
+		t.Fatalf("function response payload = %#v", functionResponse["response"])
+	}
+}
+
 func TestGoogleModelCreateAndDeleteCachedContent(t *testing.T) {
 	var createBody map[string]any
 	var sawDelete bool

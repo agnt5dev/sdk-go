@@ -321,6 +321,23 @@ func (c *Context) Events() []Event {
 	return out
 }
 
+func (c *Context) takeEvents() []Event {
+	c.shared.eventsMu.Lock()
+	defer c.shared.eventsMu.Unlock()
+	events := c.shared.events
+	c.shared.events = nil
+	return events
+}
+
+func (c *Context) prependEvents(events []Event) {
+	if len(events) == 0 {
+		return
+	}
+	c.shared.eventsMu.Lock()
+	c.shared.events = append(events, c.shared.events...)
+	c.shared.eventsMu.Unlock()
+}
+
 func (c *Context) nextStepKey(name string) string {
 	return c.nextActivationKey("step", name)
 }
