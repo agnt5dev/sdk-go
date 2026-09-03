@@ -341,6 +341,17 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	const customScorerName = "custom_quality_registration_contract"
+	if err := RegisterScorer(worker, ScorerConfig{
+		Name:  customScorerName,
+		Scope: ScorerScopeItem,
+		Handler: func(context.Context, ScorerRequest) (ScorerResult, error) {
+			return ScorerResult{Score: 1, Passed: true}, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { DefaultScorerRegistry().removeCustom(customScorerName) })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -355,14 +366,37 @@ func TestWorkerRunPullCompletesPolledJob(t *testing.T) {
 		registration.GetMaxSlots() != 2 {
 		t.Fatalf("registration: %#v", registration)
 	}
-	componentNames := make(map[string]pb.ComponentType)
+	components := make(map[string]*pb.ComponentInfo)
 	for _, component := range registration.GetComponents() {
-		componentNames[component.GetName()] = component.GetComponentType()
+		components[component.GetName()] = component
 	}
-	if componentNames["greet"] != pb.ComponentType_COMPONENT_TYPE_FUNCTION ||
-		componentNames["exact_match"] != pb.ComponentType_COMPONENT_TYPE_SCORER ||
-		componentNames["llm_judge"] != pb.ComponentType_COMPONENT_TYPE_SCORER {
-		t.Fatalf("components: %#v", componentNames)
+	if components["greet"].GetComponentType() != pb.ComponentType_COMPONENT_TYPE_FUNCTION ||
+		components[customScorerName].GetComponentType() != pb.ComponentType_COMPONENT_TYPE_SCORER ||
+		components["llm_judge"].GetComponentType() != pb.ComponentType_COMPONENT_TYPE_SCORER {
+		t.Fatalf("components: %#v", components)
+	}
+	if _, ok := components[customScorerName].GetMetadata()["source"]; ok {
+		t.Fatalf("custom scorer has system source marker: %#v", components[customScorerName].GetMetadata())
+	}
+	builtInNames := append([]string{}, BuiltInDeterministicScorerNames...)
+	builtInNames = append(builtInNames, BuiltInJudgeScorerNames...)
+	for _, name := range builtInNames {
+		component := components[name]
+		if component == nil || component.GetComponentType() != pb.ComponentType_COMPONENT_TYPE_SCORER {
+			t.Fatalf("built-in scorer %q missing from worker registration: %#v", name, components)
+		}
+		if component.GetMetadata()["source"] != "agnt5_builtin" {
+			t.Fatalf("built-in scorer %q source metadata: %#v", name, component.GetMetadata())
+		}
+		if _, ok := component.GetMetadata()["agnt5_builtin"]; ok {
+			t.Fatalf("built-in scorer %q has duplicate marker: %#v", name, component.GetMetadata())
+		}
+		if _, ok := component.GetMetadata()["agnt5.builtin"]; ok {
+			t.Fatalf("built-in scorer %q has legacy marker: %#v", name, component.GetMetadata())
+		}
+		if _, ok := component.GetConfig()["builtin"]; ok {
+			t.Fatalf("built-in scorer %q has duplicate config marker: %#v", name, component.GetConfig())
+		}
 	}
 
 	completion := <-server.completed
