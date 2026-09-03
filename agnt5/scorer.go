@@ -19,6 +19,8 @@ const (
 	ScorerScopeSpan     ScorerScope = "span"
 	ScorerScopeSession  ScorerScope = "session"
 	ScorerScopeFleetRun ScorerScope = "fleet_run"
+
+	builtInComponentSource = "agnt5_builtin"
 )
 
 // ScorerRequest is passed to scorer handlers.
@@ -247,8 +249,8 @@ func builtInScorerComponentInfos() []ComponentInfo {
 			},
 			Config: map[string]string{"scope": string(config.Scope)},
 			Metadata: map[string]string{
-				"agnt5.builtin": "true",
-				"agnt5.async":   fmt.Sprintf("%t", config.IsAsync),
+				"source":      builtInComponentSource,
+				"agnt5.async": fmt.Sprintf("%t", config.IsAsync),
 			},
 		})
 	}
