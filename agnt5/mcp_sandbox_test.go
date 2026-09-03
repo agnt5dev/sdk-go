@@ -575,6 +575,13 @@ func TestInMemorySandboxFiles(t *testing.T) {
 	if len(list.Files) != 1 {
 		t.Fatalf("list = %#v", list)
 	}
+	deleted, err := sandbox.DeleteFile(context.Background(), "/tmp", true)
+	if err != nil || !deleted {
+		t.Fatalf("deleted = %v, err = %v", deleted, err)
+	}
+	if _, err := sandbox.ReadFile(context.Background(), "/tmp/a.txt"); err == nil {
+		t.Fatal("read after delete succeeded")
+	}
 }
 
 func TestInMemorySandboxEmitsEvents(t *testing.T) {
@@ -589,6 +596,9 @@ func TestInMemorySandboxEmitsEvents(t *testing.T) {
 	if _, err := sandbox.ListFiles(ctx, "/tmp"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := sandbox.DeleteFile(ctx, "/tmp/a.txt", false); err != nil {
+		t.Fatal(err)
+	}
 	events := ctx.Events()
 	for _, eventType := range []string{
 		"sandbox.file.write.started",
@@ -597,6 +607,8 @@ func TestInMemorySandboxEmitsEvents(t *testing.T) {
 		"sandbox.file.read.completed",
 		"sandbox.file.list.started",
 		"sandbox.file.list.completed",
+		"sandbox.file.delete.started",
+		"sandbox.file.delete.completed",
 	} {
 		if !hasEventType(events, eventType) {
 			t.Fatalf("missing event %s in %#v", eventType, events)

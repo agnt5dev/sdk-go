@@ -5,8 +5,8 @@
 
 Build typed AGNT5 workers, durable workflows, and runtime clients in Go. The
 SDK supports push and pull workers, checkpointed workflow steps, streaming,
-batches, tools, agents, MCP, evaluation, sandbox interfaces, and structured
-runtime events.
+batches, tools, agents, progressively disclosed skills, MCP, evaluation,
+sandbox interfaces, and structured runtime events.
 
 ## Requirements
 
@@ -154,6 +154,27 @@ Live MCP clients perform the initialize handshake lazily, correlate concurrent
 JSON-RPC responses through a single reader, discard late canceled responses,
 and propagate connection shutdown to pending calls. HTTP/SSE connections retain
 the negotiated `MCP-Session-Id`.
+
+Agents can load selected `SKILL.md` capabilities on demand and materialize their
+bundled resources into a sandbox without placing full skill bodies in the
+initial prompt:
+
+```go
+sandbox := agnt5.NewInMemorySandbox()
+agent, err := agnt5.NewAgent(
+	"researcher",
+	agnt5.WithAgentModel(model),
+	agnt5.WithAgentInstructions("Use the matching skill before acting."),
+	agnt5.WithAgentSandbox(sandbox),
+	agnt5.WithAgentSkillsFromDir("./skills", "pdf-extraction"),
+)
+```
+
+`SkillFromPath`, `DiscoverSkills`, `ResolveSkills`, and `WithAgentSkills` support
+pre-resolved or programmatic skill catalogs. `DiscoverAgentsMD`, `LoadAgentsMD`,
+and `WithAgentGuidance` add outermost-first project guidance before the skill
+catalog. A configured sandbox automatically adds the standard execute, write,
+read, and list tools; its file interface also supports recursive deletion.
 
 ## Worker configuration
 

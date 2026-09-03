@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,6 +20,19 @@ type SandboxRunner interface {
 	WriteFile(ctx context.Context, path string, content []byte) (WriteFileResult, error)
 	ReadFile(ctx context.Context, path string) (ReadFileResult, error)
 	ListFiles(ctx context.Context, path string) (ListFilesResult, error)
+}
+
+// SandboxFileDeleter is the additive file-deletion capability implemented by
+// AGNT5 sandbox workspaces. Keeping it separate preserves custom SandboxRunner
+// adapters that predate deletion support.
+type SandboxFileDeleter interface {
+	DeleteFile(ctx context.Context, path string, recursive bool) (bool, error)
+}
+
+// SandboxWorkspace is the complete AGNT5 sandbox file and execution surface.
+type SandboxWorkspace interface {
+	SandboxRunner
+	SandboxFileDeleter
 }
 
 type ExecuteCodeResult struct {
@@ -107,6 +123,40 @@ func (s *HTTPSandbox) ListFiles(ctx context.Context, path string) (ListFilesResu
 	return out, err
 }
 
+func (s *HTTPSandbox) DeleteFile(ctx context.Context, path string, recursive bool) (bool, error) {
+	emitSandboxEvent(ctx, "sandbox.file.delete.started", map[string]any{"path": path, "recursive": recursive})
+	var raw json.RawMessage
+	err := s.post(ctx, "/files/delete", map[string]any{"path": path, "recursive": recursive}, &raw)
+	if err != nil {
+		emitSandboxResult(ctx, "sandbox.file.delete", 0, err)
+		return false, err
+	}
+	deleted, err := sandboxDeleteResult(raw)
+	emitSandboxResult(ctx, "sandbox.file.delete", 0, err)
+	return deleted, err
+}
+
+func sandboxDeleteResult(raw json.RawMessage) (bool, error) {
+	var deleted bool
+	if err := json.Unmarshal(raw, &deleted); err == nil {
+		return deleted, nil
+	}
+	var result struct {
+		Deleted *bool `json:"deleted"`
+		Success *bool `json:"success"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return false, fmt.Errorf("agnt5: decode sandbox delete response: %w", err)
+	}
+	if result.Deleted != nil {
+		return *result.Deleted, nil
+	}
+	if result.Success != nil {
+		return *result.Success, nil
+	}
+	return false, errors.New("agnt5: sandbox delete response is missing deleted or success")
+}
+
 func (s *HTTPSandbox) post(ctx context.Context, path string, payload any, target any) error {
 	if s == nil || s.Endpoint == "" {
 		return errors.New("agnt5: sandbox endpoint is required")
@@ -140,6 +190,7 @@ func (s *HTTPSandbox) post(ctx context.Context, path string, payload any, target
 
 // InMemorySandbox is a deterministic sandbox for tests and local examples.
 type InMemorySandbox struct {
+	mu    sync.RWMutex
 	files map[string][]byte
 }
 
@@ -161,6 +212,8 @@ func (s *InMemorySandbox) RunCommand(ctx context.Context, command []string) (Run
 
 func (s *InMemorySandbox) WriteFile(ctx context.Context, path string, content []byte) (WriteFileResult, error) {
 	emitSandboxEvent(ctx, "sandbox.file.write.started", map[string]any{"path": path, "bytes": len(content)})
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.files == nil {
 		s.files = make(map[string][]byte)
 	}
@@ -171,6 +224,8 @@ func (s *InMemorySandbox) WriteFile(ctx context.Context, path string, content []
 
 func (s *InMemorySandbox) ReadFile(ctx context.Context, path string) (ReadFileResult, error) {
 	emitSandboxEvent(ctx, "sandbox.file.read.started", map[string]any{"path": path})
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	content, ok := s.files[path]
 	if !ok {
 		err := errors.New("agnt5: sandbox file not found")
@@ -183,14 +238,38 @@ func (s *InMemorySandbox) ReadFile(ctx context.Context, path string) (ReadFileRe
 
 func (s *InMemorySandbox) ListFiles(ctx context.Context, path string) (ListFilesResult, error) {
 	emitSandboxEvent(ctx, "sandbox.file.list.started", map[string]any{"path": path})
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	files := make([]FileInfo, 0, len(s.files))
 	for filePath, content := range s.files {
 		if path == "" || strings.HasPrefix(filePath, path) {
 			files = append(files, FileInfo{Path: filePath, Size: int64(len(content))})
 		}
 	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	emitSandboxResult(ctx, "sandbox.file.list", 0, nil)
 	return ListFilesResult{Path: path, Files: files}, nil
+}
+
+func (s *InMemorySandbox) DeleteFile(ctx context.Context, path string, recursive bool) (bool, error) {
+	emitSandboxEvent(ctx, "sandbox.file.delete.started", map[string]any{"path": path, "recursive": recursive})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	deleted := false
+	if recursive {
+		prefix := strings.TrimSuffix(path, "/") + "/"
+		for fileName := range s.files {
+			if fileName == path || strings.HasPrefix(fileName, prefix) {
+				delete(s.files, fileName)
+				deleted = true
+			}
+		}
+	} else if _, ok := s.files[path]; ok {
+		delete(s.files, path)
+		deleted = true
+	}
+	emitSandboxResult(ctx, "sandbox.file.delete", 0, nil)
+	return deleted, nil
 }
 
 func emitSandboxEvent(ctx context.Context, eventType string, data map[string]any) {

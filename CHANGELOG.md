@@ -7,6 +7,25 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-03
+
+### Added
+
+- Add deterministic `TaskWithKey` identities for parallel, reordered, and
+  repeated same-name durable work.
+- Add progressive `SKILL.md` discovery and loading, ordered `AGENTS.md`
+  guidance, automatic agent sandbox tools, and bundled skill resource
+  materialization.
+- Add an additive sandbox workspace deletion capability, including HTTP and
+  concurrency-safe in-memory implementations.
+
+### Fixed
+
+- Preserve ordered component and activation lifecycle records when pull
+  workflows flush concurrent durable boundaries.
+- Send Gemini function declarations, parse returned function calls, and replay
+  tool results with their call identifiers and thought signatures intact.
+
 ## [0.5.0] - 2026-09-02
 
 ### Changed
@@ -144,7 +163,9 @@ dispatch lifecycle, and stream deltas are unchanged.
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/agnt5dev/sdk-go/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/agnt5dev/sdk-go/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/agnt5dev/sdk-go/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/agnt5dev/sdk-go/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/agnt5dev/sdk-go/compare/v0.3.0...v0.3.1

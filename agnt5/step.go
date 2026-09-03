@@ -51,11 +51,39 @@ func Task[TInput any, TOutput any](
 	input TInput,
 	fn func(*Context, TInput) (TOutput, error),
 ) (TOutput, error) {
+	return runTask(ctx, name, "", input, fn)
+}
+
+// TaskWithKey invokes a registered-style handler as a durable workflow step
+// under an explicit stable key. Use it for parallel branches, reordered
+// collections, and repeated same-name work where call-order ordinals are not
+// deterministic.
+func TaskWithKey[TInput any, TOutput any](
+	ctx *Context,
+	name string,
+	key string,
+	input TInput,
+	fn func(*Context, TInput) (TOutput, error),
+) (TOutput, error) {
+	var zero TOutput
+	if strings.TrimSpace(key) == "" {
+		return zero, newActivationError(ActivationErrorInvalidArgument, "explicit task key is required", "", 0, nil)
+	}
+	return runTask(ctx, name, key, input, fn)
+}
+
+func runTask[TInput any, TOutput any](
+	ctx *Context,
+	name string,
+	key string,
+	input TInput,
+	fn func(*Context, TInput) (TOutput, error),
+) (TOutput, error) {
 	var zero TOutput
 	if fn == nil {
 		return zero, ErrNilHandler
 	}
-	return runStep(ctx, name, "", input, func(stepContext context.Context, stepCorrelationID string) (TOutput, error) {
+	return runStep(ctx, name, key, input, func(stepContext context.Context, stepCorrelationID string) (TOutput, error) {
 		ctx := stepScope(ctx, stepContext)
 		functionCorrelationID := newCorrelationID("function")
 		startedAt := time.Now()

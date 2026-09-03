@@ -479,6 +479,9 @@ func (m *GoogleModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 	payload := map[string]any{
 		"contents": googleContents(request.Messages),
 	}
+	if tools := googleTools(request.Tools); len(tools) > 0 {
+		payload["tools"] = tools
+	}
 	if system := firstSystemMessage(request.Messages); system != "" {
 		payload["systemInstruction"] = googleContent("", system)
 	}
@@ -517,13 +520,14 @@ func (m *GoogleModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 	if resp.StatusCode >= 400 {
 		return GenerateResponse{}, errors.New("agnt5: google provider returned HTTP " + intString(resp.StatusCode))
 	}
-	content, finishReason := parseGoogleContent(decoded["candidates"])
+	content, finishReason, toolCalls := parseGoogleContent(decoded["candidates"])
 	return GenerateResponse{
 		ID:           firstString(decoded, "id"),
 		Model:        model,
 		Content:      content,
 		Usage:        parseGoogleUsage(decoded["usageMetadata"]),
 		FinishReason: finishReason,
+		ToolCalls:    toolCalls,
 		Metadata:     decoded,
 	}, nil
 }
@@ -1132,17 +1136,96 @@ func normalizeGoogleModel(model string) string {
 
 func googleContents(messages []Message) []map[string]any {
 	out := make([]map[string]any, 0, len(messages))
+	toolCallNames := make(map[string]string)
 	for _, message := range messages {
 		if message.Role == MessageRoleSystem {
+			continue
+		}
+		if message.Role == MessageRoleTool {
+			name := strings.TrimSpace(message.Name)
+			if name == "" {
+				name = toolCallNames[message.ToolCallID]
+			}
+			if name == "" {
+				name = message.ToolCallID
+			}
+			out = append(out, map[string]any{
+				"role": "user",
+				"parts": []map[string]any{{
+					"functionResponse": map[string]any{
+						"name":     name,
+						"response": googleFunctionResponse(message.Content),
+						"id":       message.ToolCallID,
+					},
+				}},
+			})
 			continue
 		}
 		role := "user"
 		if message.Role == MessageRoleAssistant {
 			role = "model"
 		}
-		out = append(out, googleContent(role, message.Content))
+		if len(message.ToolCalls) == 0 {
+			out = append(out, googleContent(role, message.Content))
+			continue
+		}
+
+		parts := make([]map[string]any, 0, len(message.ToolCalls)+1)
+		if message.Content != "" {
+			parts = append(parts, map[string]any{"text": message.Content})
+		}
+		for _, call := range message.ToolCalls {
+			if call.ID != "" {
+				toolCallNames[call.ID] = call.Name
+			}
+			part := map[string]any{
+				"functionCall": map[string]any{
+					"name": call.Name,
+					"args": cloneAnyMap(call.Arguments),
+					"id":   call.ID,
+				},
+			}
+			if signature, ok := call.Raw["thoughtSignature"].(string); ok && signature != "" {
+				part["thoughtSignature"] = signature
+			}
+			parts = append(parts, part)
+		}
+		out = append(out, map[string]any{"role": role, "parts": parts})
 	}
 	return out
+}
+
+func googleTools(tools []Tool) []map[string]any {
+	if len(tools) == 0 {
+		return nil
+	}
+	declarations := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		parameters := cloneAnyMap(tool.Schema)
+		if len(parameters) == 0 {
+			parameters = map[string]any{"type": "object", "properties": map[string]any{}}
+		}
+		declaration := map[string]any{
+			"name":       tool.Name,
+			"parameters": parameters,
+		}
+		if tool.Description != "" {
+			declaration["description"] = tool.Description
+		}
+		declarations = append(declarations, declaration)
+	}
+	return []map[string]any{{"functionDeclarations": declarations}}
+}
+
+func googleFunctionResponse(content string) map[string]any {
+	var value any
+	if err := json.Unmarshal([]byte(content), &value); err != nil {
+		return map[string]any{"result": content}
+	}
+	if object, ok := value.(map[string]any); ok {
+		return object
+	}
+	return map[string]any{"result": value}
 }
 
 func googleTextContents(contents []string) []map[string]any {
@@ -1166,23 +1249,39 @@ func googleContent(role string, text string) map[string]any {
 	return content
 }
 
-func parseGoogleContent(value any) (string, string) {
+func parseGoogleContent(value any) (string, string, []ToolCall) {
 	candidates, ok := value.([]any)
 	if !ok || len(candidates) == 0 {
-		return "", ""
+		return "", "", nil
 	}
 	candidate, _ := candidates[0].(map[string]any)
 	finishReason, _ := candidate["finishReason"].(string)
 	content, _ := candidate["content"].(map[string]any)
 	parts, _ := content["parts"].([]any)
 	var text strings.Builder
+	var toolCalls []ToolCall
 	for _, raw := range parts {
 		part, _ := raw.(map[string]any)
 		if s, ok := part["text"].(string); ok {
 			text.WriteString(s)
 		}
+		functionCall, ok := part["functionCall"].(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := functionCall["name"].(string)
+		id := firstString(functionCall, "id")
+		if id == "" {
+			id = "call_" + intString(len(toolCalls))
+		}
+		toolCalls = append(toolCalls, ToolCall{
+			ID:        id,
+			Name:      name,
+			Arguments: parseToolArguments(functionCall["args"]),
+			Raw:       cloneAnyMap(part),
+		})
 	}
-	return text.String(), finishReason
+	return text.String(), finishReason, toolCalls
 }
 
 func parseGoogleUsage(value any) TokenUsage {
