@@ -16,7 +16,7 @@ Because the module path is the GitHub repository URL, no vanity endpoint is requ
 v0.x.y
 ```
 
-The current module version is `v0.6.0`.
+The current module version is `v0.7.0`.
 
 ## Compatibility Policy
 

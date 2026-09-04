@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultServiceVersion      = "0.6.0"
+	defaultServiceVersion      = "0.7.0"
 	defaultServiceType         = "go"
 	defaultCoordinatorEndpoint = "http://localhost:34186"
 	defaultMaxReconnects       = uint32(5)
@@ -32,6 +32,7 @@ const (
 	envWorkerID                = "AGNT5_WORKER_ID"
 	envProjectID               = "AGNT5_PROJECT_ID"
 	envDeploymentID            = "AGNT5_DEPLOYMENT_ID"
+	envWorkspaceID             = "AGNT5_WORKSPACE_ID"
 	envWorkerMode              = "AGNT5_WORKER_MODE"
 	envMaxConcurrency          = "AGNT5_MAX_CONCURRENCY"
 	envMaxRetries              = "AGNT5_MAX_RETRIES"
@@ -57,6 +58,7 @@ type Worker struct {
 	engineEndpoint        string
 	projectID             string
 	deploymentID          string
+	workspaceID           string
 	workerMode            WorkerMode
 	maxConcurrency        uint32
 	metadata              map[string]string
@@ -85,6 +87,9 @@ type Worker struct {
 	externalTLSOption     int
 	legacyRoutingSet      bool
 	startupWriter         io.Writer
+	telemetryMu           sync.Mutex
+	telemetry             *telemetry
+	telemetryInitialized  bool
 }
 
 // NewWorker constructs a Go worker with environment-compatible defaults.
@@ -98,6 +103,7 @@ func NewWorker(serviceName string, opts ...WorkerOption) *Worker {
 		engineEndpoint:        os.Getenv(envEngineURL),
 		projectID:             os.Getenv(envProjectID),
 		deploymentID:          os.Getenv(envDeploymentID),
+		workspaceID:           os.Getenv(envWorkspaceID),
 		workerMode:            workerModeFromEnv(),
 		maxConcurrency:        uint32FromEnv(envMaxConcurrency),
 		metadata:              make(map[string]string),
@@ -200,6 +206,10 @@ func (w *Worker) syncRuntimeMetadata() {
 		w.metadata["deployment_id"] = w.deploymentID
 		w.metadata["AGNT5_DEPLOYMENT_ID"] = w.deploymentID
 	}
+	if w.workspaceID != "" {
+		w.metadata["workspace_id"] = w.workspaceID
+		w.metadata[envWorkspaceID] = w.workspaceID
+	}
 	if w.maxConcurrency > 0 {
 		w.metadata["AGNT5_MAX_CONCURRENCY"] = fmt.Sprintf("%d", w.maxConcurrency)
 	}
@@ -288,6 +298,8 @@ func (w *Worker) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	w.initializeTelemetry(ctx)
+	defer w.shutdownTelemetry()
 	if err := w.configureExternalWorker(ctx); err != nil {
 		return err
 	}
@@ -491,6 +503,7 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 	}
 	inv = w.withActivationMetadata(inv, component)
 	runCtx := newContext(ctx, inv, w.foldingCheckpointWriterFor(inv.RunID), canonicalProjectID(inv.Metadata), w.stateStore)
+	runCtx.setTelemetry(w.currentTelemetry())
 	runCorrelationID := runCorrelationIDFromRunID(inv.RunID)
 	if len(streamParentCorrelationID) > 1 && streamParentCorrelationID[1] != "" {
 		runCorrelationID = streamParentCorrelationID[1]

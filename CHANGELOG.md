@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-04
+
+### Added
+
+- Export application and component lifecycle logs through OTLP with AGNT5
+  resource and run attributes.
+
 ## [0.6.0] - 2026-09-03
 
 ### Added
@@ -163,7 +170,8 @@ dispatch lifecycle, and stream deltas are unchanged.
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/agnt5dev/sdk-go/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/agnt5dev/sdk-go/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/agnt5dev/sdk-go/compare/v0.4.0...v0.4.1

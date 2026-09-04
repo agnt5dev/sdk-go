@@ -74,6 +74,16 @@ func WithDeploymentID(deploymentID string) WorkerOption {
 	}
 }
 
+// WithWorkspaceID sets the workspace identity attached to telemetry resources.
+func WithWorkspaceID(workspaceID string) WorkerOption {
+	return func(w *Worker) {
+		w.workspaceID = workspaceID
+		if workspaceID != "" {
+			w.metadata["workspace_id"] = workspaceID
+		}
+	}
+}
+
 // WithWorkerMode sets push or pull assignment mode.
 func WithWorkerMode(mode WorkerMode) WorkerOption {
 	return func(w *Worker) {

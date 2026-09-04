@@ -29,6 +29,7 @@ func (l *Logger) log(level, eventType, message string, keyvals ...any) {
 	if l == nil || l.ctx == nil {
 		return
 	}
+	l.ctx.logApplication(level, message, keyvalsToMap(keyvals))
 	_ = l.ctx.Emit(Event{
 		Type: eventType,
 		Data: map[string]any{
