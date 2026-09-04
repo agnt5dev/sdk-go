@@ -23,6 +23,7 @@ type Context struct {
 	parentCID    string
 	runCID       string
 	componentCID string
+	telemetry    *telemetry
 	// managedAgent names the agent whose lifecycle is owned by the enclosing
 	// durable CHILD activation record, so Agent.Run does not emit its own
 	// agent.started/completed/failed for it.
@@ -241,6 +242,10 @@ func (c *Context) setLifecycleCorrelationIDs(runCorrelationID, componentCorrelat
 	}
 }
 
+func (c *Context) setTelemetry(telemetry *telemetry) {
+	c.telemetry = telemetry
+}
+
 func (c *Context) runCorrelationID() string {
 	if c.runCID != "" {
 		return c.runCID
@@ -268,6 +273,7 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 		parentCID:        correlationID,
 		runCID:           c.runCID,
 		componentCID:     c.componentCID,
+		telemetry:        c.telemetry,
 		managedAgent:     c.managedAgent,
 		stateStore:       c.stateStore,
 		checkpointWriter: c.checkpointWriter,

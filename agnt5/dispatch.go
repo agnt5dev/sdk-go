@@ -37,6 +37,8 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 		if err := w.writeEvents(ctx, started); err != nil {
 			return []*pb.ServiceMessage{w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, InvocationResult{}, err))}
 		}
+		w.logLifecycle(ctx, invocation, "INFO", "run started")
+		w.logLifecycle(ctx, invocation, "INFO", "component started")
 	}
 
 	result, invokeErr := w.invoke(ctx, invocation, componentCorrelationID, runCorrelationID)
@@ -62,17 +64,20 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 		}
 	}
 	if IsWaitingForUserInput(invokeErr) {
+		w.logLifecycle(ctx, invocation, "INFO", "workflow paused")
 		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchPausedResponse(req, result, invokeErr)))
 		return messages
 	}
 	var sleepSuspension *durableSleepSuspensionError
 	if errors.As(invokeErr, &sleepSuspension) && sleepSuspension.suspension != nil {
+		w.logLifecycle(ctx, invocation, "INFO", "workflow paused")
 		messages = append(messages, w.dispatchServiceMessageFromResponse(
 			dispatchSuspendedResponse(req, sleepSuspension.suspension),
 		))
 		return messages
 	}
 	if invokeErr != nil {
+		w.logLifecycle(ctx, invocation, "ERROR", "component failed", "error", invokeErr.Error())
 		_ = w.writeComponentFailed(ctx, invocation, metadata, componentCorrelationID, runCorrelationID, durationMS, invokeErr)
 		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, invokeErr)))
 		return messages
@@ -81,6 +86,7 @@ func (w *Worker) dispatchServiceMessages(ctx context.Context, req *pb.DispatchCo
 		messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, err)))
 		return messages
 	}
+	w.logLifecycle(ctx, invocation, "INFO", "component completed", "duration_ms", durationMS)
 	messages = append(messages, w.dispatchServiceMessageFromResponse(dispatchResponseFromResult(req, result, nil)))
 	return messages
 }
