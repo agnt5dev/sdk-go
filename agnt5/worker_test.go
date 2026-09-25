@@ -9,7 +9,7 @@ import (
 
 func TestNewWorkerDefaultServiceVersion(t *testing.T) {
 	worker := NewWorker("svc")
-	if got := worker.ServiceVersion(); got != "0.10.2" {
+	if got := worker.ServiceVersion(); got != "0.10.3" {
 		t.Fatalf("default service version: %q", got)
 	}
 }
