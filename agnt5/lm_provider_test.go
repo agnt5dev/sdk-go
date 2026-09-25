@@ -98,6 +98,65 @@ func TestOpenAIModelSendsToolsAndParsesToolCalls(t *testing.T) {
 	}
 }
 
+// gpt-5, gpt-6 and the o-series reject `temperature` and `max_tokens`; the
+// request must carry `max_completion_tokens` and no sampling parameters, or the
+// API answers 400 (AGNT5-1303).
+func TestOpenAIModelDropsSamplingParametersForReasoningModels(t *testing.T) {
+	for _, model := range []string{"gpt-6-luna", "gpt-5-mini", "o3-mini", "openai/gpt-6"} {
+		if !isOpenAIReasoningModel(model) {
+			t.Fatalf("%s should be a reasoning model", model)
+		}
+	}
+	for _, model := range []string{"gpt-4o", "gpt-4.1-mini", "gpt-3.5-turbo", "o1x", "moonshot-v1"} {
+		if isOpenAIReasoningModel(model) {
+			t.Fatalf("%s should not be a reasoning model", model)
+		}
+	}
+
+	var captured map[string]any
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if err := json.NewDecoder(req.Body).Decode(&captured); err != nil {
+			t.Fatal(err)
+		}
+		return jsonResponse(req, http.StatusOK, `{"id":"chatcmpl-2","model":"gpt-6-luna","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"hi"}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`), nil
+	})}
+	temperature, maxTokens := 0.2, 256
+	model := NewOpenAIModel(OpenAIConfig{BaseURL: "http://provider.test", APIKey: "sk-test", Model: "gpt-6-luna", HTTPClient: client})
+	if _, err := model.Generate(context.Background(), GenerateRequest{
+		Messages:    []Message{{Role: MessageRoleUser, Content: "hi"}},
+		Temperature: &temperature,
+		MaxTokens:   &maxTokens,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := captured["temperature"]; ok {
+		t.Fatalf("temperature must not be sent to a reasoning model: %#v", captured)
+	}
+	if _, ok := captured["max_tokens"]; ok {
+		t.Fatalf("max_tokens must not be sent to a reasoning model: %#v", captured)
+	}
+	if captured["max_completion_tokens"] != float64(256) {
+		t.Fatalf("max_completion_tokens = %#v, want 256", captured["max_completion_tokens"])
+	}
+
+	// A non-reasoning model keeps the classic parameters.
+	captured = nil
+	model = NewOpenAIModel(OpenAIConfig{BaseURL: "http://provider.test", APIKey: "sk-test", Model: "gpt-4.1-mini", HTTPClient: client})
+	if _, err := model.Generate(context.Background(), GenerateRequest{
+		Messages:    []Message{{Role: MessageRoleUser, Content: "hi"}},
+		Temperature: &temperature,
+		MaxTokens:   &maxTokens,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if captured["temperature"] != 0.2 || captured["max_tokens"] != float64(256) {
+		t.Fatalf("classic parameters = %#v", captured)
+	}
+	if _, ok := captured["max_completion_tokens"]; ok {
+		t.Fatalf("max_completion_tokens must not be sent to gpt-4.1: %#v", captured)
+	}
+}
+
 func TestAnthropicModelSendsToolsAndParsesToolUse(t *testing.T) {
 	var captured map[string]any
 	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {

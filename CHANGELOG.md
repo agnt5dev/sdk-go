@@ -19,6 +19,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   (AGNT5-1243). Ownership, activation identity, digests and replay are
   unchanged. `internal/pb` is regenerated from sdk-core 0.3.1 for the
   `display_parent_correlation_id` field; runtimes that predate it ignore it.
+- OpenAI reasoning models (the gpt-5 and gpt-6 families and the o-series) are sent `max_completion_tokens` instead of `max_tokens` and no `temperature`, which those models reject with a 400; gpt-4o and gpt-4.1 keep the classic parameters (AGNT5-1303).
 
 ## [0.10.2] - 2026-09-22
 

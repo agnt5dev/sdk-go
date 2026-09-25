@@ -252,11 +252,16 @@ func (m *OpenAIModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 	if len(request.Tools) > 0 {
 		payload["tools"] = openAITools(request.Tools)
 	}
-	if request.Temperature != nil {
+	reasoning := isOpenAIReasoningModel(model)
+	if request.Temperature != nil && !reasoning {
 		payload["temperature"] = *request.Temperature
 	}
 	if request.MaxTokens != nil {
-		payload["max_tokens"] = *request.MaxTokens
+		if reasoning {
+			payload["max_completion_tokens"] = *request.MaxTokens
+		} else {
+			payload["max_tokens"] = *request.MaxTokens
+		}
 	}
 	if cache := request.promptCache(); cache != nil && strings.TrimSpace(cache.Resource) != "" {
 		return GenerateResponse{}, errors.New("agnt5: explicit context caches are only supported for Google Gemini")
@@ -869,6 +874,24 @@ func languageModelIdentity(model LanguageModel, request GenerateRequest) (string
 		name = provider + "/" + name
 	}
 	return name, provider
+}
+
+// isOpenAIReasoningModel reports whether an OpenAI model rejects sampling
+// parameters (`temperature`, `top_p`) and takes `max_completion_tokens` instead
+// of `max_tokens`: the gpt-5 and gpt-6 families and the o-series. gpt-4o and
+// gpt-4.1 still accept them. The model name is matched without any
+// `openai/` prefix.
+func isOpenAIReasoningModel(model string) bool {
+	name := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "openai/")
+	if strings.HasPrefix(name, "gpt-5") || strings.HasPrefix(name, "gpt-6") {
+		return true
+	}
+	for _, family := range []string{"o1", "o3", "o4"} {
+		if name == family || strings.HasPrefix(name, family+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 func openAIProvider(baseURL string) string {
