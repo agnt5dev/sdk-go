@@ -302,3 +302,24 @@ the context deadline may end the request earlier.
 
 `BatchStream` and the `/batch/stream` endpoint have been removed. Use `Batch`
 and `GetBatchStatus` to submit and observe batch work.
+
+## Structured assertions
+
+`structured_assertions` is a reserved built-in scorer. The pure-Go implementation
+conforms to the [SDK-core contract](https://github.com/agnt5dev/sdk-core/tree/82e98e984749f80a31ff6302ba508d55974c608d/crates/eval-scorers)
+and runs through `ScorerRegistry.Run` without user registration. It can also run locally:
+
+```go
+result := agnt5.StructuredAssertions(agnt5.ScorerRequest{
+    Output: []int{1, 2, 3},
+    Expected: map[string]any{"expected_length": 3},
+    Config: map[string]any{"assertions": []any{
+        map[string]any{"name": "unique_ids", "expr": "unique(output_json)"},
+        map[string]any{"name": "count", "expr": "size(output_json) == expected.expected_length"},
+    }},
+})
+```
+
+The score is the fraction of assertions that pass; `score_threshold` defaults to
+1. Configuration and input errors always fail. Assertions use a bounded JSON
+expression language; they never execute Go code.

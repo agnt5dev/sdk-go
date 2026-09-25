@@ -15,7 +15,7 @@ import (
 )
 
 var BuiltInDeterministicScorerNames = []string{
-	"exact_match", "contains", "regex_match", "json_valid", "json_schema",
+	"structured_assertions", "exact_match", "contains", "regex_match", "json_valid", "json_schema",
 	"numeric_range", "levenshtein", "tool_called", "tool_not_called",
 	"tool_sequence", "tool_sequence_in_order", "tool_sequence_exact",
 	"tool_sequence_any_order", "tool_trajectory", "tool_params_match",
@@ -32,7 +32,7 @@ func builtInScorerConfigs() []ScorerConfig {
 	configs := make([]ScorerConfig, 0, len(BuiltInDeterministicScorerNames)+len(BuiltInJudgeScorerNames))
 	for _, name := range BuiltInDeterministicScorerNames {
 		scope := ScorerScopeItem
-		if name != "exact_match" && name != "contains" && name != "regex_match" && name != "json_valid" && name != "json_schema" && name != "numeric_range" && name != "levenshtein" {
+		if name != "structured_assertions" && name != "exact_match" && name != "contains" && name != "regex_match" && name != "json_valid" && name != "json_schema" && name != "numeric_range" && name != "levenshtein" {
 			scope = ScorerScopeTrace
 		}
 		scorerName := name
@@ -90,6 +90,8 @@ func builtInScorerDescription(name string) string {
 
 func runDeterministicBuiltIn(name string, request ScorerRequest) ScorerResult {
 	switch name {
+	case "structured_assertions":
+		return StructuredAssertions(request)
 	case "exact_match":
 		return exactMatchResult(request)
 	case "contains":

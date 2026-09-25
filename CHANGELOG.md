@@ -5,7 +5,11 @@ All notable changes to the AGNT5 Go SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.3] - 2026-09-25
+
+### Added
+
+- Built-in structured assertions with SDK-core conformance, bounded execution, and named result metadata.
 
 ### Fixed
 
