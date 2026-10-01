@@ -5,6 +5,15 @@ All notable changes to the AGNT5 Go SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.4] - 2026-10-01
+
+### Fixed
+
+- Serverless responses now send `"events": []` instead of `"events": null` when a
+  workflow completes, suspends or fails without emitting an event, and user-input
+  suspensions without options send `"options": []`. Runtimes that predate the
+  null-tolerant workerless parser rejected these responses (AGNT5-1417).
+
 ## [0.10.3] - 2026-09-25
 
 ### Added
