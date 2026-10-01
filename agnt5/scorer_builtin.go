@@ -57,7 +57,7 @@ func builtInScorerConfigs() []ScorerConfig {
 			Scope:       scope,
 			IsAsync:     true,
 			Handler: func(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
-				return runJudgeBuiltIn(ctx, scorerName, request), nil
+				return runJudgeBuiltIn(ctx, scorerName, request)
 			},
 		})
 	}

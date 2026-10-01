@@ -38,7 +38,7 @@ func WithLLMJudgeModel(ctx context.Context, model LanguageModel) context.Context
 	return context.WithValue(ctx, judgeModelContextKey{}, model)
 }
 
-func runJudgeBuiltIn(ctx context.Context, name string, request ScorerRequest) ScorerResult {
+func runJudgeBuiltIn(ctx context.Context, name string, request ScorerRequest) (ScorerResult, error) {
 	switch name {
 	case "correctness":
 		return runCorrectnessJudge(ctx, request)
@@ -53,16 +53,31 @@ func runJudgeBuiltIn(ctx context.Context, name string, request ScorerRequest) Sc
 	}
 }
 
-func runLLMJudge(ctx context.Context, request ScorerRequest) ScorerResult {
+func runLLMJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
 	criteria := stringConfigDefault(request.Config, "criteria", "")
 	promptTemplate := stringConfigDefault(request.Config, "prompt_template", "")
 	if criteria == "" && promptTemplate == "" {
-		return scorerConfigError("llm_judge requires `config.criteria` or `config.prompt_template`")
+		return scorerConfigError("llm_judge requires `config.criteria` or `config.prompt_template`"), nil
 	}
-	provider := strings.ToLower(stringConfigDefault(request.Config, "provider", "openai"))
+	configuredProvider := strings.ToLower(stringConfigDefault(request.Config, "provider", ""))
+	provider := configuredProvider
+	if provider == "" {
+		provider = "openai"
+	}
 	modelName := stringConfigDefault(request.Config, "model", "")
 	if modelName == "" {
-		return scorerConfigError("llm_judge requires `config.model`")
+		return scorerConfigError("llm_judge requires `config.model`"), nil
+	}
+	// Accept `provider/model` ids like the other SDKs: the prefix picks the
+	// provider when none is configured and is never sent as part of the model
+	// name, which the provider would reject (AGNT5-1374).
+	if prefix, rest, ok := strings.Cut(modelName, "/"); ok {
+		if configuredProvider == "" {
+			provider = strings.ToLower(prefix)
+		}
+		if strings.EqualFold(prefix, provider) {
+			modelName = rest
+		}
 	}
 	temperature, ok := floatConfig(request.Config, "temperature")
 	if !ok {
@@ -70,15 +85,15 @@ func runLLMJudge(ctx context.Context, request ScorerRequest) ScorerResult {
 	}
 	choiceScores, failure := parseJudgeChoiceScores(request.Config["choice_scores"])
 	if failure != nil {
-		return *failure
+		return *failure, nil
 	}
 	userPrompt, failure := buildJudgePrompt(request, criteria, promptTemplate, choiceScores)
 	if failure != nil {
-		return *failure
+		return *failure, nil
 	}
 	model, failure := judgeLanguageModel(ctx, provider, modelName)
 	if failure != nil {
-		return *failure
+		return *failure, nil
 	}
 	systemPrompt := stringConfigDefault(request.Config, "system_prompt", llmJudgeDefaultSystemPrompt)
 	generateRequest := GenerateRequest{
@@ -97,10 +112,12 @@ func runLLMJudge(ctx context.Context, request ScorerRequest) ScorerResult {
 		response, err = model.Generate(ctx, generateRequest)
 	}
 	if err != nil {
-		return ScorerResult{Score: 0, Passed: false, Label: "error", Explanation: "LLM call failed: " + err.Error()}
+		// A failed call is not a zero score: report it so the run shows a
+		// scorer error instead of a misleading result (AGNT5-1374).
+		return ScorerResult{}, fmt.Errorf("llm_judge: model call failed: %w", err)
 	}
 	result := parseLLMJudgeResponse(response.Content)
-	return applyJudgeChoiceScores(result, choiceScores)
+	return applyJudgeChoiceScores(result, choiceScores), nil
 }
 
 func buildJudgePrompt(request ScorerRequest, criteria, promptTemplate string, choiceScores map[string]float64) (string, *ScorerResult) {
@@ -345,48 +362,54 @@ func applyJudgeChoiceScores(result ScorerResult, choiceScores map[string]float64
 	return ScorerResult{Score: score, Passed: score >= .7, Label: label, Explanation: result.Explanation, Metadata: mergeAnyMaps(result.Metadata, map[string]any{"choice_scores": choiceScores, "selected_label": label})}
 }
 
-func runCorrectnessJudge(ctx context.Context, request ScorerRequest) ScorerResult {
+func runCorrectnessJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
 	config := cloneAnyMap(request.Config)
 	output, err := optionalJudgeSelector(request, config, "answer_field", request.Output)
 	if err != nil {
-		return scorerConfigError("correctness field selector not found: " + err.Error())
+		return scorerConfigError("correctness field selector not found: " + err.Error()), nil
 	}
 	expected, err := optionalJudgeSelector(request, config, "reference_field", request.Expected)
 	if err != nil {
-		return scorerConfigError("correctness field selector not found: " + err.Error())
+		return scorerConfigError("correctness field selector not found: " + err.Error()), nil
 	}
 	request.Output, request.Expected = output, expected
 	request.Config = judgePresetConfig(config, correctnessJudgeCriteria, true)
-	result := runLLMJudge(ctx, request)
+	result, err := runLLMJudge(ctx, request)
+	if err != nil {
+		return ScorerResult{}, err
+	}
 	result.Metadata = mergeAnyMaps(result.Metadata, map[string]any{"judge_preset": "correctness"})
-	return result
+	return result, nil
 }
-func runFaithfulnessJudge(ctx context.Context, request ScorerRequest) ScorerResult {
+func runFaithfulnessJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
 	config := cloneAnyMap(request.Config)
 	fields := configStringList(config, "context_field", "context_fields")
 	if len(fields) == 0 {
-		return scorerConfigError("faithfulness requires config.context_fields or config.context_field")
+		return scorerConfigError("faithfulness requires config.context_fields or config.context_field"), nil
 	}
 	contextData := make(map[string]any, len(fields))
 	for _, field := range fields {
 		value, err := judgeSelectedValue(request, field)
 		if err != nil {
-			return scorerConfigError("faithfulness field selector not found: " + err.Error())
+			return scorerConfigError("faithfulness field selector not found: " + err.Error()), nil
 		}
 		contextData[field] = value
 	}
 	output, err := optionalJudgeSelector(request, config, "answer_field", request.Output)
 	if err != nil {
-		return scorerConfigError("faithfulness field selector not found: " + err.Error())
+		return scorerConfigError("faithfulness field selector not found: " + err.Error()), nil
 	}
 	request.Output = output
 	request.Config = judgePresetConfig(config, faithfulnessJudgeCriteria, false)
 	request.Config["context_data"] = contextData
-	result := runLLMJudge(ctx, request)
+	result, err := runLLMJudge(ctx, request)
+	if err != nil {
+		return ScorerResult{}, err
+	}
 	result.Metadata = mergeAnyMaps(result.Metadata, map[string]any{"judge_preset": "faithfulness", "context_fields": fields})
-	return result
+	return result, nil
 }
-func runGoalSuccessJudge(ctx context.Context, request ScorerRequest) ScorerResult {
+func runGoalSuccessJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
 	config := cloneAnyMap(request.Config)
 	evidence := map[string]any{}
 	if value := firstPresentValue(config["context_data"], config["context"]); value != nil {
@@ -412,11 +435,14 @@ func runGoalSuccessJudge(ctx context.Context, request ScorerRequest) ScorerResul
 	if len(sources) > 0 {
 		request.Config["context_data"] = map[string]any{"goal_success_evidence": evidence}
 	}
-	result := runLLMJudge(ctx, request)
+	result, err := runLLMJudge(ctx, request)
+	if err != nil {
+		return ScorerResult{}, err
+	}
 	result.Metadata = mergeAnyMaps(result.Metadata, map[string]any{"judge_preset": "goal_success", "evidence_sources": sources})
-	return result
+	return result, nil
 }
-func runAgentJudge(ctx context.Context, request ScorerRequest) ScorerResult {
+func runAgentJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
 	config := cloneAnyMap(request.Config)
 	evidence := map[string]any{}
 	if value := firstPresentValue(config["context_data"], config["context"]); value != nil {
@@ -456,9 +482,12 @@ func runAgentJudge(ctx context.Context, request ScorerRequest) ScorerResult {
 	request.Config = judgePresetConfig(config, criteria, true)
 	request.Config["system_prompt"] = stringConfigDefault(config, "system_prompt", agentJudgeSystemPrompt)
 	request.Config["context_data"] = map[string]any{"agent_judge_evidence": truncateJudgeEvidence(evidence, maxEvidenceChars)}
-	result := runLLMJudge(ctx, request)
+	result, err := runLLMJudge(ctx, request)
+	if err != nil {
+		return ScorerResult{}, err
+	}
 	result.Metadata = mergeAnyMaps(result.Metadata, map[string]any{"judge_preset": "agent_judge", "judge_mode": "evidence_inspection", "agent_judge_version": "evidence_inspection_v1", "evidence_sources": sources})
-	return result
+	return result, nil
 }
 
 func judgePresetConfig(config map[string]any, criteria string, includeInput bool) map[string]any {

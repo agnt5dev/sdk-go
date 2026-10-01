@@ -62,6 +62,9 @@ type Agent struct {
 	MaxTurns     int
 	Cache        *PromptCache
 	Sandbox      SandboxRunner
+	// ReasoningEffort is passed to the model on every turn; see
+	// GenerateRequest.ReasoningEffort.
+	ReasoningEffort string
 	// Deprecated compatibility aliases. Prefer Cache.
 	CacheControl bool
 	CacheTTL     string
@@ -84,6 +87,13 @@ func WithAgentInstructions(instructions string) AgentOption {
 
 func WithAgentModel(model LanguageModel) AgentOption {
 	return func(a *Agent) { a.Model = model }
+}
+
+// WithAgentReasoningEffort sets how much the model reasons on each turn:
+// "none", "minimal", "low", "medium" or "high". gpt-6 accepts
+// none/low/medium/high; gpt-5 accepts minimal/low/medium/high.
+func WithAgentReasoningEffort(effort string) AgentOption {
+	return func(a *Agent) { a.ReasoningEffort = effort }
 }
 
 func WithAgentTools(tools ...Tool) AgentOption {
@@ -339,9 +349,10 @@ func (a *Agent) Run(ctx *Context, input AgentInput) (AgentResult, error) {
 			withDisplayParentCorrelationID(iterationCorrelationID)
 
 		resp, err := iterationContext.Generate(a.Model, GenerateRequest{
-			Messages: messages,
-			Tools:    tools,
-			Cache:    a.Cache,
+			Messages:        messages,
+			Tools:           tools,
+			Cache:           a.Cache,
+			ReasoningEffort: a.ReasoningEffort,
 		})
 		if err != nil {
 			a.emitLifecycle(ctx, lifecycleEvent(

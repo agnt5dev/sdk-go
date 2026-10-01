@@ -29,6 +29,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   unchanged. `internal/pb` is regenerated from sdk-core 0.3.1 for the
   `display_parent_correlation_id` field; runtimes that predate it ignore it.
 - OpenAI reasoning models (the gpt-5 and gpt-6 families and the o-series) are sent `max_completion_tokens` instead of `max_tokens` and no `temperature`, which those models reject with a 400; gpt-4o and gpt-4.1 keep the classic parameters (AGNT5-1303).
+- An OpenAI-compatible call with tools on gpt-6 sends `reasoning_effort: "none"` when no effort is set: Chat Completions only accepts tools on gpt-6 with reasoning off, so Go agents with tools failed on `gpt-6-luna` (AGNT5-1325).
+- Provider errors keep the provider's response body (truncated to 2 KB), so a 400 says what was rejected instead of only "HTTP 400". A non-JSON error body is reported the same way instead of as a decode error (AGNT5-1325).
+- Claude Opus 4.7 and later, Sonnet 5, Opus 5 and Fable no longer receive `temperature`, which they reject with a 400. The Anthropic default `max_tokens` rises from 1024 to 16384 for them (4096 for older Claude), since thinking counts toward it (AGNT5-1403).
+- The built-in LLM judges accept `provider/model` ids (the prefix picks the provider and is not sent to it), and a failed judge model call returns an error instead of a score of 0 (AGNT5-1374).
+
+### Added
+
+- `GenerateRequest.ReasoningEffort` and `WithAgentReasoningEffort`: `"none"`, `"minimal"`, `"low"`, `"medium"` or `"high"`, sent as `reasoning_effort` (AGNT5-1325, AGNT5-1327).
 
 ## [0.10.2] - 2026-09-22
 
