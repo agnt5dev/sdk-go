@@ -121,3 +121,60 @@ func TestAgentSessionCheckpointResume(t *testing.T) {
 		t.Fatalf("seen=%d response=%s", seen, response.Body.String())
 	}
 }
+
+func TestResponsesSerializeEmptyCollectionsAsArrays(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
+	})}
+	h := New(Options{HTTPClient: client})
+	_ = RegisterWorkflow(h, "quiet", func(*Context, struct{}) (string, error) { return "done", nil })
+	_ = RegisterWorkflow(h, "nap", func(ctx *Context, _ struct{}) (string, error) {
+		if err := ctx.Sleep(time.Hour, "nap"); err != nil {
+			return "", err
+		}
+		ctx.Emit(Event{})
+		return "awake", nil
+	})
+	_ = RegisterWorkflow(h, "ask", func(ctx *Context, _ struct{}) (string, error) {
+		return ctx.WaitForUser(UserInput{Question: "Proceed?"})
+	})
+	_ = RegisterWorkflow(h, "boom", func(*Context, struct{}) (string, error) { return "", io.ErrUnexpectedEOF })
+	upload := `,"output_upload":{"kind":"` + payloadRefKind + `","url":"https://store.test/output","method":"PUT","ref":"out.json","threshold_bytes":1,"max_bytes":1024}`
+
+	cases := []struct{ name, component, extra, status string }{
+		{"completed", "quiet", "", "completed"},
+		{"completed output_ref", "quiet", upload, "completed"},
+		{"suspended timer", "nap", "", "suspended"},
+		{"suspended user input", "ask", "", "suspended"},
+		{"failed", "boom", "", "failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			response := invoke(t, h, `{"component_type":"workflow","component_name":"`+tc.component+`","run_id":"r1","input":{}`+tc.extra+`}`)
+			var body map[string]json.RawMessage
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode %s: %v", response.Body.String(), err)
+			}
+			if string(body["status"]) != `"`+tc.status+`"` {
+				t.Fatalf("status = %s, want %q: %s", body["status"], tc.status, response.Body.String())
+			}
+			if string(body["events"]) != `[]` {
+				t.Fatalf("events = %s, want []: %s", body["events"], response.Body.String())
+			}
+			if tc.component == "ask" && string(body["options"]) != `[]` {
+				t.Fatalf("options = %s, want []: %s", body["options"], response.Body.String())
+			}
+		})
+	}
+}
+
+func TestCompleteOutputNormalizesNilEvents(t *testing.T) {
+	body, perr := New(Options{}).completeOutput(context.Background(), "ok", nil, checkpointEnvelope{}, nil)
+	if perr != nil {
+		t.Fatal(perr.Message)
+	}
+	raw, _ := json.Marshal(body["events"])
+	if string(raw) != `[]` {
+		t.Fatalf("events = %s, want []", raw)
+	}
+}

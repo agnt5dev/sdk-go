@@ -109,6 +109,9 @@ func (h *Handler) resolveInput(ctx context.Context, inline json.RawMessage, ref 
 }
 
 func (h *Handler) completeOutput(ctx context.Context, output any, upload *OutputUpload, checkpoint checkpointEnvelope, events []Event) (map[string]any, *protocolError) {
+	if events == nil {
+		events = []Event{}
+	}
 	body := map[string]any{"status": "completed", "output": output, "checkpoint": checkpoint, "events": events}
 	if upload == nil {
 		return body, nil

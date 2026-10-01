@@ -281,7 +281,7 @@ func (h *Handler) serveInvoke(w http.ResponseWriter, r *http.Request) {
 		writeFailure(w, http.StatusNotFound, "WORKERLESS_COMPONENT_NOT_FOUND", "serverless component was not found")
 		return
 	}
-	ctx := &Context{Context: r.Context(), RunID: payload.RunID, Attempt: payload.Attempt, ComponentName: payload.ComponentName, Metadata: payload.Metadata, steps: payload.Checkpoint.Steps, agentSessions: payload.Checkpoint.AgentSessions}
+	ctx := &Context{Context: r.Context(), RunID: payload.RunID, Attempt: payload.Attempt, ComponentName: payload.ComponentName, Metadata: payload.Metadata, steps: payload.Checkpoint.Steps, events: []Event{}, agentSessions: payload.Checkpoint.AgentSessions}
 	if ctx.steps == nil {
 		ctx.steps = make(map[string]json.RawMessage)
 	}
@@ -314,7 +314,11 @@ func (h *Handler) serveInvoke(w http.ResponseWriter, r *http.Request) {
 			response["step_name"] = suspension.StepName
 			response["question"] = suspension.Question
 			response["input_type"] = suspension.InputType
-			response["options"] = suspension.Options
+			options := suspension.Options
+			if options == nil {
+				options = []UserInputOption{}
+			}
+			response["options"] = options
 			response["allow_custom"] = suspension.AllowCustom
 			response["skippable"] = suspension.Skippable
 		}
