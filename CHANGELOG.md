@@ -18,6 +18,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Added
 
 - `GenerateRequest.ReasoningEffort` and `WithAgentReasoningEffort`: `"none"`, `"minimal"`, `"low"`, `"medium"` or `"high"`, sent as `reasoning_effort`.
+- `AzureOpenAIConfig.Model` (and `OpenAIConfig.UnderlyingModel`) name the model behind a deployment or alias, so a deployment called `production` that serves gpt-6 gets reasoning-model parameters. Defaults to the deployment name.
 
 ## [0.10.4] - 2026-10-01
 

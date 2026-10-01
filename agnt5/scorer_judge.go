@@ -491,7 +491,12 @@ func runAgentJudge(ctx context.Context, request ScorerRequest) (ScorerResult, er
 }
 
 func judgePresetConfig(config map[string]any, criteria string, includeInput bool) map[string]any {
-	out := map[string]any{"provider": stringConfigDefault(config, "provider", "openai"), "model": stringConfigDefault(config, "model", "gpt-4o-mini"), "criteria": criteria, "include_input": boolConfigDefault(config, "include_input", includeInput), "temperature": 0.0}
+	out := map[string]any{"model": stringConfigDefault(config, "model", "gpt-4o-mini"), "criteria": criteria, "include_input": boolConfigDefault(config, "include_input", includeInput), "temperature": 0.0}
+	// Pass the provider through only when the caller set one, so a
+	// `provider/model` id can choose it in runLLMJudge.
+	if provider := stringConfigDefault(config, "provider", ""); provider != "" {
+		out["provider"] = provider
+	}
 	if value, ok := floatConfig(config, "temperature"); ok {
 		out["temperature"] = value
 	}

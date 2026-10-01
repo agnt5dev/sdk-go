@@ -221,6 +221,11 @@ type OpenAIConfig struct {
 	HTTPClient   *http.Client
 	Headers      map[string]string
 	Path         string
+	// UnderlyingModel is the model id that decides which parameters the
+	// endpoint accepts (sampling parameters, max_completion_tokens,
+	// reasoning_effort) when the request's model is an alias such as an Azure
+	// deployment name. Defaults to the request's model.
+	UnderlyingModel string
 }
 
 // OpenAIModel is a minimal OpenAI-compatible LanguageModel.
@@ -257,7 +262,11 @@ func (m *OpenAIModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 	if len(request.Tools) > 0 {
 		payload["tools"] = openAITools(request.Tools)
 	}
-	reasoning := isOpenAIReasoningModel(model)
+	capabilityModel := model
+	if m.config.UnderlyingModel != "" {
+		capabilityModel = m.config.UnderlyingModel
+	}
+	reasoning := isOpenAIReasoningModel(capabilityModel)
 	if request.Temperature != nil && !reasoning {
 		payload["temperature"] = *request.Temperature
 	}
@@ -269,7 +278,7 @@ func (m *OpenAIModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 		}
 	}
 	effort := strings.TrimSpace(request.ReasoningEffort)
-	if effort == "" && len(request.Tools) > 0 && openAIToolsNeedNoReasoning(model) {
+	if effort == "" && len(request.Tools) > 0 && openAIToolsNeedNoReasoning(capabilityModel) {
 		// Chat Completions accepts tools on gpt-6 only with reasoning off, so
 		// a Go agent with tools failed by default (AGNT5-1325).
 		effort = "none"
@@ -622,6 +631,11 @@ type AzureOpenAIConfig struct {
 	Endpoint   string
 	APIKey     string
 	Deployment string
+	// Model is the model the deployment serves, such as "gpt-6-luna". A
+	// deployment name is user-chosen, so set this for reasoning models to get
+	// max_completion_tokens, no sampling parameters and reasoning_effort
+	// handling. Defaults to Deployment.
+	Model      string
 	APIVersion string
 	HTTPClient *http.Client
 }
@@ -637,12 +651,13 @@ func NewAzureOpenAIModel(config AzureOpenAIConfig) *OpenAIModel {
 		base += "/openai/deployments/" + url.PathEscape(config.Deployment)
 	}
 	return NewOpenAIModel(OpenAIConfig{
-		BaseURL:      base,
-		APIKey:       config.APIKey,
-		APIKeyHeader: "api-key",
-		Model:        config.Deployment,
-		HTTPClient:   config.HTTPClient,
-		Path:         "/chat/completions?api-version=" + url.QueryEscape(apiVersion),
+		BaseURL:         base,
+		APIKey:          config.APIKey,
+		APIKeyHeader:    "api-key",
+		Model:           config.Deployment,
+		UnderlyingModel: config.Model,
+		HTTPClient:      config.HTTPClient,
+		Path:            "/chat/completions?api-version=" + url.QueryEscape(apiVersion),
 	})
 }
 
@@ -889,15 +904,18 @@ const maxProviderErrorBody = 2048
 // a decode error.
 func decodeModelResponse(resp *http.Response, provider string) (map[string]any, error) {
 	defer resp.Body.Close()
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
 	if resp.StatusCode >= 400 {
-		detail := strings.TrimSpace(string(raw))
-		if len(detail) > maxProviderErrorBody {
-			detail = detail[:maxProviderErrorBody] + "…"
+		// Read one byte past the cap to know whether to mark truncation,
+		// without buffering an arbitrarily large error page.
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, maxProviderErrorBody+1))
+		if err != nil {
+			return nil, err
 		}
+		detail := string(raw)
+		if len(raw) > maxProviderErrorBody {
+			detail = string(raw[:maxProviderErrorBody]) + "…"
+		}
+		detail = strings.TrimSpace(detail)
 		message := "agnt5: " + provider + " provider returned HTTP " + intString(resp.StatusCode)
 		if detail != "" {
 			message += ": " + detail
@@ -905,7 +923,7 @@ func decodeModelResponse(resp *http.Response, provider string) (map[string]any, 
 		return nil, errors.New(message)
 	}
 	var decoded map[string]any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
 		return nil, err
 	}
 	return decoded, nil

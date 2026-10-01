@@ -24,7 +24,7 @@ func TestModelCapsMatchSDKCore(t *testing.T) {
 	for _, model := range []string{
 		"claude-opus-4-7", "anthropic/claude-opus-5", "claude-sonnet-5", "claude-fable-5-1",
 		"anthropic.claude-opus-4-7-v1:0", "us.anthropic.claude-sonnet-5-20260301-v1:0",
-		"claude-opus-4-7@20260115", "claude-newfamily-1",
+		"claude-opus-4-7@20260115", "claude-newfamily-1", "claude-haiku-4-6", "claude-haiku-5",
 	} {
 		if !claudeRejectsSamplingParams(model) {
 			t.Errorf("%s should reject sampling parameters", model)
@@ -93,6 +93,37 @@ func TestOpenAIModelSendsReasoningEffort(t *testing.T) {
 	}
 }
 
+// An Azure deployment name is user-chosen, so capabilities come from the
+// configured underlying model.
+func TestAzureDeploymentUsesItsUnderlyingModel(t *testing.T) {
+	var captured map[string]any
+	client := captureClient(t, &captured, http.StatusOK, gpt6ChatCompletion)
+	temperature, maxTokens := 0.2, 256
+	model := NewAzureOpenAIModel(AzureOpenAIConfig{Endpoint: "https://example.openai.azure.com", APIKey: "key", Deployment: "production", Model: "gpt-6-luna", HTTPClient: client})
+	if _, err := model.Generate(context.Background(), GenerateRequest{
+		Messages:    []Message{{Role: MessageRoleUser, Content: "hi"}},
+		Tools:       []Tool{{Name: "lookup", Schema: map[string]any{"type": "object"}}},
+		Temperature: &temperature,
+		MaxTokens:   &maxTokens,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := captured["temperature"]; ok || captured["max_completion_tokens"] != float64(256) || captured["reasoning_effort"] != "none" {
+		t.Fatalf("payload = %#v, want gpt-6 handling for the production deployment", captured)
+	}
+}
+
+func TestModelProviderErrorBodyIsCapped(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return jsonResponse(req, http.StatusBadGateway, strings.Repeat("<html>upstream error</html>", 50_000)), nil
+	})}
+	model := NewOpenAIModel(OpenAIConfig{BaseURL: "http://provider.test", APIKey: "sk-test", Model: "gpt-4.1", HTTPClient: client})
+	_, err := model.Generate(context.Background(), GenerateRequest{Messages: []Message{{Role: MessageRoleUser, Content: "hi"}}})
+	if err == nil || !strings.Contains(err.Error(), "HTTP 502") || len(err.Error()) > maxProviderErrorBody+100 {
+		t.Fatalf("error length %d, want HTTP 502 with at most %d bytes of body", len(err.Error()), maxProviderErrorBody)
+	}
+}
+
 func TestModelProviderErrorKeepsTheProviderBody(t *testing.T) {
 	var captured map[string]any
 	body := `{"error":{"message":"Unsupported parameter: 'max_tokens' is not supported with this model.","type":"invalid_request_error"}}`
@@ -155,6 +186,17 @@ func TestLLMJudgeStripsProviderPrefixAndReportsCallFailures(t *testing.T) {
 	}
 	if got := model.requests[0].Model; got != "gpt-6-luna" {
 		t.Fatalf("judge model = %q, want gpt-6-luna", got)
+	}
+
+	// Presets used to insert provider "openai", so a prefixed Claude id was
+	// neither routed to Anthropic nor stripped.
+	preset := &judgeRecordingModel{}
+	ctx = WithLLMJudgeModel(context.Background(), preset)
+	if _, err := NewScorerRegistry().Run(ctx, "correctness", ScorerRequest{Output: "391", Expected: "391", Config: map[string]any{"model": "anthropic/claude-opus-5"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := preset.requests[0].Model; got != "claude-opus-5" {
+		t.Fatalf("correctness judge model = %q, want claude-opus-5", got)
 	}
 
 	failing := &judgeRecordingModel{err: errors.New("agnt5: model provider returned HTTP 400: bad request")}

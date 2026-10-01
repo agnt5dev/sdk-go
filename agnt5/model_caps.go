@@ -47,7 +47,7 @@ func isOpenAIReasoningModel(model string) bool {
 
 // claudeRejectsSamplingParams reports whether a Claude model rejects
 // `temperature` and `top_p`: everything after Opus 4.6 / Sonnet 4.6 / Haiku
-// 4.5, including Fable. New or unrecognised Claude models count as rejecting,
+// 4.5 (the cutoff is per family), including Fable. New or unrecognised Claude models count as rejecting,
 // since dropping a sampling parameter degrades quietly while sending one fails
 // the call.
 func claudeRejectsSamplingParams(model string) bool {
@@ -57,6 +57,7 @@ func claudeRejectsSamplingParams(model string) bool {
 		return false
 	}
 	var version []int
+	family := ""
 	for _, token := range strings.FieldsFunc(rest, func(r rune) bool { return r == '-' || r == '.' }) {
 		if claudeVersionPart.MatchString(token) {
 			part, _ := strconv.Atoi(token)
@@ -68,18 +69,25 @@ func claudeRejectsSamplingParams(model string) bool {
 		}
 		switch token {
 		case "opus", "sonnet", "haiku", "instant":
+			family = token
 		default:
 			return true
 		}
 	}
-	switch len(version) {
-	case 0:
+	if len(version) == 0 {
 		return true
-	case 1:
-		return version[0] > 4
-	default:
-		return version[0] > 4 || (version[0] == 4 && version[1] > 6)
 	}
+	// Newest accepting version per family: Haiku 4.5, Opus/Sonnet 4.6.
+	// Version-first ids (claude-3-5-haiku) are all 3.x or older.
+	lastMinor := 6
+	if family == "haiku" {
+		lastMinor = 5
+	}
+	minor := 0
+	if len(version) > 1 {
+		minor = version[1]
+	}
+	return version[0] > 4 || (version[0] == 4 && minor > lastMinor)
 }
 
 // claudeDefaultMaxTokens is the output budget for a Claude call that sets
