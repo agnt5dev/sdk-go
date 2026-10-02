@@ -223,8 +223,9 @@ type OpenAIConfig struct {
 	Path         string
 	// UnderlyingModel is the model id that decides which parameters the
 	// endpoint accepts (sampling parameters, max_completion_tokens,
-	// reasoning_effort) when the request's model is an alias such as an Azure
-	// deployment name. Defaults to the request's model.
+	// reasoning_effort) when a request uses Model, an alias such as an Azure
+	// deployment name. A request that names another model is classified by
+	// that model.
 	UnderlyingModel string
 }
 
@@ -262,8 +263,10 @@ func (m *OpenAIModel) Generate(ctx context.Context, request GenerateRequest) (Ge
 	if len(request.Tools) > 0 {
 		payload["tools"] = openAITools(request.Tools)
 	}
+	// The underlying model stands in for the configured alias only; an
+	// explicit request model decides its own capabilities.
 	capabilityModel := model
-	if m.config.UnderlyingModel != "" {
+	if m.config.UnderlyingModel != "" && model == m.config.Model {
 		capabilityModel = m.config.UnderlyingModel
 	}
 	reasoning := isOpenAIReasoningModel(capabilityModel)

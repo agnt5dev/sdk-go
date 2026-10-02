@@ -111,6 +111,19 @@ func TestAzureDeploymentUsesItsUnderlyingModel(t *testing.T) {
 	if _, ok := captured["temperature"]; ok || captured["max_completion_tokens"] != float64(256) || captured["reasoning_effort"] != "none" {
 		t.Fatalf("payload = %#v, want gpt-6 handling for the production deployment", captured)
 	}
+
+	// A request naming another model is classified by that model.
+	if _, err := model.Generate(context.Background(), GenerateRequest{
+		Model:       "gpt-4.1",
+		Messages:    []Message{{Role: MessageRoleUser, Content: "hi"}},
+		Temperature: &temperature,
+		MaxTokens:   &maxTokens,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if captured["temperature"] != 0.2 || captured["max_tokens"] != float64(256) {
+		t.Fatalf("explicit gpt-4.1 payload = %#v, want classic parameters", captured)
+	}
 }
 
 func TestModelProviderErrorBodyIsCapped(t *testing.T) {
