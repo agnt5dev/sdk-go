@@ -68,6 +68,24 @@ func main() {
 See [`examples/quickstart`](examples/quickstart) for a runnable function and a
 workflow with a durable step.
 
+## Scoped memory
+
+Inside a handler, use `ctx.Memory().KV(scope)` to select run, user, session, or
+global memory. User and session scopes use the invocation's `user_id` and
+`session_id` metadata, respectively. Supply those IDs when invoking the component
+with `WithRunUserID` and `WithRunSessionID`. Runs with the same scope ID use the
+same namespace in the configured `StateStore`.
+
+Starting with v0.10.6, operations return `ErrMemoryUserIDRequired` or
+`ErrMemorySessionIDRequired` from `Get`, `Set`, `Delete`, and `List` when the
+matching ID is missing, before accessing storage. Check these errors with
+`errors.Is`. `Working()` and `Conversation()` also require a session ID because
+they use session-scoped memory. The accessor signatures are unchanged.
+
+In v0.10.5 and earlier, missing user and session IDs silently fall back to the
+run ID. Supply the matching ID to share memory across runs, or explicitly choose
+`MemoryScopeRun` for per-run data.
+
 ## Worker logs and traces
 
 Workers export application and lifecycle logs, invocation spans, and nested

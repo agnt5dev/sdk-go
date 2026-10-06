@@ -17,6 +17,13 @@ const (
 	MemoryScopeGlobal  MemoryScope = "global"
 )
 
+var (
+	// ErrMemoryUserIDRequired means user-scoped memory was accessed without a user ID.
+	ErrMemoryUserIDRequired = errors.New("agnt5: user-scoped memory requires user_id")
+	// ErrMemorySessionIDRequired means session-scoped memory was accessed without a session ID.
+	ErrMemorySessionIDRequired = errors.New("agnt5: session-scoped memory requires session_id")
+)
+
 // MemoryContext carries scope identifiers for memory access.
 type MemoryContext struct {
 	RunID     string
@@ -56,35 +63,43 @@ func NewMemoryAccessor(store StateStore, ctx MemoryContext) *MemoryAccessor {
 	return &MemoryAccessor{store: store, ctx: ctx}
 }
 
-// KV returns key/value memory for a scope.
+// KV returns key/value memory for a scope. User and session scopes require their
+// matching MemoryContext identifier; operations return ErrMemoryUserIDRequired or
+// ErrMemorySessionIDRequired before accessing storage when that identifier is missing.
 func (m *MemoryAccessor) KV(scope MemoryScope) *KVMemory {
-	return &KVMemory{state: NewStateManager(m.store, stateScopeFromMemory(scope), m.namespace(scope))}
+	namespace, err := m.namespace(scope)
+	if err != nil {
+		return &KVMemory{scopeErr: err}
+	}
+	return &KVMemory{state: NewStateManager(m.store, stateScopeFromMemory(scope), namespace)}
 }
 
-// Working returns session-scoped working memory.
+// Working returns session-scoped working memory. Operations require a SessionID.
 func (m *MemoryAccessor) Working() *WorkingMemory {
 	return &WorkingMemory{kv: m.KV(MemoryScopeSession)}
 }
 
-// Conversation returns session-scoped conversation memory.
+// Conversation returns session-scoped conversation memory. Operations require a SessionID.
 func (m *MemoryAccessor) Conversation() *ConversationMemory {
 	return &ConversationMemory{kv: m.KV(MemoryScopeSession)}
 }
 
-func (m *MemoryAccessor) namespace(scope MemoryScope) string {
+func (m *MemoryAccessor) namespace(scope MemoryScope) (string, error) {
 	switch scope {
 	case MemoryScopeGlobal:
-		return "global"
+		return "global", nil
 	case MemoryScopeUser:
-		if m.ctx.UserID != "" {
-			return m.ctx.UserID
+		if m.ctx.UserID == "" {
+			return "", ErrMemoryUserIDRequired
 		}
+		return m.ctx.UserID, nil
 	case MemoryScopeSession:
-		if m.ctx.SessionID != "" {
-			return m.ctx.SessionID
+		if m.ctx.SessionID == "" {
+			return "", ErrMemorySessionIDRequired
 		}
+		return m.ctx.SessionID, nil
 	}
-	return m.ctx.RunID
+	return m.ctx.RunID, nil
 }
 
 func stateScopeFromMemory(scope MemoryScope) StateScope {
@@ -102,22 +117,35 @@ func stateScopeFromMemory(scope MemoryScope) StateScope {
 
 // KVMemory stores arbitrary values by key.
 type KVMemory struct {
-	state *StateManager
+	state    *StateManager
+	scopeErr error
 }
 
 func (m *KVMemory) Get(ctx context.Context, key string) (any, error) {
+	if m.scopeErr != nil {
+		return nil, m.scopeErr
+	}
 	return m.state.Get(ctx, key)
 }
 
 func (m *KVMemory) Set(ctx context.Context, key string, value any) error {
+	if m.scopeErr != nil {
+		return m.scopeErr
+	}
 	return m.state.Set(ctx, key, value)
 }
 
 func (m *KVMemory) Delete(ctx context.Context, key string) error {
+	if m.scopeErr != nil {
+		return m.scopeErr
+	}
 	return m.state.Delete(ctx, key)
 }
 
 func (m *KVMemory) List(ctx context.Context) (map[string]any, error) {
+	if m.scopeErr != nil {
+		return nil, m.scopeErr
+	}
 	return m.state.List(ctx)
 }
 
