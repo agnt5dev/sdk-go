@@ -5,6 +5,16 @@ All notable changes to the AGNT5 Go SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- User- and session-scoped memory operations return `ErrMemoryUserIDRequired` or
+  `ErrMemorySessionIDRequired` when the matching ID is missing, before accessing
+  storage. This also applies to working and conversation memory. Previously,
+  these scopes silently used the run ID, so another run could not read the data.
+  Supply the matching ID or choose run-scoped memory explicitly for per-run data.
+
 ## [0.10.5] - 2026-10-02
 
 ### Fixed
@@ -288,7 +298,7 @@ dispatch lifecycle, and stream deltas are unchanged.
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.5...HEAD
 [0.7.0]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/agnt5dev/sdk-go/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/agnt5dev/sdk-go/compare/v0.4.1...v0.5.0
