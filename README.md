@@ -76,7 +76,7 @@ global memory. User and session scopes use the invocation's `user_id` and
 with `WithRunUserID` and `WithRunSessionID`. Runs with the same scope ID use the
 same namespace in the configured `StateStore`.
 
-The next release returns `ErrMemoryUserIDRequired` or
+Starting with v0.10.6, operations return `ErrMemoryUserIDRequired` or
 `ErrMemorySessionIDRequired` from `Get`, `Set`, `Delete`, and `List` when the
 matching ID is missing, before accessing storage. Check these errors with
 `errors.Is`. `Working()` and `Conversation()` also require a session ID because

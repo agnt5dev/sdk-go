@@ -5,7 +5,7 @@ All notable changes to the AGNT5 Go SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.6] - 2026-10-06
 
 ### Fixed
 
@@ -14,6 +14,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   storage. This also applies to working and conversation memory. Previously,
   these scopes silently used the run ID, so another run could not read the data.
   Supply the matching ID or choose run-scoped memory explicitly for per-run data.
+- Update the default worker/service version to 0.10.6; v0.10.5 still reported
+  0.10.4 in worker registration and telemetry.
 
 ## [0.10.5] - 2026-10-02
 
@@ -298,7 +300,8 @@ dispatch lifecycle, and stream deltas are unchanged.
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.5...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.6...HEAD
+[0.10.6]: https://github.com/agnt5dev/sdk-go/compare/v0.10.5...v0.10.6
 [0.7.0]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/agnt5dev/sdk-go/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/agnt5dev/sdk-go/compare/v0.4.1...v0.5.0
