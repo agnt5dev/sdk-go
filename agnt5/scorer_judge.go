@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"sort"
@@ -54,10 +55,16 @@ func runJudgeBuiltIn(ctx context.Context, name string, request ScorerRequest) (S
 }
 
 func runLLMJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
+	configFailure := func(result ScorerResult) (ScorerResult, error) {
+		if request.Config["choice_scores"] != nil {
+			return ScorerResult{}, fmt.Errorf("judge configuration error: %s", result.Explanation)
+		}
+		return result, nil
+	}
 	criteria := stringConfigDefault(request.Config, "criteria", "")
 	promptTemplate := stringConfigDefault(request.Config, "prompt_template", "")
 	if criteria == "" && promptTemplate == "" {
-		return scorerConfigError("llm_judge requires `config.criteria` or `config.prompt_template`"), nil
+		return configFailure(scorerConfigError("llm_judge requires `config.criteria` or `config.prompt_template`"))
 	}
 	configuredProvider := strings.ToLower(stringConfigDefault(request.Config, "provider", ""))
 	provider := configuredProvider
@@ -66,7 +73,7 @@ func runLLMJudge(ctx context.Context, request ScorerRequest) (ScorerResult, erro
 	}
 	modelName := stringConfigDefault(request.Config, "model", "")
 	if modelName == "" {
-		return scorerConfigError("llm_judge requires `config.model`"), nil
+		return configFailure(scorerConfigError("llm_judge requires `config.model`"))
 	}
 	// Accept `provider/model` ids like the other SDKs: the prefix picks the
 	// provider when none is configured and is never sent as part of the model
@@ -85,17 +92,22 @@ func runLLMJudge(ctx context.Context, request ScorerRequest) (ScorerResult, erro
 	}
 	choiceScores, failure := parseJudgeChoiceScores(request.Config["choice_scores"])
 	if failure != nil {
-		return *failure, nil
+		return configFailure(*failure)
 	}
 	userPrompt, failure := buildJudgePrompt(request, criteria, promptTemplate, choiceScores)
 	if failure != nil {
-		return *failure, nil
+		return configFailure(*failure)
 	}
 	model, failure := judgeLanguageModel(ctx, provider, modelName)
 	if failure != nil {
-		return *failure, nil
+		return configFailure(*failure)
 	}
 	systemPrompt := stringConfigDefault(request.Config, "system_prompt", llmJudgeDefaultSystemPrompt)
+	if len(choiceScores) > 0 {
+		systemPrompt = stringConfigDefault(request.Config, "system_prompt", "You are an expert evaluator. Evaluate the output using the provided criteria.")
+		labels, _ := json.Marshal(sortedChoiceLabels(choiceScores))
+		systemPrompt += "\n\nRespond ONLY with a JSON object containing \"label\" and \"explanation\". Choose exactly one label from: " + string(labels) + ". The platform maps the selected label to its configured score."
+	}
 	generateRequest := GenerateRequest{
 		Model: modelName,
 		Messages: []Message{
@@ -116,8 +128,8 @@ func runLLMJudge(ctx context.Context, request ScorerRequest) (ScorerResult, erro
 		// scorer error instead of a misleading result (AGNT5-1374).
 		return ScorerResult{}, fmt.Errorf("llm_judge: model call failed: %w", err)
 	}
-	result := parseLLMJudgeResponse(response.Content)
-	return applyJudgeChoiceScores(result, choiceScores), nil
+	result, hasScore, hasPassed := parseLLMJudgeResponse(response.Content)
+	return applyJudgeChoiceScores(result, choiceScores, hasScore, hasPassed)
 }
 
 func buildJudgePrompt(request ScorerRequest, criteria, promptTemplate string, choiceScores map[string]float64) (string, *ScorerResult) {
@@ -261,15 +273,24 @@ func judgeLanguageModel(ctx context.Context, provider, modelName string) (Langua
 	}
 }
 
-func parseLLMJudgeResponse(content string) ScorerResult {
+func parseLLMJudgeResponse(content string) (ScorerResult, bool, bool) {
 	jsonText := extractJudgeJSON(content)
 	var parsed map[string]any
 	if err := json.Unmarshal([]byte(jsonText), &parsed); err != nil {
-		return ScorerResult{Score: 0, Passed: false, Label: "parse_error", Explanation: "Could not parse LLM response: " + content, Metadata: map[string]any{"raw_response": content, "error": err.Error()}}
+		return ScorerResult{Score: 0, Passed: false, Label: "parse_error", Explanation: "Could not parse LLM response: " + content, Metadata: map[string]any{"raw_response": content, "error": err.Error()}}, false, false
 	}
-	score, _ := scorerFloat(parsed["score"])
+	if parsed == nil {
+		return ScorerResult{Label: "parse_error", Explanation: "Judge response must be a JSON object"}, false, false
+	}
+	score, hasScore := scorerFloat(parsed["score"])
+	if raw, exists := parsed["score"]; exists && raw != nil && (!hasScore || math.IsNaN(score) || math.IsInf(score, 0)) {
+		return ScorerResult{Label: "parse_error", Explanation: "Judge score must be finite"}, false, false
+	}
 	score = maxFloat(0, minFloat(1, score))
 	passed, hasPassed := parsed["passed"].(bool)
+	if raw, exists := parsed["passed"]; exists && raw != nil && !hasPassed {
+		return ScorerResult{Label: "parse_error", Explanation: "Judge passed must be a boolean"}, false, false
+	}
 	if !hasPassed {
 		passed = score >= .7
 	}
@@ -285,7 +306,7 @@ func parseLLMJudgeResponse(content string) ScorerResult {
 	if len(extras) > 0 {
 		result.Metadata = extras
 	}
-	return result
+	return result, hasScore, hasPassed
 }
 
 func extractJudgeJSON(content string) string {
@@ -337,29 +358,51 @@ func parseJudgeChoiceScores(raw any) (map[string]float64, *ScorerResult) {
 	return out, nil
 }
 
-func applyJudgeChoiceScores(result ScorerResult, choiceScores map[string]float64) ScorerResult {
-	if len(choiceScores) == 0 || result.Label == "parse_error" || result.Label == "config_error" {
-		return result
+func applyJudgeChoiceScores(result ScorerResult, choiceScores map[string]float64, hasScore, hasPassed bool) (ScorerResult, error) {
+	if len(choiceScores) == 0 {
+		return result, nil
+	}
+	if result.Label == "parse_error" || result.Label == "config_error" {
+		return ScorerResult{}, fmt.Errorf("judge response error: %s", result.Explanation)
 	}
 	label := result.Label
 	if label == "" {
-		matches := make([]string, 0)
-		for candidate, score := range choiceScores {
-			if absFloat(score-result.Score) < 1e-9 {
-				matches = append(matches, candidate)
-			}
+		binary := len(choiceScores) == 2
+		for _, score := range choiceScores {
+			binary = binary && (score == 0 || score == 1)
 		}
-		if len(matches) == 1 {
-			label = matches[0]
+		if binary && hasPassed {
+			for candidate, score := range choiceScores {
+				if (score == 1) == result.Passed {
+					if label != "" {
+						return ScorerResult{}, fmt.Errorf("judge response has ambiguous labels")
+					}
+					label = candidate
+				}
+			}
+		} else if hasScore {
+			distance := math.Inf(1)
+			for _, score := range choiceScores {
+				distance = math.Min(distance, absFloat(score-result.Score))
+			}
+			matches := make([]string, 0)
+			for candidate, score := range choiceScores {
+				if absFloat(absFloat(score-result.Score)-distance) < 1e-9 {
+					matches = append(matches, candidate)
+				}
+			}
+			if len(matches) == 1 {
+				label = matches[0]
+			}
 		}
 	}
 	score, ok := choiceScores[label]
 	if !ok {
 		labels := sortedChoiceLabels(choiceScores)
-		return ScorerResult{Score: 0, Passed: false, Label: "invalid_label", Explanation: fmt.Sprintf("Judge returned label %q; expected one of: %s", result.Label, strings.Join(labels, ", ")), Metadata: mergeAnyMaps(result.Metadata, map[string]any{"allowed_labels": labels, "invalid_label": result.Label})}
+		return ScorerResult{}, fmt.Errorf("judge returned label %q; expected one of: %s", result.Label, strings.Join(labels, ", "))
 	}
 	score = maxFloat(0, minFloat(1, score))
-	return ScorerResult{Score: score, Passed: score >= .7, Label: label, Explanation: result.Explanation, Metadata: mergeAnyMaps(result.Metadata, map[string]any{"choice_scores": choiceScores, "selected_label": label})}
+	return ScorerResult{Score: score, Passed: score >= .7, Label: label, Explanation: result.Explanation, Metadata: mergeAnyMaps(result.Metadata, map[string]any{"choice_scores": choiceScores, "selected_label": label})}, nil
 }
 
 func runCorrectnessJudge(ctx context.Context, request ScorerRequest) (ScorerResult, error) {
