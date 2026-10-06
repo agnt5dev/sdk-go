@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -33,14 +34,17 @@ type Options struct {
 	ServiceName    string
 	ServiceVersion string
 	SigningSecret  func(*http.Request) string
-	Enabled        func(*http.Request) bool
-	HTTPClient     *http.Client
+	// AllowUnsigned permits unsigned invokes when no secret resolves. Local development only.
+	AllowUnsigned bool
+	Enabled       func(*http.Request) bool
+	HTTPClient    *http.Client
 }
 
 type Handler struct {
-	opts       Options
-	mu         sync.RWMutex
-	components map[string]component
+	opts                 Options
+	mu                   sync.RWMutex
+	components           map[string]component
+	missingSecretWarning sync.Once
 }
 
 type component struct {
@@ -127,7 +131,19 @@ type Suspension struct {
 func (s *Suspension) Error() string { return "serverless workflow suspended: " + s.Reason }
 
 func New(opts Options) *Handler {
-	return &Handler{opts: opts, components: make(map[string]component)}
+	h := &Handler{opts: opts, components: make(map[string]component)}
+	if opts.AllowUnsigned {
+		slog.Warn("AGNT5 serverless AllowUnsigned=true permits unsigned invokes when no signing secret is configured; use only for local development")
+	} else if opts.SigningSecret == nil {
+		h.warnMissingSigningSecret()
+	}
+	return h
+}
+
+func (h *Handler) warnMissingSigningSecret() {
+	h.missingSecretWarning.Do(func() {
+		slog.Warn("AGNT5 serverless signing secret is missing; invokes are rejected. Configure SigningSecret or set AllowUnsigned=true for local development")
+	})
 }
 
 func RegisterWorkflow[In any, Out any](h *Handler, name string, fn func(*Context, In) (Out, error)) error {
@@ -338,12 +354,16 @@ func (h *Handler) serveInvoke(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) verifySignature(r *http.Request, body []byte) *protocolError {
-	if h.opts.SigningSecret == nil {
-		return nil
+	secret := ""
+	if h.opts.SigningSecret != nil {
+		secret = h.opts.SigningSecret(r)
 	}
-	secret := h.opts.SigningSecret(r)
-	if secret == "" {
-		return nil
+	if strings.TrimSpace(secret) == "" {
+		if h.opts.AllowUnsigned {
+			return nil
+		}
+		h.warnMissingSigningSecret()
+		return perr(http.StatusServiceUnavailable, "WORKERLESS_SIGNING_SECRET_REQUIRED", "serverless signing secret is required; configure SigningSecret or set AllowUnsigned=true for local development")
 	}
 	timestamp, attemptID := r.Header.Get("X-AGNT5-Timestamp"), r.Header.Get("X-AGNT5-Attempt-ID")
 	signature := r.Header.Get("X-AGNT5-Signature")

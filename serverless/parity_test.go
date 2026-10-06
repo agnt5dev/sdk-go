@@ -21,7 +21,7 @@ func invoke(t *testing.T, h *Handler, body string) *httptest.ResponseRecorder {
 }
 
 func TestFunctionToolAndAgent(t *testing.T) {
-	h := New(Options{ServiceName: "parity"})
+	h := New(Options{AllowUnsigned: true, ServiceName: "parity"})
 	if err := RegisterFunction(h, "double", func(_ *Context, in struct {
 		Value int `json:"value"`
 	}) (int, error) {
@@ -54,7 +54,7 @@ func TestFunctionToolAndAgent(t *testing.T) {
 }
 
 func TestSignalAndUserInputResume(t *testing.T) {
-	h := New(Options{})
+	h := New(Options{AllowUnsigned: true})
 	_ = RegisterWorkflow(h, "approval", func(ctx *Context, _ struct{}) (string, error) {
 		signal, err := WaitForSignal[string](ctx, "approved", "gate")
 		if err != nil {
@@ -88,7 +88,7 @@ func TestInputAndOutputReferences(t *testing.T) {
 		uploaded, _ = io.ReadAll(r.Body)
 		return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
 	})}
-	h := New(Options{HTTPClient: client})
+	h := New(Options{AllowUnsigned: true, HTTPClient: client})
 	_ = RegisterWorkflow(h, "hello", func(_ *Context, in map[string]string) (map[string]string, error) {
 		return map[string]string{"message": "hello " + in["name"]}, nil
 	})
@@ -110,7 +110,7 @@ func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error)
 }
 
 func TestAgentSessionCheckpointResume(t *testing.T) {
-	h := New(Options{})
+	h := New(Options{AllowUnsigned: true})
 	seen := 0
 	_ = RegisterAgent(h, Agent{Name: "helper", Run: func(_ *Context, input AgentInput) (AgentResult, error) {
 		seen = len(input.History)
@@ -126,7 +126,7 @@ func TestResponsesSerializeEmptyCollectionsAsArrays(t *testing.T) {
 	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{StatusCode: 204, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
 	})}
-	h := New(Options{HTTPClient: client})
+	h := New(Options{AllowUnsigned: true, HTTPClient: client})
 	_ = RegisterWorkflow(h, "quiet", func(*Context, struct{}) (string, error) { return "done", nil })
 	_ = RegisterWorkflow(h, "nap", func(ctx *Context, _ struct{}) (string, error) {
 		if err := ctx.Sleep(time.Hour, "nap"); err != nil {
@@ -169,7 +169,7 @@ func TestResponsesSerializeEmptyCollectionsAsArrays(t *testing.T) {
 }
 
 func TestCompleteOutputNormalizesNilEvents(t *testing.T) {
-	body, perr := New(Options{}).completeOutput(context.Background(), "ok", nil, checkpointEnvelope{}, nil)
+	body, perr := New(Options{AllowUnsigned: true}).completeOutput(context.Background(), "ok", nil, checkpointEnvelope{}, nil)
 	if perr != nil {
 		t.Fatal(perr.Message)
 	}

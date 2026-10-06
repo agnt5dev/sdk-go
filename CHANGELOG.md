@@ -5,6 +5,16 @@ All notable changes to the AGNT5 Go SDK are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **Breaking:** serverless invokes now require a non-empty signing secret. A
+  missing secret returns HTTP 503 (`WORKERLESS_SIGNING_SECRET_REQUIRED`) before
+  executing user code. For local development, explicitly set `AllowUnsigned: true`;
+  this logs a startup warning and permits unsigned invokes only when no secret
+  resolves. Configured secrets are still verified. The manifest remains public.
+
 ## [0.10.6] - 2026-10-06
 
 ### Fixed
