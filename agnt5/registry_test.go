@@ -100,6 +100,31 @@ func TestRegisterWorkflow(t *testing.T) {
 	}
 }
 
+func TestRegisterWorkflowRejectsUnsupportedTriggerOptions(t *testing.T) {
+	for _, tc := range []struct {
+		field   string
+		trigger TriggerSpec
+	}{
+		{"filter_expression", TriggerSpec{TriggerType: "event", EventName: "created", FilterExpression: "true"}},
+		{"input_mapping", TriggerSpec{TriggerType: "event", EventName: "created", InputMapping: "data"}},
+		{"batch_window_ms", TriggerSpec{TriggerType: "event", EventName: "created", BatchWindowMS: 1}},
+		{"delay_expression", TriggerSpec{TriggerType: "event", EventName: "created", DelayExpression: "1s"}},
+	} {
+		t.Run(tc.field, func(t *testing.T) {
+			worker := NewWorker("test-worker")
+			err := RegisterWorkflow(worker, "unsupported", func(*Context, greetInput) (greetOutput, error) {
+				return greetOutput{}, nil
+			}, WithTriggers(tc.trigger))
+			if err == nil || !strings.Contains(err.Error(), tc.field) || !strings.Contains(err.Error(), "not supported") {
+				t.Fatalf("expected an actionable trigger error, got %v", err)
+			}
+			if _, exists := worker.Registry().Get("unsupported"); exists {
+				t.Fatal("invalid workflow was registered")
+			}
+		})
+	}
+}
+
 func TestRegisterDuplicate(t *testing.T) {
 	worker := NewWorker("test-worker")
 	handler := func(*Context, greetInput) (greetOutput, error) {

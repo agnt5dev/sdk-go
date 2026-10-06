@@ -1,8 +1,10 @@
 package agnt5
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -81,6 +83,21 @@ func (r *Registry) Register(component Component) error {
 	}
 	if component.invoke == nil {
 		return ErrNilHandler
+	}
+	for _, trigger := range component.Triggers {
+		for _, option := range []struct {
+			name string
+			set  bool
+		}{
+			{"filter_expression", strings.TrimSpace(trigger.FilterExpression) != ""},
+			{"input_mapping", strings.TrimSpace(trigger.InputMapping) != ""},
+			{"batch_window_ms", trigger.BatchWindowMS != 0},
+			{"delay_expression", strings.TrimSpace(trigger.DelayExpression) != ""},
+		} {
+			if option.set {
+				return fmt.Errorf("agnt5: trigger %s is not supported; leave it unset", option.name)
+			}
+		}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
