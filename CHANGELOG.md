@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-10-06
+
 ### Security
 
 - **Breaking:** serverless invokes now require a non-empty signing secret. A
@@ -15,8 +17,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   this logs a startup warning and permits unsigned invokes only when no secret
   resolves. Configured secrets are still verified. The manifest remains public.
 
-## [0.10.6] - 2026-10-06
-
 ### Fixed
 
 - User- and session-scoped memory operations return `ErrMemoryUserIDRequired` or
@@ -24,6 +24,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   storage. This also applies to working and conversation memory. Previously,
   these scopes silently used the run ID, so another run could not read the data.
   Supply the matching ID or choose run-scoped memory explicitly for per-run data.
+- Classification judges now require an allowed label in their prompts and recover
+  a missing label from a usable Pass/Fail verdict or a unique nearest choice score.
+  Invalid, ambiguous, or malformed responses return a scorer error instead of
+  counting as a completed failed score. Valid explicit labels remain authoritative.
 - Update the default worker/service version to 0.10.6; v0.10.5 still reported
   0.10.4 in worker registration and telemetry.
 
