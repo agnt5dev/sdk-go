@@ -7,6 +7,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-10-07
+
+### Fixed
+
+- Reject unsupported trigger filters, input mappings, batching and delays during
+  component registration instead of allowing the runtime to skip them.
+- Report worker and service version 0.10.7 in registration and telemetry.
+
+### Changed
+
+- `Client.ResumeWorkflow` now accepts a string answer, matching the gateway
+  contract. Convert values held as `any` to a string before calling it. Pass a
+  JSON-array string for multiple selections.
+
 ## [0.10.6] - 2026-10-06
 
 ### Security
@@ -314,7 +328,8 @@ dispatch lifecycle, and stream deltas are unchanged.
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.6...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.7...HEAD
+[0.10.7]: https://github.com/agnt5dev/sdk-go/compare/v0.10.6...v0.10.7
 [0.10.6]: https://github.com/agnt5dev/sdk-go/compare/v0.10.5...v0.10.6
 [0.7.0]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/agnt5dev/sdk-go/compare/v0.5.0...v0.6.0
