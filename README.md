@@ -68,6 +68,14 @@ func main() {
 See [`examples/quickstart`](examples/quickstart) for a runnable function and a
 workflow with a durable step.
 
+## Event triggers
+
+Use `WithTriggers(EventTrigger(...))` or `WithTriggers(WebhookTrigger(...))`
+when registering a workflow. Filtering, input mapping, batching, and delays
+are not supported yet. Leave `FilterExpression`, `InputMapping`,
+`BatchWindowMS`, and `DelayExpression` unset; registration rejects nonempty
+expressions and nonzero batch windows with an error naming the option.
+
 ## Scoped memory
 
 Inside a handler, use `ctx.Memory().KV(scope)` to select run, user, session, or
