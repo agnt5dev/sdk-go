@@ -1,12 +1,20 @@
+<p align="center">
+  <a href="https://agnt5.com"><img src="https://agnt5.com/images/github/github-repo-sdk-banner.png" alt="AGNT5: the reliable platform for AI agents and workflows" width="100%"></a>
+</p>
+
 # AGNT5 Go SDK
 
-[![CI](https://github.com/agnt5dev/agnt5/actions/workflows/sdk-go-tests.yml/badge.svg)](https://github.com/agnt5dev/agnt5/actions/workflows/sdk-go-tests.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/agnt5dev/sdk-go/agnt5.svg)](https://pkg.go.dev/github.com/agnt5dev/sdk-go/agnt5)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Build typed AGNT5 workers, durable workflows, and runtime clients in Go. The
-SDK supports push and pull workers, checkpointed workflow steps, streaming,
-batches, tools, agents, progressively disclosed skills, MCP, evaluation,
-sandbox interfaces, and structured runtime events.
+Build reliable AI agents and durable workflows in Go. AGNT5 checkpoints each
+workflow step, so a run that fails partway resumes from its last completed step
+instead of starting over. The SDK provides typed workers and runtime clients,
+push and pull workers, streaming, batches, tool calling, agents with
+multi-agent handoffs, human-in-the-loop (HITL) waits, progressively disclosed
+skills, MCP, evals, sandbox interfaces, and structured runtime events.
+
+[Documentation](https://agnt5.com/docs) · [Starter templates](https://github.com/agnt5dev/templates) · [Website](https://agnt5.com)
 
 ## Requirements
 
@@ -277,29 +285,6 @@ streaming controls.
 The shared Rust foundation and cross-SDK conformance contracts live in
 [`agnt5dev/sdk-core`](https://github.com/agnt5dev/sdk-core).
 
-## Development
-
-For local pull-worker benchmarks, set `AGNT5_CORE_METRICS_LOGS=1` to emit
-`AGNT5_CORE_METRIC` JSON observations on stderr. These correlate slot occupancy
-through completion acknowledgment, actual step body time, and activation RPC
-time including retries. They include run and worker identifiers, never input
-or output payloads. Observation logging is disabled by default.
-
-```bash
-gofmt -w .
-go vet ./...
-go test ./...
-```
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues according to
-[SECURITY.md](SECURITY.md).
-
-## License
-
-Licensed under the [Apache License 2.0](LICENSE).
-
 ## Response wait
 
 Run and stream calls wait up to **5 minutes** by default. Set the per-call wait
@@ -364,3 +349,26 @@ still verifies requests when a secret is configured. An omitted resolver warns
 at startup; a resolver that returns empty warns on its first failed invoke.
 AGNT5 activation and dispatch still require a signing secret, regardless of
 this SDK option.
+
+## Development
+
+For local pull-worker benchmarks, set `AGNT5_CORE_METRICS_LOGS=1` to emit
+`AGNT5_CORE_METRIC` JSON observations on stderr. These correlate slot occupancy
+through completion acknowledgment, actual step body time, and activation RPC
+time including retries. They include run and worker identifiers, never input
+or output payloads. Observation logging is disabled by default.
+
+```bash
+gofmt -w .
+go vet ./...
+go test ./...
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues according to
+[SECURITY.md](SECURITY.md).
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
