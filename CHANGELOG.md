@@ -7,6 +7,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- Pull workers now ask for a 60-second lease by default instead of 300 seconds,
+  matching the Python and TypeScript SDKs. A crashed worker's runs recover about
+  a minute after the crash rather than five. Set `AGNT5_CLAIM_TIMEOUT_MS` to
+  keep a longer lease.
+
 ## [0.10.7] - 2026-10-07
 
 ### Fixed

@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	defaultPollWaitMS             = int64(30_000)
-	defaultClaimTimeoutMS         = int64(300_000)
+	defaultPollWaitMS = int64(30_000)
+	// A live worker renews at half the lease, so this mostly sets how long a
+	// crashed worker's runs wait before another worker takes them.
+	defaultClaimTimeoutMS         = int64(60_000)
 	defaultCapacityEvery          = 15 * time.Second
 	defaultPollErrorBackoff       = 250 * time.Millisecond
 	defaultPollErrorBackoffMax    = 5 * time.Second
