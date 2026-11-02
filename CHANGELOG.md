@@ -7,12 +7,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-11-02
+
 ### Changed
 
 - Pull workers now ask for a 60-second lease by default instead of 300 seconds,
   matching the Python and TypeScript SDKs. A crashed worker's runs recover about
   a minute after the crash rather than five. Set `AGNT5_CLAIM_TIMEOUT_MS` to
   keep a longer lease.
+- Report worker and service version 0.10.8 in registration and telemetry.
 
 ## [0.10.7] - 2026-10-07
 
@@ -335,7 +338,8 @@ dispatch lifecycle, and stream deltas are unchanged.
 - Cancel and join every old pull-session task before reconnecting, preventing
   session overlap and event-writer races.
 
-[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.7...HEAD
+[Unreleased]: https://github.com/agnt5dev/sdk-go/compare/v0.10.8...HEAD
+[0.10.8]: https://github.com/agnt5dev/sdk-go/compare/v0.10.7...v0.10.8
 [0.10.7]: https://github.com/agnt5dev/sdk-go/compare/v0.10.6...v0.10.7
 [0.10.6]: https://github.com/agnt5dev/sdk-go/compare/v0.10.5...v0.10.6
 [0.7.0]: https://github.com/agnt5dev/sdk-go/compare/v0.6.0...v0.7.0
