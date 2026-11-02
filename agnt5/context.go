@@ -35,6 +35,10 @@ type Context struct {
 	stateStore       StateStore
 	checkpointWriter stepCheckpointWriter
 	activationWriter stepActivationWriter
+	// enclosingActivations counts the activations this context runs inside.
+	// They cannot settle until the current code returns, so a wait for other
+	// steps to finish must not count them.
+	enclosingActivations int
 }
 
 type contextShared struct {
@@ -52,6 +56,8 @@ type contextShared struct {
 	stepMu         sync.Mutex
 	stepCounts     map[string]int
 	completedSteps map[string][]byte
+
+	activity *activationActivity
 
 	hitlMu        sync.Mutex
 	pauseIndex    int
@@ -73,6 +79,7 @@ func newContext(parent context.Context, inv Invocation, checkpointWriter stepChe
 			stepCounts:     make(map[string]int),
 			completedSteps: make(map[string][]byte),
 			userResponses:  make(map[int]*string),
+			activity:       newActivationActivity(),
 		},
 		projectID:        projectID,
 		runCID:           runCorrelationIDFromRunID(inv.RunID),
@@ -80,7 +87,7 @@ func newContext(parent context.Context, inv Invocation, checkpointWriter stepChe
 		checkpointWriter: checkpointWriter,
 	}
 	if writer, ok := checkpointWriter.(stepActivationWriter); ok {
-		ctx.activationWriter = writer
+		ctx.activationWriter = &trackingActivationWriter{stepActivationWriter: writer, activity: ctx.shared.activity}
 	}
 	ctx.loadReplayMetadata(inv.Metadata)
 	ctx.logger = &Logger{ctx: ctx}
@@ -283,6 +290,8 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 		stateStore:       c.stateStore,
 		checkpointWriter: c.checkpointWriter,
 		activationWriter: c.activationWriter,
+
+		enclosingActivations: c.enclosingActivations,
 	}
 	child.logger = &Logger{ctx: child}
 	return child
@@ -311,6 +320,7 @@ func (c *Context) withActivationExecution(execution ActivationExecution) *Contex
 	// The admitted activation owns the work nested inside it: a tool's own model
 	// call hangs off the tool, not off the iteration that described the tool.
 	child.displayParentCID = ""
+	child.enclosingActivations = c.enclosingActivations + 1
 	return child
 }
 

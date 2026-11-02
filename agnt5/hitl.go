@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // HITLInputType describes the requested user input shape.
@@ -134,6 +135,11 @@ func (c *Context) AskUser(request UserInputRequest) (string, error) {
 			"pause_data": pauseData,
 		},
 	), metadata))
+	// Pausing releases the run lease and a person may take days to answer, so
+	// let other steps finish first: under a released lease they never can.
+	if _, _, err := c.shared.activity.waitForOthers(c, c.enclosingActivations, time.Time{}); err != nil {
+		return "", err
+	}
 	workflowPaused := lifecycleEvent(
 		"workflow.paused",
 		hitlWorkflowName(c),

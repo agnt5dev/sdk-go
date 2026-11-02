@@ -177,6 +177,11 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 			nil,
 		)
 	}
+	// A timer that completed in process before a restart replays as finished.
+	if begin.GetOutcome() == pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_REPLAY {
+		c.recordCompletedStep(timerKey, []byte("null"))
+		return nil
+	}
 	if begin.GetOutcome() != pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_EXECUTE {
 		return activationBeginDecisionError(begin, "sleep")
 	}
@@ -189,10 +194,27 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 			nil,
 		)
 	}
+
+	// Suspending releases the lease other steps run under: they could never
+	// finish, and the resumed run would wait on them forever. So the timer runs
+	// here while they do, and only what is left then goes back to the runtime.
+	activity := c.shared.activity
+	remaining, waited, err := activity.waitForOthers(c, 1, time.Now().Add(duration))
+	if err != nil {
+		return err
+	}
+	if remaining == 0 {
+		return c.completeTimerInProcess(timerKey, begin, delayMS)
+	}
+	suspendMS := delayMS
+	if waited {
+		suspendMS = max(remaining.Milliseconds(), 1)
+	}
 	continuation, err := c.sleepContinuation()
 	if err != nil {
 		return err
 	}
+	activity.settled(begin.GetActivationId())
 	return &durableSleepSuspensionError{suspension: &pb.WorkerSuspension{
 		ActivationId:     begin.GetActivationId(),
 		Attempt:          begin.GetAttempt(),
@@ -201,7 +223,7 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 		InputDigest:      inputDigest[:],
 		DefinitionDigest: cloneBytes(definitionDigest),
 		Continuation:     continuation,
-		DelayMs:          delayMS,
+		DelayMs:          suspendMS,
 	}}
 }
 

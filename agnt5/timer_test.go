@@ -152,3 +152,81 @@ func TestDispatchConvertsSleepSignalToWorkerSuspension(t *testing.T) {
 		t.Fatalf("worker suspension = %#v", suspension)
 	}
 }
+
+// runHeldStep begins a step and leaves it open until release is closed.
+func runHeldStep(t *testing.T, ctx *Context, key string, release <-chan struct{}) (started, done chan struct{}) {
+	t.Helper()
+	started, done = make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(done)
+		_, err := StepWithKey(ctx, key, key, func(*Context) (string, error) {
+			close(started)
+			<-release
+			return key, nil
+		})
+		if err != nil {
+			t.Errorf("step %s: %v", key, err)
+		}
+	}()
+	<-started
+	return started, done
+}
+
+func TestContextSleepHoldsTheLeaseWhileAStepIsInFlight(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.Metadata[durableSuspensionV1Capability] = "true"
+	release := make(chan struct{})
+	_, done := runHeldStep(t, ctx, "slow", release)
+
+	if err := ctx.Sleep(10*time.Millisecond, WithSleepKey("backoff")); err != nil {
+		t.Fatalf("sleep with a step in flight: %v", err)
+	}
+	if _, completed := ctx.completedStepPayload("sleep:backoff"); !completed {
+		t.Fatalf("timer must complete in process")
+	}
+	select {
+	case <-done:
+		t.Fatalf("the step must keep running under the lease")
+	default:
+	}
+	close(release)
+	<-done
+}
+
+func TestContextSleepSuspendsForTheRemainderOnceStepsFinish(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.Metadata[durableSuspensionV1Capability] = "true"
+	release := make(chan struct{})
+	_, done := runHeldStep(t, ctx, "quick", release)
+	time.AfterFunc(10*time.Millisecond, func() { close(release) })
+
+	err := ctx.Sleep(5*time.Second, WithSleepKey("backoff"))
+	<-done
+	var suspended *durableSleepSuspensionError
+	if !errors.As(err, &suspended) || suspended.suspension == nil {
+		t.Fatalf("sleep error = %#v", err)
+	}
+	if delay := suspended.suspension.GetDelayMs(); delay <= 0 || delay >= 5000 {
+		t.Fatalf("suspended delay = %d, want the remainder", delay)
+	}
+}
+
+func TestContextSleepReplaysATimerThatCompletedInProcess(t *testing.T) {
+	writer := &recordingActivationWriter{beginResponse: &pb.BeginActivationResponse{
+		Outcome: pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_REPLAY,
+		ActivationId: activationID(
+			"project-1", "run-1", "", pb.ActivationKind_ACTIVATION_KIND_TIMER, "sleep:backoff",
+		),
+	}}
+	ctx := newActivationTestContext(writer)
+	ctx.invocation.Metadata[durableSuspensionV1Capability] = "true"
+
+	if err := ctx.Sleep(5*time.Second, WithSleepKey("backoff")); err != nil {
+		t.Fatalf("replayed sleep: %v", err)
+	}
+	if len(writer.completeRequests) != 0 {
+		t.Fatalf("replay must not complete again")
+	}
+}
