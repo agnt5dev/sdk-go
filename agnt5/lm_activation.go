@@ -213,6 +213,8 @@ func (c *Context) generateDurableModel(
 	if err != nil {
 		return GenerateResponse{}, err
 	}
+	// Every way out ends this activation's count, including an output that can't be encoded.
+	defer c.shared.activity.settled(begin.GetActivationId())
 	if begin.GetActivationId() != expectedActivationID {
 		return GenerateResponse{}, newActivationError(
 			ActivationErrorUnknownOutcome,

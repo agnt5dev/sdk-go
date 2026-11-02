@@ -2,6 +2,7 @@ package agnt5
 
 import (
 	"context"
+	"slices"
 	"sync"
 )
 
@@ -35,10 +36,10 @@ type Context struct {
 	stateStore       StateStore
 	checkpointWriter stepCheckpointWriter
 	activationWriter stepActivationWriter
-	// enclosingActivations counts the activations this context runs inside.
+	// enclosingActivations lists the activations this context runs inside.
 	// They cannot settle until the current code returns, so a wait for other
 	// steps to finish must not count them.
-	enclosingActivations int
+	enclosingActivations []string
 }
 
 type contextShared struct {
@@ -320,7 +321,7 @@ func (c *Context) withActivationExecution(execution ActivationExecution) *Contex
 	// The admitted activation owns the work nested inside it: a tool's own model
 	// call hangs off the tool, not off the iteration that described the tool.
 	child.displayParentCID = ""
-	child.enclosingActivations = c.enclosingActivations + 1
+	child.enclosingActivations = append(slices.Clip(c.enclosingActivations), execution.ActivationID)
 	return child
 }
 

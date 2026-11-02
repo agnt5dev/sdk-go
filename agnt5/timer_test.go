@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -228,5 +229,113 @@ func TestContextSleepReplaysATimerThatCompletedInProcess(t *testing.T) {
 	}
 	if len(writer.completeRequests) != 0 {
 		t.Fatalf("replay must not complete again")
+	}
+}
+
+// within fails the test if fn is still blocked after the timeout.
+func within[T any](t *testing.T, timeout time.Duration, what string, fn func() T) T {
+	t.Helper()
+	result := make(chan T, 1)
+	go func() { result <- fn() }()
+	select {
+	case value := <-result:
+		return value
+	case <-time.After(timeout):
+		t.Fatalf("%s still blocked after %s", what, timeout)
+		panic("unreachable")
+	}
+}
+
+func askInStep(ctx *Context, key string) error {
+	_, err := StepWithKey(ctx, key, key, func(stepCtx *Context) (string, error) {
+		return stepCtx.AskUser(UserInputRequest{Prompt: key + "?", Type: HITLText})
+	})
+	return err
+}
+
+func TestAskUserInConcurrentStepsDoNotWaitForEachOther(t *testing.T) {
+	ctx := newActivationTestContext(&recordingActivationWriter{})
+	errs := make(chan error, 2)
+	for _, key := range []string{"first", "second"} {
+		go func() { errs <- askInStep(ctx, key) }()
+	}
+	for range 2 {
+		err := within(t, 2*time.Second, "AskUser", func() error { return <-errs })
+		if !IsWaitingForUserInput(err) {
+			t.Fatalf("AskUser error = %v", err)
+		}
+	}
+}
+
+func TestAskUserInConcurrentStepsStillWaitForARunningStep(t *testing.T) {
+	ctx := newActivationTestContext(&recordingActivationWriter{})
+	release := make(chan struct{})
+	_, done := runHeldStep(t, ctx, "slow", release)
+	errs := make(chan error, 2)
+	for _, key := range []string{"first", "second"} {
+		go func() { errs <- askInStep(ctx, key) }()
+	}
+	select {
+	case err := <-errs:
+		t.Fatalf("a pause returned while a step was running: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	<-done
+	for range 2 {
+		err := within(t, 2*time.Second, "AskUser", func() error { return <-errs })
+		if !IsWaitingForUserInput(err) {
+			t.Fatalf("AskUser error = %v", err)
+		}
+	}
+}
+
+func TestAskUserCheckpointHoldsStepsThatFinishedWhileItWaited(t *testing.T) {
+	ctx := newActivationTestContext(&recordingActivationWriter{})
+	release := make(chan struct{})
+	_, done := runHeldStep(t, ctx, "slow", release)
+	time.AfterFunc(10*time.Millisecond, func() { close(release) })
+
+	if _, err := ctx.AskUser(UserInputRequest{Prompt: "Continue?", Type: HITLText}); !IsWaitingForUserInput(err) {
+		t.Fatalf("AskUser error = %v", err)
+	}
+	<-done
+	events := ctx.Events()
+	paused := events[len(events)-1]
+	if paused.Type != "workflow.paused" || !strings.Contains(paused.Metadata["completed_steps"], "slow") {
+		t.Fatalf("paused event = %#v", paused)
+	}
+}
+
+func TestContextSleepInsideAStepSuspendsWithNothingElseRunning(t *testing.T) {
+	ctx := newActivationTestContext(&recordingActivationWriter{})
+	ctx.invocation.Metadata[durableSuspensionV1Capability] = "true"
+
+	err := within(t, 2*time.Second, "Sleep", func() error {
+		_, err := StepWithKey(ctx, "outer", "outer", func(stepCtx *Context) (string, error) {
+			return "", stepCtx.Sleep(10*time.Minute, WithSleepKey("backoff"))
+		})
+		return err
+	})
+	var suspended *durableSleepSuspensionError
+	if !errors.As(err, &suspended) || suspended.suspension.GetDelayMs() != (10*time.Minute).Milliseconds() {
+		t.Fatalf("sleep error = %#v", err)
+	}
+}
+
+func TestAskUserDoesNotWaitForAStepWhoseOutputCouldNotBeEncoded(t *testing.T) {
+	ctx := newActivationTestContext(&recordingActivationWriter{})
+	_, err := StepWithKey(ctx, "bad", "bad", func(*Context) (chan int, error) {
+		return make(chan int), nil
+	})
+	if err == nil {
+		t.Fatal("an unencodable output must fail")
+	}
+	askErr := within(t, 2*time.Second, "AskUser", func() error {
+		_, err := ctx.AskUser(UserInputRequest{Prompt: "Continue?", Type: HITLText})
+		return err
+	})
+	if !IsWaitingForUserInput(askErr) {
+		t.Fatalf("AskUser error = %v", askErr)
 	}
 }

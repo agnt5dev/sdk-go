@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // HITLInputType describes the requested user input shape.
@@ -67,6 +66,14 @@ func (c *Context) AskUser(request UserInputRequest) (string, error) {
 	if response, ok := c.userResponse(pauseIndex); ok {
 		c.emitHITLResume(pauseIndex, response)
 		return response, nil
+	}
+	// Pausing releases the run lease and a person may take days to answer, so
+	// let other steps finish first: under a released lease they never can. This
+	// comes before the metadata below, so the checkpoint holds the steps they
+	// completed, and before the question is announced, so nobody answers a pause
+	// that hasn't happened.
+	if err := c.shared.activity.waitToPause(c, c.enclosingActivations); err != nil {
+		return "", err
 	}
 	stepName := fmt.Sprintf("wait_for_user_%d", pauseIndex)
 	stepCorrelationID := newCorrelationID("step")
@@ -135,11 +142,6 @@ func (c *Context) AskUser(request UserInputRequest) (string, error) {
 			"pause_data": pauseData,
 		},
 	), metadata))
-	// Pausing releases the run lease and a person may take days to answer, so
-	// let other steps finish first: under a released lease they never can.
-	if _, _, err := c.shared.activity.waitForOthers(c, c.enclosingActivations, time.Time{}); err != nil {
-		return "", err
-	}
 	workflowPaused := lifecycleEvent(
 		"workflow.paused",
 		hitlWorkflowName(c),

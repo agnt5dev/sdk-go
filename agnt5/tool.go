@@ -264,6 +264,8 @@ func invokeAgentToolWithOptions(ctx *Context, tool Tool, stableKey string, input
 	if err != nil {
 		return nil, err
 	}
+	// Every way out ends this activation's count, including an output that can't be encoded.
+	defer ctx.shared.activity.settled(begin.GetActivationId())
 	if begin.GetActivationId() != expectedActivationID {
 		return nil, newActivationError(
 			ActivationErrorUnknownOutcome,

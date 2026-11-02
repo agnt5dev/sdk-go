@@ -3,6 +3,7 @@ package agnt5
 import (
 	"context"
 	"crypto/sha256"
+	"slices"
 	"sync"
 	"time"
 
@@ -22,21 +23,32 @@ type activationActivity struct {
 	mu        sync.Mutex
 	beginning int
 	active    map[string]struct{}
-	changed   chan struct{}
+	// pausing holds activations blocked until a pause in them returns. They
+	// cannot settle first, so nothing should wait for them.
+	pausing map[string]int
+	changed chan struct{}
 }
 
 func newActivationActivity() *activationActivity {
 	return &activationActivity{
 		active:  make(map[string]struct{}),
+		pausing: make(map[string]int),
 		changed: make(chan struct{}),
 	}
 }
 
-// snapshot returns the unsettled count and a channel closed at the next change.
-func (a *activationActivity) snapshot() (int, <-chan struct{}) {
+// snapshot returns how many activations can still finish, leaving out own and
+// any that are pausing, and a channel closed at the next change.
+func (a *activationActivity) snapshot(own []string) (int, <-chan struct{}) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.beginning + len(a.active), a.changed
+	count := a.beginning
+	for id := range a.active {
+		if a.pausing[id] == 0 && !slices.Contains(own, id) {
+			count++
+		}
+	}
+	return count, a.changed
 }
 
 func (a *activationActivity) beginStarted() {
@@ -67,11 +79,33 @@ func (a *activationActivity) notifyLocked() {
 	a.changed = make(chan struct{})
 }
 
-// waitForOthers blocks while more than own activations are unsettled and the
-// deadline has not passed. A zero deadline waits for as long as they run. It
-// reports the time left, zero once the deadline has passed, and whether it
+// waitToPause blocks until only pausing activations are left. The caller's own
+// activations count as pausing for every other branch too, so two branches
+// pausing together wait for running work and not for each other.
+func (a *activationActivity) waitToPause(ctx context.Context, own []string) error {
+	a.setPausing(own, 1)
+	defer a.setPausing(own, -1)
+	_, _, err := a.waitForOthers(ctx, own, time.Time{})
+	return err
+}
+
+func (a *activationActivity) setPausing(ids []string, delta int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, id := range ids {
+		a.pausing[id] += delta
+		if a.pausing[id] == 0 {
+			delete(a.pausing, id)
+		}
+	}
+	a.notifyLocked()
+}
+
+// waitForOthers blocks while activations other than own can still finish and
+// the deadline has not passed. A zero deadline waits for as long as they run.
+// It reports the time left, zero once the deadline has passed, and whether it
 // waited at all, since a caller that did not wait still has its whole delay.
-func (a *activationActivity) waitForOthers(ctx context.Context, own int, deadline time.Time) (time.Duration, bool, error) {
+func (a *activationActivity) waitForOthers(ctx context.Context, own []string, deadline time.Time) (time.Duration, bool, error) {
 	left := func() time.Duration {
 		if deadline.IsZero() {
 			return time.Hour
@@ -84,10 +118,10 @@ func (a *activationActivity) waitForOthers(ctx context.Context, own int, deadlin
 		if remaining == 0 {
 			return 0, true, nil
 		}
-		count, changed := a.snapshot()
+		count, changed := a.snapshot(own)
 		var wait time.Duration
 		switch {
-		case count > own:
+		case count > 0:
 			held, waited = true, true
 			wait = remaining
 		case held:
@@ -107,7 +141,7 @@ func (a *activationActivity) waitForOthers(ctx context.Context, own int, deadlin
 		}
 		timer.Stop()
 		if changed == nil {
-			if count, _ := a.snapshot(); count > own {
+			if count, _ := a.snapshot(own); count > 0 {
 				held = true
 				continue
 			}

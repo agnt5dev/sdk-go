@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -168,6 +169,7 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 	if err != nil {
 		return err
 	}
+	defer c.shared.activity.settled(begin.GetActivationId())
 	if begin.GetActivationId() != expectedID {
 		return newActivationError(
 			ActivationErrorUnknownOutcome,
@@ -199,7 +201,8 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 	// finish, and the resumed run would wait on them forever. So the timer runs
 	// here while they do, and only what is left then goes back to the runtime.
 	activity := c.shared.activity
-	remaining, waited, err := activity.waitForOthers(c, 1, time.Now().Add(duration))
+	own := append(slices.Clip(c.enclosingActivations), begin.GetActivationId())
+	remaining, waited, err := activity.waitForOthers(c, own, time.Now().Add(duration))
 	if err != nil {
 		return err
 	}
@@ -214,7 +217,6 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 	if err != nil {
 		return err
 	}
-	activity.settled(begin.GetActivationId())
 	return &durableSleepSuspensionError{suspension: &pb.WorkerSuspension{
 		ActivationId:     begin.GetActivationId(),
 		Attempt:          begin.GetAttempt(),
