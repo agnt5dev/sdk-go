@@ -395,7 +395,7 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 		return zero, err
 	}
 	// Every way out ends this activation's count, including an output that can't be encoded.
-	defer ctx.shared.activity.settled(begin.GetActivationId())
+	defer ctx.shared.activity.settledIfAdmitted(begin)
 	if begin.GetActivationId() != expectedActivationID {
 		return zero, newActivationError(
 			ActivationErrorUnknownOutcome,

@@ -169,7 +169,7 @@ func (c *Context) Sleep(duration time.Duration, opts ...SleepOption) error {
 	if err != nil {
 		return err
 	}
-	defer c.shared.activity.settled(begin.GetActivationId())
+	defer c.shared.activity.settledIfAdmitted(begin)
 	if begin.GetActivationId() != expectedID {
 		return newActivationError(
 			ActivationErrorUnknownOutcome,

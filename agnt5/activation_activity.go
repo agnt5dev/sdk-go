@@ -74,6 +74,15 @@ func (a *activationActivity) settled(activationID string) {
 	a.notifyLocked()
 }
 
+// settledIfAdmitted ends the count only for a call the runtime admitted. Any other
+// answer can name an activation still running in another call, which must keep
+// counting.
+func (a *activationActivity) settledIfAdmitted(begin *pb.BeginActivationResponse) {
+	if begin.GetOutcome() == pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_EXECUTE {
+		a.settled(begin.GetActivationId())
+	}
+}
+
 func (a *activationActivity) notifyLocked() {
 	close(a.changed)
 	a.changed = make(chan struct{})

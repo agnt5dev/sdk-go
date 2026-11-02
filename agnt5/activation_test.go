@@ -26,6 +26,7 @@ type recordingActivationWriter struct {
 	beginResponse    *pb.BeginActivationResponse
 	completeResponse *pb.CompleteActivationResponse
 	failResponse     *pb.FailActivationResponse
+	beginOverride    func(*pb.BeginActivationRequest) *pb.BeginActivationResponse
 	beginErr         error
 	completeErr      error
 	failErr          error
@@ -41,6 +42,11 @@ func (w *recordingActivationWriter) BeginActivation(_ context.Context, request *
 	w.beginRequests = append(w.beginRequests, request)
 	if w.beginErr != nil {
 		return nil, w.beginErr
+	}
+	if w.beginOverride != nil {
+		if response := w.beginOverride(request); response != nil {
+			return response, nil
+		}
 	}
 	if w.beginResponse != nil {
 		return w.beginResponse, nil
