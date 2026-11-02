@@ -339,3 +339,42 @@ func TestAskUserDoesNotWaitForAStepWhoseOutputCouldNotBeEncoded(t *testing.T) {
 		t.Fatalf("AskUser error = %v", askErr)
 	}
 }
+
+func TestAskUserStillWaitsForAStepWhenADuplicateCallIsToldToWait(t *testing.T) {
+	writer := &recordingActivationWriter{}
+	ctx := newActivationTestContext(writer)
+	release := make(chan struct{})
+	_, done := runHeldStep(t, ctx, "slow", release)
+
+	writer.mu.Lock()
+	held := writer.beginRequests[0]
+	writer.beginOverride = func(*pb.BeginActivationRequest) *pb.BeginActivationResponse {
+		return &pb.BeginActivationResponse{
+			Outcome:      pb.BeginActivationOutcome_BEGIN_ACTIVATION_OUTCOME_WAIT,
+			ActivationId: activationID(held.GetProjectId(), held.GetRunId(), held.GetParentActivationId(), held.GetKind(), held.GetStableKey()),
+		}
+	}
+	writer.mu.Unlock()
+	if _, err := StepWithKey(ctx, "slow", "slow", func(*Context) (string, error) {
+		t.Error("a duplicate call must not run")
+		return "", nil
+	}); err == nil {
+		t.Fatal("the duplicate call must report contention")
+	}
+
+	asked := make(chan error, 1)
+	go func() {
+		_, err := ctx.AskUser(UserInputRequest{Prompt: "Continue?", Type: HITLText})
+		asked <- err
+	}()
+	select {
+	case err := <-asked:
+		t.Fatalf("the pause returned while the step was running: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	<-done
+	if err := within(t, 2*time.Second, "AskUser", func() error { return <-asked }); !IsWaitingForUserInput(err) {
+		t.Fatalf("AskUser error = %v", err)
+	}
+}

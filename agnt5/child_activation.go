@@ -111,7 +111,7 @@ func runDelegatedChild(
 		return AgentResult{}, err
 	}
 	// Every way out ends this activation's count, including an output that can't be encoded.
-	defer ctx.shared.activity.settled(begin.GetActivationId())
+	defer ctx.shared.activity.settledIfAdmitted(begin)
 	if begin.GetActivationId() != expectedID {
 		return AgentResult{}, newActivationError(
 			ActivationErrorUnknownOutcome,
