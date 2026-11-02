@@ -9,6 +9,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 )
 
 type recordingActivationWriter struct {
+	mu               sync.Mutex
 	beginRequests    []*pb.BeginActivationRequest
 	completeRequests []*pb.CompleteActivationRequest
 	failRequests     []*pb.FailActivationRequest
@@ -34,6 +36,8 @@ func (w *recordingActivationWriter) Checkpoint(context.Context, *pb.CheckpointRe
 }
 
 func (w *recordingActivationWriter) BeginActivation(_ context.Context, request *pb.BeginActivationRequest) (*pb.BeginActivationResponse, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.beginRequests = append(w.beginRequests, request)
 	if w.beginErr != nil {
 		return nil, w.beginErr
@@ -51,6 +55,8 @@ func (w *recordingActivationWriter) BeginActivation(_ context.Context, request *
 }
 
 func (w *recordingActivationWriter) CompleteActivation(_ context.Context, request *pb.CompleteActivationRequest) (*pb.CompleteActivationResponse, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.completeRequests = append(w.completeRequests, request)
 	if w.completeErr != nil {
 		return nil, w.completeErr
