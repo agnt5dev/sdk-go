@@ -7,6 +7,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.10.9] - 2026-11-02
+
+### Fixed
+
+- Let in-flight steps finish before a workflow suspends. A workflow that started
+  steps concurrently and then reached a durable `ctx.Sleep` suspended straight
+  away, which released the run lease those steps were running under, so they
+  failed with `CONTENDED`. The timer now runs inside the worker while other
+  steps are in flight, and only the time left once they finish goes back to the
+  runtime. `ctx.AskUser` waits for them the same way before it pauses, so a step
+  that never finishes holds the pause back.
+- Treat a timer that the runtime replays as finished, instead of failing the
+  run. A timer that completed inside the worker before a restart replays this
+  way.
+- Report worker and service version 0.10.9 in registration and telemetry.
+
 ## [0.10.8] - 2026-11-02
 
 ### Changed
