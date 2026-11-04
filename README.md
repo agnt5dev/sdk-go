@@ -372,3 +372,40 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues according to
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).
+
+## Declared durable steps
+
+Use `NewStep` to declare a typed, workflow-local operation. Call `Execute` from
+an existing workflow context with an explicit stable key. The step is not
+registered as a standalone component.
+
+```go
+prepareSearch, err := agnt5.NewStep("prepare-search",
+    func(ctx *agnt5.Context, topic string) (map[string]string, error) {
+        return map[string]string{"query": topic}, nil
+    },
+    agnt5.StepConfig{MaxAttempts: 3, Timeout: 5 * time.Second},
+)
+if err != nil {
+    return err
+}
+// Inside a registered workflow handler:
+result, err := prepareSearch.Execute(ctx, "durable agents", "search-query")
+```
+
+The handler starts after activation admission is acknowledged, and its result
+returns after completion is acknowledged. These two calls record the durable
+lifecycle without additional function checkpoints. Retries reuse the activation
+identity with runtime-owned attempts; each receives a fresh JSON copy of the
+input. Completed steps replay their committed result. Inputs and outputs must
+be JSON serializable; use exported struct fields with JSON tags.
+
+`StepConfig` supports `MaxAttempts`, `InitialInterval`, `MaxInterval`, `Backoff`
+(`constant`, `linear`, or `exponential`), `Multiplier`, and `Timeout`. Retries
+are immediate when `InitialInterval` is zero. Handler timeouts are cooperative:
+pass the handler context to I/O and honor cancellation. External effects still
+need idempotency; `ctx.Activation()` exposes the activation's idempotency key.
+
+Declared steps fail explicitly without runtime activation support. Existing
+`Step`, `StepWithKey`, `Task`, `TaskWithKey`, and registered functions keep their
+current behavior.

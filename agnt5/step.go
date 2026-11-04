@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -345,7 +346,17 @@ func runLegacyStep[T any](ctx *Context, name, stepKey string, fn func(context.Co
 	return out, nil
 }
 
-func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activationPlan, fn func(context.Context, string) (T, error)) (T, error) {
+func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activationPlan, fn func(context.Context, string) (T, error), policies ...*StepConfig) (T, error) {
+	var policy *StepConfig
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
+	if policy != nil {
+		if err := ctx.Err(); err != nil {
+			var zero T
+			return zero, err
+		}
+	}
 	var zero T
 	workerSessionID := ctx.Metadata("worker_session_id")
 	if workerSessionID == "" {
@@ -396,6 +407,11 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 	}
 	// Every way out ends this activation's count, including an output that can't be encoded.
 	defer ctx.shared.activity.settledIfAdmitted(begin)
+	if policy != nil {
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
+	}
 	if begin.GetActivationId() != expectedActivationID {
 		return zero, newActivationError(
 			ActivationErrorUnknownOutcome,
@@ -460,13 +476,31 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 	out, userErr := func() (result T, err error) {
 		timer := startCoreTimer(ctx, "business")
 		defer func() { timer.finish(ctx, err) }()
-		result, err = fn(ctx.withActivationExecution(execution), begin.GetActivationId())
+		scope := ctx.withActivationExecution(execution)
+		if policy != nil {
+			attempt := int(begin.GetAttempt()) - 1
+			scope.stepAttempt = &attempt
+		}
+		result, err = fn(scope, begin.GetActivationId())
 		if err == nil {
 			timer.outcome = "success"
 		}
 		return result, err
 	}()
+	if policy != nil {
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
+	}
 	if userErr != nil {
+		if policy != nil {
+			var activationErr *ActivationError
+			var suspension *durableSleepSuspensionError
+			if errors.As(userErr, &activationErr) || errors.As(userErr, &suspension) || IsWaitingForUserInput(userErr) {
+				return zero, userErr
+			}
+		}
+		retryable := policy != nil && int(begin.GetAttempt()) < policy.MaxAttempts
 		errorData, _ := json.Marshal(map[string]string{"message": userErr.Error(), "type": fmt.Sprintf("%T", userErr)})
 		failed, failErr := ctx.activationWriter.FailActivation(ctx, &pb.FailActivationRequest{
 			ProjectId:                ctx.projectID,
@@ -476,15 +510,18 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 			FenceToken:               cloneBytes(begin.GetFenceToken()),
 			ErrorCode:                "STEP_FAILED",
 			ErrorData:                inlineActivationPayload(errorData),
-			Retryable:                false,
+			Retryable:                retryable,
 			ExternalOutcomeCertainty: pb.ActivationExternalOutcomeCertainty_ACTIVATION_EXTERNAL_OUTCOME_CERTAINTY_UNKNOWN,
 			LatencyMs:                time.Since(startedAt).Milliseconds(),
 		})
 		if failErr != nil {
 			return zero, fmt.Errorf("agnt5: record failure for step %q: %w (user error: %v)", name, failErr, userErr)
 		}
-		if !failed.GetAccepted() {
+		if !failed.GetAccepted() || (policy != nil && (failed.GetActivationId() != begin.GetActivationId() || failed.GetAttempt() != begin.GetAttempt())) {
 			return zero, newActivationError(ActivationErrorUnknownOutcome, "runtime did not accept the step failure", begin.GetActivationId(), begin.GetAttempt(), userErr)
+		}
+		if retryable && failed.GetStatus() == pb.ActivationStatus_ACTIVATION_STATUS_RETRY_READY {
+			return zero, &stepRetryReady{cause: userErr, attempt: begin.GetAttempt()}
 		}
 		return zero, userErr
 	}
@@ -506,6 +543,11 @@ func runActivatedStep[T any](ctx *Context, name, stepKey string, plan activation
 	})
 	if err != nil {
 		return zero, err
+	}
+	if policy != nil {
+		if err := ctx.Err(); err != nil {
+			return zero, err
+		}
 	}
 	if !completed.GetAccepted() || completed.GetActivationId() != begin.GetActivationId() || completed.GetAttempt() != begin.GetAttempt() {
 		return zero, newActivationError(ActivationErrorUnknownOutcome, "runtime returned an invalid completion receipt", begin.GetActivationId(), begin.GetAttempt(), nil)
