@@ -7,6 +7,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-04
+
+### Added
+
+- Add typed workflow-local `NewStep` declarations and `DeclaredStep.Execute` with explicit stable keys. Declared steps use acknowledged activation admission and completion without extra function checkpoints, preserve committed replay, and support runtime-owned retry attempts, input snapshots, and cooperative handler timeouts. Existing function, `Step`, and `Task` behavior is unchanged.
+
 ## [0.10.9] - 2026-11-02
 
 ### Fixed

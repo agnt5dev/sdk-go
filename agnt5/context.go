@@ -20,6 +20,7 @@ type Context struct {
 	context.Context
 
 	invocation       Invocation
+	stepAttempt      *int
 	shared           *contextShared
 	logger           *Logger
 	projectID        string
@@ -120,6 +121,9 @@ func (c *Context) ComponentType() ComponentType {
 
 // Attempt returns the zero-based retry attempt number.
 func (c *Context) Attempt() int {
+	if c.stepAttempt != nil {
+		return *c.stepAttempt
+	}
 	return c.invocation.Attempt
 }
 
@@ -280,6 +284,7 @@ func (c *Context) withParentCorrelationID(correlationID string) *Context {
 	child := &Context{
 		Context:          c.Context,
 		invocation:       c.invocation,
+		stepAttempt:      c.stepAttempt,
 		shared:           c.shared,
 		projectID:        c.projectID,
 		parentCID:        correlationID,

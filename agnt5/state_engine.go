@@ -167,7 +167,9 @@ func stateWriteAuthorityFromContext(ctx context.Context, scope StateScope, names
 	if workerID == "" || workerSessionID == "" || runCtx.LeaseID() == "" {
 		return stateWriteAuthority{}, errors.New("agnt5: run-scoped state write is missing parked-poll authority")
 	}
-	if runCtx.Attempt() < 0 {
+	// State authority belongs to the run lease, independently of a nested
+	// handler's activation retry attempt.
+	if runCtx.invocation.Attempt < 0 {
 		return stateWriteAuthority{}, errors.New("agnt5: run-scoped state write has a negative attempt")
 	}
 	return stateWriteAuthority{
@@ -175,7 +177,7 @@ func stateWriteAuthorityFromContext(ctx context.Context, scope StateScope, names
 		workerID:        workerID,
 		workerSessionID: workerSessionID,
 		leaseID:         runCtx.LeaseID(),
-		attempt:         uint32(runCtx.Attempt()),
+		attempt:         uint32(runCtx.invocation.Attempt),
 		operationID:     newCorrelationID("state"),
 	}, nil
 }
