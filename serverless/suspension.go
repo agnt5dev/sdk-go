@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/agnt5dev/sdk-go/internal/userresponse"
 )
 
 type UserInputOption struct {
@@ -72,8 +74,6 @@ func (c *Context) WaitForUser(input UserInput) (string, error) {
 
 func jsonNumber(value int) string { return strconv.Itoa(value) }
 func decodeUserResponse(value string) string {
-	if value == "__skipped__" || value == "__skip__" {
-		return ""
-	}
-	return strings.TrimPrefix(value, "__custom__:")
+	decoded, _ := userresponse.Decode(value)
+	return decoded
 }
