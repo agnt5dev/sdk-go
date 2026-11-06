@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/agnt5dev/sdk-go/internal/userresponse"
 )
 
 // HITLInputType describes the requested user input shape.
@@ -351,15 +353,11 @@ func (c *Context) loadCompletedSteps(raw string) {
 }
 
 func decodeUserResponse(raw string) *string {
-	switch {
-	case raw == "__skipped__" || raw == "__skip__":
+	value, skipped := userresponse.Decode(raw)
+	if skipped {
 		return nil
-	case strings.HasPrefix(raw, "__custom__:"):
-		value := strings.TrimPrefix(raw, "__custom__:")
-		return &value
-	default:
-		return &raw
 	}
+	return &value
 }
 
 func (c *Context) pauseMetadata(

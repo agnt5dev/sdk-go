@@ -77,6 +77,14 @@ func TestSignalAndUserInputResume(t *testing.T) {
 	}
 }
 
+func TestUserInputResumeDecodesTypedEntryInMultiselectAnswer(t *testing.T) {
+	ctx := &Context{Metadata: map[string]string{"pause_index": "0", "user_response": `["ai","__custom__:Rust"]`}}
+	answer, err := ctx.WaitForUser(UserInput{Question: "Topics?", Type: "multiselect", AllowCustom: true})
+	if err != nil || answer != `["ai","Rust"]` {
+		t.Fatalf("answer = %q, err = %v", answer, err)
+	}
+}
+
 func TestInputAndOutputReferences(t *testing.T) {
 	input := []byte(`{"name":"Ada"}`)
 	digest := sha256.Sum256(input)

@@ -85,6 +85,23 @@ func TestAskUserReturnsReplayedResponse(t *testing.T) {
 	}
 }
 
+func TestAskUserDecodesTypedEntryInMultiselectAnswer(t *testing.T) {
+	ctx := newContext(context.Background(), Invocation{
+		ID:            "run-1",
+		RunID:         "run-1",
+		ComponentType: ComponentTypeWorkflow,
+		Metadata:      map[string]string{"pause_index": "0", "user_response": `["ai","__custom__:Rust"]`},
+	}, nil, "")
+
+	response, err := ctx.AskUser(UserInputRequest{Prompt: "Topics?", Type: HITLMultiSelect, AllowCustom: true})
+	if err != nil {
+		t.Fatalf("ask user replay: %v", err)
+	}
+	if response != `["ai","Rust"]` {
+		t.Fatalf("response = %q", response)
+	}
+}
+
 func TestAskUserResumePreservesWorkflowAndNestedStepParentCorrelation(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{
 		ID:            "nested-run:invoke",

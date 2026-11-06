@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- `ctx.AskUser` and the serverless `WaitForUser` decode typed text inside a multiselect answer: an entry `"__custom__:<text>"` in the JSON array becomes its text, so ticked options and typed text arrive together (`["ai","__custom__:Rust"]` returns `["ai","Rust"]`). Answers without such an entry are returned unchanged. Both packages share one decoder.
+
 ## [0.11.0] - 2026-11-04
 
 ### Added
