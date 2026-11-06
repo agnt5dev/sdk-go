@@ -290,7 +290,8 @@ func (c *Client) Chat(ctx context.Context, agent string, message ChatMessage, op
 }
 
 // ResumeWorkflow resumes a workflow paused by Context.AskUser or RequestApproval.
-// Pass "__skipped__" to skip, "__custom__:<text>" for a custom answer, or a JSON-array string for multiple selections.
+// Pass "__skipped__" to skip, "__custom__:<text>" for a custom answer, or a JSON-array string for multiple selections,
+// with any typed text as its own "__custom__:<text>" entry.
 func (c *Client) ResumeWorkflow(ctx context.Context, runID string, userResponse string, opts ...RunOption) (*ResumeWorkflowResponse, error) {
 	config := newRunConfig(opts...)
 	headers := c.requestHeaders(config.sessionID, config.userID, config.tenant, config.headers)
