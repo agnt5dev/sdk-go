@@ -2,6 +2,7 @@ package agnt5
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -208,5 +209,20 @@ func TestTaskRetryReplaysNestedStepWithExplicitKey(t *testing.T) {
 		if err != nil || attempts != 2 || reservations != 1 {
 			t.Fatalf("%s: attempts=%d reservations=%d err=%v", label, attempts, reservations, err)
 		}
+	}
+}
+
+func TestTaskInputCopyKeepsLargeIntegersExact(t *testing.T) {
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
+	ctx.shared.registry = retryRegistry(t)
+
+	input := map[string]any{"id": json.Number("9007199254740993"), "count": 3}
+	got, err := Task(ctx, "charge", input, func(_ *Context, in map[string]any) (string, error) {
+		id, _ := in["id"].(json.Number)
+		count, _ := in["count"].(json.Number)
+		return id.String() + "/" + count.String(), nil
+	})
+	if err != nil || got != "9007199254740993/3" {
+		t.Fatalf("got=%q err=%v", got, err)
 	}
 }

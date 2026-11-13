@@ -10,7 +10,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Fixed
 
 - `ctx.AskUser` and the serverless `WaitForUser` decode typed text inside a multiselect answer: an entry `"__custom__:<text>"` in the JSON array becomes its text, so ticked options and typed text arrive together (`["ai","__custom__:Rust"]` returns `["ai","Rust"]`). Answers without such an entry are returned unchanged. Both packages share one decoder.
-- `Task` and `TaskWithKey` now apply the retry policy a function was registered with (`WithRetry`, `WithBackoff`). Before, the policy only took effect when the function was run on its own, so inside a workflow the first error failed the step. Each attempt receives a fresh JSON copy of the input. Functions registered without a retry policy, and `Step` and `StepWithKey`, still run once.
+- `Task` and `TaskWithKey` now apply the retry policy a function was registered with (`WithRetry`, `WithBackoff`). Before, the policy only took effect when the function was run on its own, so inside a workflow the first error failed the step. Each attempt receives a fresh JSON copy of the input, in which a number held in an interface-typed field arrives as `json.Number` so large integers stay exact. Functions registered without a retry policy, and `Step` and `StepWithKey`, still run once.
 
 ## [0.11.0] - 2026-11-04
 

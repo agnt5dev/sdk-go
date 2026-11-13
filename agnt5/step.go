@@ -1,6 +1,7 @@
 package agnt5
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -50,10 +51,9 @@ func StepWithKey[T any](ctx *Context, name, key string, fn func(*Context) (T, er
 //
 // When the named function was registered with WithRetry, Task retries it with
 // that policy and hands every attempt a fresh JSON copy of the input, as a
-// declared step does. The copy follows encoding/json rules, the same ones a
-// function run on its own sees: a number held in an interface-typed field
-// arrives as float64, so carry large integers in a typed field or a string. A
-// retried attempt runs the whole handler again, including nested steps that
+// declared step does. Typed fields decode as usual; a number held in an
+// interface-typed field arrives as json.Number so a large integer keeps its
+// exact value. A retried attempt runs the whole handler again, including nested steps that
 // are numbered by call order; give nested work an explicit key (StepWithKey,
 // TaskWithKey) when it must not run twice.
 func Task[TInput any, TOutput any](
@@ -106,7 +106,11 @@ func runTask[TInput any, TOutput any](
 		input := input
 		if snapshot != nil {
 			var fresh TInput
-			if err := json.Unmarshal(snapshot, &fresh); err != nil {
+			// UseNumber keeps a number held in an interface-typed field exact;
+			// the default decoder would round a large integer through float64.
+			decoder := json.NewDecoder(bytes.NewReader(snapshot))
+			decoder.UseNumber()
+			if err := decoder.Decode(&fresh); err != nil {
 				return zero, fmt.Errorf("agnt5: snapshot task %q input: %w", name, err)
 			}
 			input = fresh
