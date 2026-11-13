@@ -5,6 +5,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
 type chargeInput struct {
@@ -118,5 +120,64 @@ func TestTaskAppliesRetryPolicyWithoutDurableActivations(t *testing.T) {
 	})
 	if err != nil || got != 7 || calls != 3 {
 		t.Fatalf("got=%d calls=%d err=%v", got, calls, err)
+	}
+}
+
+func TestTaskAdvancesAttemptWithoutDurableActivations(t *testing.T) {
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
+	ctx.shared.registry = retryRegistry(t)
+
+	var attempts []int
+	_, err := Task(ctx, "charge", chargeInput{}, func(ctx *Context, _ chargeInput) (int, error) {
+		attempts = append(attempts, ctx.Attempt())
+		if ctx.Attempt() < 2 {
+			return 0, errors.New("declined")
+		}
+		return 7, nil
+	})
+	if err != nil || !reflect.DeepEqual(attempts, []int{0, 1, 2}) {
+		t.Fatalf("attempts=%v err=%v", attempts, err)
+	}
+	if ctx.Attempt() != 0 {
+		t.Fatalf("workflow attempt changed to %d", ctx.Attempt())
+	}
+}
+
+// failingCompletionWriter accepts every checkpoint except STEP_COMPLETED.
+type failingCompletionWriter struct {
+	err   error
+	types []pb.CheckpointType
+}
+
+func (w *failingCompletionWriter) Checkpoint(_ context.Context, req *pb.CheckpointRequest) (*pb.CheckpointResponse, error) {
+	kind := req.GetCheckpoint().GetType()
+	w.types = append(w.types, kind)
+	if kind == pb.CheckpointType_CHECKPOINT_TYPE_STEP_COMPLETED {
+		return nil, w.err
+	}
+	return &pb.CheckpointResponse{}, nil
+}
+
+func TestTaskDoesNotRetryAFailedCompletionCheckpoint(t *testing.T) {
+	writer := &failingCompletionWriter{err: errors.New("checkpoint unavailable")}
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, writer, "project-1")
+	ctx.shared.registry = retryRegistry(t)
+
+	calls := 0
+	_, err := Task(ctx, "charge", chargeInput{}, func(*Context, chargeInput) (int, error) {
+		calls++
+		return 7, nil
+	})
+	if !errors.Is(err, writer.err) || calls != 1 {
+		t.Fatalf("a checkpoint failure must reach the workflow once: calls=%d err=%v", calls, err)
+	}
+	completed := 0
+	for _, kind := range writer.types {
+		if kind == pb.CheckpointType_CHECKPOINT_TYPE_STEP_COMPLETED {
+			completed++
+		}
+	}
+	if completed != 1 {
+		t.Fatalf("completion checkpoints sent=%d, want 1", completed)
 	}
 }
