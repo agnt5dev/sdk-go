@@ -99,7 +99,13 @@ func runTask[TInput any, TOutput any](
 	// earlier attempt changed a map or slice inside it before failing.
 	var snapshot []byte
 	if policy != nil {
-		snapshot, _ = json.Marshal(input)
+		encoded, err := json.Marshal(input)
+		if err != nil {
+			// Without a copy, a retry would see whatever an earlier attempt
+			// did to the input, so refuse to start instead.
+			return zero, fmt.Errorf("agnt5: snapshot task %q input: %w", name, err)
+		}
+		snapshot = encoded
 	}
 	return runStep(ctx, name, key, input, func(stepContext context.Context, stepCorrelationID string) (TOutput, error) {
 		ctx := stepScope(ctx, stepContext)

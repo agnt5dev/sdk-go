@@ -226,3 +226,26 @@ func TestTaskInputCopyKeepsLargeIntegersExact(t *testing.T) {
 		t.Fatalf("got=%q err=%v", got, err)
 	}
 }
+
+func TestTaskRejectsInputItCannotCopyBeforeRunning(t *testing.T) {
+	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
+	ctx.shared.registry = retryRegistry(t)
+
+	type callbackInput struct {
+		Lines  []int
+		Notify func()
+	}
+	calls := 0
+	_, err := Task(ctx, "charge", callbackInput{Lines: []int{1}, Notify: func() {}}, func(*Context, callbackInput) (int, error) {
+		calls++
+		return 0, nil
+	})
+	if err == nil || calls != 0 {
+		t.Fatalf("an input that cannot be copied must fail before the handler runs: calls=%d err=%v", calls, err)
+	}
+
+	// Without a retry policy nothing is copied, so the same input still runs.
+	if _, err := Task(ctx, "plain", callbackInput{Notify: func() {}}, func(*Context, callbackInput) (int, error) { return 1, nil }); err != nil {
+		t.Fatalf("plain task: %v", err)
+	}
+}
