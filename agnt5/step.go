@@ -268,10 +268,24 @@ func runStepWithRetries[T any](ctx *Context, name, stepKey string, plan activati
 			}
 			attempt = retry.attempt
 		} else {
-			result, err = runLegacyStep(ctx, name, stepKey, fn)
+			// Give the handler its own zero-based attempt number, as the
+			// activated path does, so ctx.Attempt() advances across retries.
+			scope := ctx.withParentCorrelationID(ctx.parentCID)
+			stepAttempt := int(attempt) - 1
+			scope.stepAttempt = &stepAttempt
+			// Only the handler's own error is retried. A checkpoint that fails
+			// after the handler succeeded must reach the workflow: the output
+			// is already cached locally, so another pass would return it as a
+			// success that was never persisted.
+			handlerFailed := false
+			result, err = runLegacyStep(scope, name, stepKey, func(stepContext context.Context, correlationID string) (T, error) {
+				out, handlerErr := fn(stepContext, correlationID)
+				handlerFailed = handlerErr != nil
+				return out, handlerErr
+			})
 			var activationErr *ActivationError
 			var suspension *durableSleepSuspensionError
-			if err == nil || int(attempt) >= policy.MaxAttempts || ctx.Err() != nil ||
+			if err == nil || !handlerFailed || int(attempt) >= policy.MaxAttempts || ctx.Err() != nil ||
 				errors.As(err, &activationErr) || errors.As(err, &suspension) || IsWaitingForUserInput(err) {
 				return result, err
 			}
