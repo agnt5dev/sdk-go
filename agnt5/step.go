@@ -47,6 +47,15 @@ func StepWithKey[T any](ctx *Context, name, key string, fn func(*Context) (T, er
 // runtime negotiated durable activations, workflow.step events otherwise), it
 // emits a function lifecycle child so Studio can show each nested component
 // consistently across SDKs.
+//
+// When the named function was registered with WithRetry, Task retries it with
+// that policy and hands every attempt a fresh JSON copy of the input, as a
+// declared step does. The copy follows encoding/json rules, the same ones a
+// function run on its own sees: a number held in an interface-typed field
+// arrives as float64, so carry large integers in a typed field or a string. A
+// retried attempt runs the whole handler again, including nested steps that
+// are numbered by call order; give nested work an explicit key (StepWithKey,
+// TaskWithKey) when it must not run twice.
 func Task[TInput any, TOutput any](
 	ctx *Context,
 	name string,

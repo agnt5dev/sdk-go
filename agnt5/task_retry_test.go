@@ -181,3 +181,32 @@ func TestTaskDoesNotRetryAFailedCompletionCheckpoint(t *testing.T) {
 		t.Fatalf("completion checkpoints sent=%d, want 1", completed)
 	}
 }
+
+// A retried attempt runs the handler again. Nested work under an explicit key
+// keeps its identity across attempts, so it replays instead of running twice.
+func TestTaskRetryReplaysNestedStepWithExplicitKey(t *testing.T) {
+	contexts := map[string]*Context{
+		"durable activations": declaredContext(newDeclaredJournal(), "run-1"),
+		"legacy":              newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, ""),
+	}
+	for label, ctx := range contexts {
+		ctx.shared.registry = retryRegistry(t)
+		attempts, reservations := 0, 0
+		_, err := Task(ctx, "charge", chargeInput{}, func(ctx *Context, _ chargeInput) (int, error) {
+			attempts++
+			if _, err := StepWithKey(ctx, "reserve", "order", func(*Context) (int, error) {
+				reservations++
+				return 1, nil
+			}); err != nil {
+				return 0, err
+			}
+			if attempts < 2 {
+				return 0, errors.New("declined")
+			}
+			return 7, nil
+		})
+		if err != nil || attempts != 2 || reservations != 1 {
+			t.Fatalf("%s: attempts=%d reservations=%d err=%v", label, attempts, reservations, err)
+		}
+	}
+}
