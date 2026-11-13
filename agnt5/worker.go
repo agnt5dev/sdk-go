@@ -516,6 +516,7 @@ func (w *Worker) invoke(ctx context.Context, inv Invocation, streamParentCorrela
 		stateStore = runtimeState.forInvocation()
 	}
 	runCtx := newContext(ctx, inv, w.foldingCheckpointWriterFor(inv.RunID), canonicalProjectID(inv.Metadata), stateStore)
+	runCtx.shared.registry = w.registry
 	runCtx.setTelemetry(w.currentTelemetry())
 	runCorrelationID := runCorrelationIDFromRunID(inv.RunID)
 	if len(streamParentCorrelationID) > 1 && streamParentCorrelationID[1] != "" {
