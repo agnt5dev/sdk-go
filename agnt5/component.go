@@ -98,7 +98,7 @@ func WithComponentConfig(config map[string]string) ComponentOption {
 
 // WithRetry sets how many times a component is attempted and the wait between
 // attempts, in milliseconds. It applies when the component is run on its own
-// and when a workflow calls a registered function by name through Task.
+// and when a workflow runs a step named after a registered function.
 func WithRetry(maxAttempts, initialIntervalMS, maxIntervalMS int) ComponentOption {
 	return func(c *Component) {
 		if maxAttempts > 0 {

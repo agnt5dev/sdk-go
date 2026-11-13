@@ -74,7 +74,7 @@ func (w *orderedLifecycleWriter) FailActivation(_ context.Context, request *pb.F
 	}, nil
 }
 
-func TestFoldedDurableTaskPreservesNestedLifecycleOrder(t *testing.T) {
+func TestFoldedDurableStepPreservesLifecycleOrder(t *testing.T) {
 	writer := &orderedLifecycleWriter{}
 	worker := NewWorker(
 		"svc",
@@ -88,14 +88,14 @@ func TestFoldedDurableTaskPreservesNestedLifecycleOrder(t *testing.T) {
 		t.Fatalf("negotiate durable activation: %v", err)
 	}
 	if err := RegisterWorkflow(worker, "workflow", func(ctx *Context, _ map[string]any) (string, error) {
-		return Task(ctx, "child", "input", func(*Context, string) (string, error) {
+		return Step(ctx, "child", func(*Context) (string, error) {
 			return "output", nil
 		})
 	}); err != nil {
 		t.Fatalf("register workflow: %v", err)
 	}
 
-	const runID = "run-folded-task"
+	const runID = "run-folded-step"
 	worker.beginLifecycleFold(runID)
 	responses := worker.dispatchServiceMessages(context.Background(), &pb.DispatchComponentRequest{
 		InvocationId:  runID,
@@ -122,8 +122,6 @@ func TestFoldedDurableTaskPreservesNestedLifecycleOrder(t *testing.T) {
 		"run.started",
 		"workflow.started",
 		"workflow.step.started",
-		"function.started",
-		"function.completed",
 		"workflow.step.completed",
 		"workflow.completed",
 	}

@@ -7,10 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** remove `Task` and `TaskWithKey`. `Step` and `StepWithKey` are now the one way to run work as a step inside a workflow. Call the handler from the step's closure: `agnt5.Task(ctx, "charge", in, Charge)` becomes `agnt5.Step(ctx, "charge", func(ctx *agnt5.Context) (Receipt, error) { return Charge(ctx, in) })`. The step no longer records its input or emits `function.started` and `function.completed` events under the step, so traces show the step alone.
+
+### Changed
+
+- **Breaking:** the closure passed to `Step` now receives `*agnt5.Context` instead of `context.Context`, matching `StepWithKey`. Change the parameter type; `*agnt5.Context` is still a `context.Context`. Use the closure's context for nested work so it is recorded under the step. `serverless.Step` is unchanged.
+
 ### Fixed
 
 - `ctx.AskUser` and the serverless `WaitForUser` decode typed text inside a multiselect answer: an entry `"__custom__:<text>"` in the JSON array becomes its text, so ticked options and typed text arrive together (`["ai","__custom__:Rust"]` returns `["ai","Rust"]`). Answers without such an entry are returned unchanged. Both packages share one decoder.
-- `Task` and `TaskWithKey` now apply the retry policy a function was registered with (`WithRetry`, `WithBackoff`). Before, the policy only took effect when the function was run on its own, so inside a workflow the first error failed the step. Each attempt receives a fresh JSON copy of the input, in which a number held in an interface-typed field arrives as `json.Number` so large integers stay exact. Functions registered without a retry policy, and `Step` and `StepWithKey`, still run once.
+- `Step` and `StepWithKey` now apply the retry policy of the registered function they are named after (`WithRetry`, `WithBackoff`). Before, the policy only took effect when the function was run on its own, so inside a workflow the first error failed the step. A step whose name is not a function registered with a retry policy still runs once.
 
 ## [0.11.0] - 2026-11-04
 

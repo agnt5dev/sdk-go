@@ -406,6 +406,19 @@ are immediate when `InitialInterval` is zero. Handler timeouts are cooperative:
 pass the handler context to I/O and honor cancellation. External effects still
 need idempotency; `ctx.Activation()` exposes the activation's idempotency key.
 
-Declared steps fail explicitly without runtime activation support. `Step` and
-`StepWithKey` run their body once. `Task` and `TaskWithKey` retry when the
-function they name was registered with `WithRetry`.
+Declared steps fail explicitly without runtime activation support.
+
+`Step` and `StepWithKey` work with and without it. They are the one way to run
+work as a step inside a workflow, including a function handler:
+
+```go
+receipt, err := agnt5.Step(ctx, "charge_payment", func(ctx *agnt5.Context) (Receipt, error) {
+    return ChargePayment(ctx, order)
+})
+```
+
+When the step name is a function registered with `WithRetry`, the step retries
+its closure with that policy; otherwise the closure runs once. A retried
+attempt runs the whole closure again, so do not change captured values before
+returning an error, and give nested work an explicit key (`StepWithKey`) when
+it must not run twice.

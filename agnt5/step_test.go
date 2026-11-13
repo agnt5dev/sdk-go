@@ -3,8 +3,6 @@ package agnt5
 import (
 	"context"
 	"errors"
-	"slices"
-	"strings"
 	"sync"
 	"testing"
 
@@ -39,7 +37,7 @@ func TestStepWritesRuntimeCheckpoints(t *testing.T) {
 		ComponentType: ComponentTypeWorkflow,
 	}, writer, "proj-1")
 
-	got, err := Step(ctx, "load", func(context.Context) (string, error) {
+	got, err := Step(ctx, "load", func(*Context) (string, error) {
 		return "value", nil
 	})
 	if err != nil {
@@ -79,7 +77,7 @@ func TestStepReturnsMemoizedOutput(t *testing.T) {
 	}, writer, "proj-1")
 	called := false
 
-	got, err := Step(ctx, "load", func(context.Context) (greetOutput, error) {
+	got, err := Step(ctx, "load", func(*Context) (greetOutput, error) {
 		called = true
 		return greetOutput{}, nil
 	})
@@ -121,14 +119,14 @@ func TestStepReplaySkipsCompletedStepAndRunsMissingStep(t *testing.T) {
 	firstCalled := false
 	secondCalled := false
 
-	first, err := Step(ctx, "first", func(context.Context) (string, error) {
+	first, err := Step(ctx, "first", func(*Context) (string, error) {
 		firstCalled = true
 		return "should-not-run", nil
 	})
 	if err != nil {
 		t.Fatalf("first step: %v", err)
 	}
-	second, err := Step(ctx, "second", func(context.Context) (string, error) {
+	second, err := Step(ctx, "second", func(*Context) (string, error) {
 		secondCalled = true
 		return "fresh-second", nil
 	})
@@ -170,7 +168,7 @@ func TestStepWritesFailedCheckpoint(t *testing.T) {
 	}, writer, "proj-1")
 	stepErr := errors.New("boom")
 
-	_, err := Step(ctx, "load", func(context.Context) (string, error) {
+	_, err := Step(ctx, "load", func(*Context) (string, error) {
 		return "", stepErr
 	})
 	if !errors.Is(err, stepErr) {
@@ -186,53 +184,7 @@ func TestStepWritesFailedCheckpoint(t *testing.T) {
 	}
 }
 
-func TestTaskEmitsNestedFunctionLifecycle(t *testing.T) {
-	ctx := newContext(context.Background(), Invocation{
-		ID:            "run-task",
-		RunID:         "run-task",
-		ComponentName: "workflow",
-		ComponentType: ComponentTypeWorkflow,
-	}, nil, "")
-	ctx.setParentCorrelationID("workflow-cid")
-
-	got, err := Task(ctx, "ks_analyze_text", "one", func(_ *Context, input string) (string, error) {
-		return strings.ToUpper(input), nil
-	})
-	if err != nil {
-		t.Fatalf("task: %v", err)
-	}
-	if got != "ONE" {
-		t.Fatalf("task output = %q", got)
-	}
-	events := ctx.Events()
-	if gotTypes := eventTypes(events); !slices.Equal(gotTypes, []string{
-		"workflow.step.started",
-		"function.started",
-		"function.completed",
-		"workflow.step.completed",
-	}) {
-		t.Fatalf("events = %#v", gotTypes)
-	}
-	stepCID := events[0].CorrelationID
-	functionCID := events[1].CorrelationID
-	if stepCID == "" || functionCID == "" ||
-		events[0].ParentCorrelationID != "workflow-cid" ||
-		events[1].ParentCorrelationID != stepCID ||
-		events[2].CorrelationID != functionCID ||
-		events[2].ParentCorrelationID != stepCID ||
-		events[3].CorrelationID != stepCID ||
-		events[3].ParentCorrelationID != "workflow-cid" {
-		t.Fatalf("lifecycle correlation: %#v", events)
-	}
-	for _, event := range events[1:3] {
-		data, ok := event.Data.(map[string]any)
-		if !ok || data["name"] != "ks_analyze_text" {
-			t.Fatalf("function data: %#v", event.Data)
-		}
-	}
-}
-
-func TestTaskCorrelationIsExplicitUnderConcurrency(t *testing.T) {
+func TestStepCorrelationIsExplicitUnderConcurrency(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{
 		ID:            "run-task",
 		RunID:         "run-task",
@@ -247,10 +199,10 @@ func TestTaskCorrelationIsExplicitUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := Task(ctx, "ks_analyze_text", index, func(_ *Context, input int) (int, error) {
-				return input, nil
+			if _, err := Step(ctx, "ks_analyze_text", func(*Context) (int, error) {
+				return index, nil
 			}); err != nil {
-				t.Errorf("task %d: %v", index, err)
+				t.Errorf("step %d: %v", index, err)
 			}
 		}()
 	}
@@ -269,11 +221,11 @@ func TestTaskCorrelationIsExplicitUnderConcurrency(t *testing.T) {
 		t.Fatalf("step correlations = %#v", steps)
 	}
 	for _, event := range ctx.Events() {
-		if !strings.HasPrefix(event.Type, "function.") {
+		if event.Type != "workflow.step.completed" {
 			continue
 		}
-		if _, ok := steps[event.ParentCorrelationID]; !ok {
-			t.Fatalf("%s has unknown parent %q", event.Type, event.ParentCorrelationID)
+		if _, ok := steps[event.CorrelationID]; !ok {
+			t.Fatalf("completion has unknown step %q", event.CorrelationID)
 		}
 	}
 }

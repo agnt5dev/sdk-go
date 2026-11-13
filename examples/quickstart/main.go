@@ -29,7 +29,7 @@ func main() {
 	}
 
 	err = agnt5.RegisterWorkflow(worker, "greet_workflow", func(ctx *agnt5.Context, in GreetInput) (GreetOutput, error) {
-		message, err := agnt5.Step(ctx, "build_message", func(context.Context) (string, error) {
+		message, err := agnt5.Step(ctx, "build_message", func(ctx *agnt5.Context) (string, error) {
 			ctx.Logger().Info("building workflow greeting", "name", in.Name)
 			return "hello " + in.Name, nil
 		})

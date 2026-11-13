@@ -1,7 +1,6 @@
 package agnt5
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -14,22 +13,36 @@ import (
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
-// Step runs a named unit of work and memoizes successful output when the worker
-// is connected to an AGNT5 engine. Without an engine checkpoint writer it keeps
-// local behavior: execute the function and emit step lifecycle events.
-func Step[T any](ctx *Context, name string, fn func(context.Context) (T, error)) (T, error) {
+// Step runs a named unit of work as a durable workflow step and memoizes its
+// successful output when the worker is connected to an AGNT5 engine. Without
+// an engine checkpoint writer it keeps local behavior: execute the function
+// and emit step lifecycle events.
+//
+// To run a function handler as a step, call it from the closure:
+//
+//	receipt, err := agnt5.Step(ctx, "charge_payment", func(ctx *agnt5.Context) (Receipt, error) {
+//		return ChargePayment(ctx, order)
+//	})
+//
+// When name is a function registered with WithRetry, Step retries the closure
+// with that policy. A retried attempt runs the whole closure again, including
+// nested steps that are numbered by call order; give nested work an explicit
+// key (StepWithKey) when it must not run twice. Values the closure captures
+// are shared by every attempt, so do not change them before returning an error.
+func Step[T any](ctx *Context, name string, fn func(*Context) (T, error)) (T, error) {
 	var zero T
 	if fn == nil {
 		return zero, ErrNilHandler
 	}
-	return runStep(ctx, name, "", nil, func(stepContext context.Context, _ string) (T, error) {
-		return fn(stepContext)
-	})
+	return runStep(ctx, name, "", nil, func(stepContext context.Context, stepCorrelationID string) (T, error) {
+		return fn(stepScope(ctx, stepContext).withParentCorrelationID(stepCorrelationID))
+	}, registeredRetryPolicy(ctx, name))
 }
 
 // StepWithKey runs a named durable step under an explicit stable key. Explicit
 // keys are required for fan-out, parallel branches, reordered collections, and
-// repeated same-name work where a sequential ordinal is not deterministic.
+// repeated same-name work where a sequential ordinal is not deterministic. It
+// applies a registered retry policy the same way Step does.
 func StepWithKey[T any](ctx *Context, name, key string, fn func(*Context) (T, error)) (T, error) {
 	var zero T
 	if fn == nil {
@@ -40,142 +53,7 @@ func StepWithKey[T any](ctx *Context, name, key string, fn func(*Context) (T, er
 	}
 	return runStep(ctx, name, key, nil, func(stepContext context.Context, stepCorrelationID string) (T, error) {
 		return fn(stepScope(ctx, stepContext).withParentCorrelationID(stepCorrelationID))
-	})
-}
-
-// Task invokes a registered-style handler as a durable workflow step. In
-// addition to the step boundary (a journaled activation record when the
-// runtime negotiated durable activations, workflow.step events otherwise), it
-// emits a function lifecycle child so Studio can show each nested component
-// consistently across SDKs.
-//
-// When the named function was registered with WithRetry, Task retries it with
-// that policy and hands every attempt a fresh JSON copy of the input, as a
-// declared step does. Typed fields decode as usual; a number held in an
-// interface-typed field arrives as json.Number so a large integer keeps its
-// exact value. A retried attempt runs the whole handler again, including nested steps that
-// are numbered by call order; give nested work an explicit key (StepWithKey,
-// TaskWithKey) when it must not run twice.
-func Task[TInput any, TOutput any](
-	ctx *Context,
-	name string,
-	input TInput,
-	fn func(*Context, TInput) (TOutput, error),
-) (TOutput, error) {
-	return runTask(ctx, name, "", input, fn)
-}
-
-// TaskWithKey invokes a registered-style handler as a durable workflow step
-// under an explicit stable key. Use it for parallel branches, reordered
-// collections, and repeated same-name work where call-order ordinals are not
-// deterministic.
-func TaskWithKey[TInput any, TOutput any](
-	ctx *Context,
-	name string,
-	key string,
-	input TInput,
-	fn func(*Context, TInput) (TOutput, error),
-) (TOutput, error) {
-	var zero TOutput
-	if strings.TrimSpace(key) == "" {
-		return zero, newActivationError(ActivationErrorInvalidArgument, "explicit task key is required", "", 0, nil)
-	}
-	return runTask(ctx, name, key, input, fn)
-}
-
-func runTask[TInput any, TOutput any](
-	ctx *Context,
-	name string,
-	key string,
-	input TInput,
-	fn func(*Context, TInput) (TOutput, error),
-) (TOutput, error) {
-	var zero TOutput
-	if fn == nil {
-		return zero, ErrNilHandler
-	}
-	policy := taskRetryPolicy(ctx, name)
-	// A retried attempt must see the input the first one was given, even if an
-	// earlier attempt changed a map or slice inside it before failing.
-	var snapshot []byte
-	if policy != nil {
-		encoded, err := json.Marshal(input)
-		if err != nil {
-			// Without a copy, a retry would see whatever an earlier attempt
-			// did to the input, so refuse to start instead.
-			return zero, fmt.Errorf("agnt5: snapshot task %q input: %w", name, err)
-		}
-		snapshot = encoded
-	}
-	return runStep(ctx, name, key, input, func(stepContext context.Context, stepCorrelationID string) (TOutput, error) {
-		ctx := stepScope(ctx, stepContext)
-		input := input
-		if snapshot != nil {
-			var fresh TInput
-			// UseNumber keeps a number held in an interface-typed field exact;
-			// the default decoder would round a large integer through float64.
-			decoder := json.NewDecoder(bytes.NewReader(snapshot))
-			decoder.UseNumber()
-			if err := decoder.Decode(&fresh); err != nil {
-				return zero, fmt.Errorf("agnt5: snapshot task %q input: %w", name, err)
-			}
-			input = fresh
-		}
-		functionCorrelationID := newCorrelationID("function")
-		startedAt := time.Now()
-		_ = ctx.Emit(Event{
-			Type:                "function.started",
-			CorrelationID:       functionCorrelationID,
-			ParentCorrelationID: stepCorrelationID,
-			SourceTimestampNS:   startedAt.UnixNano(),
-			Data: map[string]any{
-				"name":                  name,
-				"component_type":        "function",
-				"correlation_id":        functionCorrelationID,
-				"parent_correlation_id": stepCorrelationID,
-				"input_data":            input,
-				"attempt":               ctx.Attempt(),
-				"timestamp_ns":          startedAt.UnixNano(),
-			},
-		})
-		out, err := fn(ctx.withParentCorrelationID(functionCorrelationID), input)
-		durationMS := time.Since(startedAt).Milliseconds()
-		timestampNS := time.Now().UnixNano()
-		if err != nil {
-			_ = ctx.Emit(Event{
-				Type:                "function.failed",
-				CorrelationID:       functionCorrelationID,
-				ParentCorrelationID: stepCorrelationID,
-				SourceTimestampNS:   timestampNS,
-				Data: map[string]any{
-					"name":                  name,
-					"component_type":        "function",
-					"correlation_id":        functionCorrelationID,
-					"parent_correlation_id": stepCorrelationID,
-					"error_message":         err.Error(),
-					"duration_ms":           durationMS,
-					"timestamp_ns":          timestampNS,
-				},
-			})
-			return zero, err
-		}
-		_ = ctx.Emit(Event{
-			Type:                "function.completed",
-			CorrelationID:       functionCorrelationID,
-			ParentCorrelationID: stepCorrelationID,
-			SourceTimestampNS:   timestampNS,
-			Data: map[string]any{
-				"name":                  name,
-				"component_type":        "function",
-				"correlation_id":        functionCorrelationID,
-				"parent_correlation_id": stepCorrelationID,
-				"output_data":           out,
-				"duration_ms":           durationMS,
-				"timestamp_ns":          timestampNS,
-			},
-		})
-		return out, nil
-	}, policy)
+	}, registeredRetryPolicy(ctx, name))
 }
 
 // stepScope returns the step-scoped Context handed to the step body when the
@@ -224,11 +102,12 @@ func runStep[T any](ctx *Context, name, explicitKey string, input any, fn func(c
 	return runLegacyStep(ctx, name, stepKey, fn)
 }
 
-// taskRetryPolicy returns the retry policy the named function was registered
-// with (WithRetry, WithBackoff), or nil when it has none. The runtime applies
-// that policy to a function run on its own; a workflow calls the handler in
-// process, so Task has to apply it here or the first error fails the step.
-func taskRetryPolicy(ctx *Context, name string) *StepConfig {
+// registeredRetryPolicy returns the retry policy the named function was
+// registered with (WithRetry, WithBackoff), or nil when it has none. The
+// runtime applies that policy to a function run on its own; a workflow calls
+// the handler in process, so the step has to apply it here or the first error
+// fails the step.
+func registeredRetryPolicy(ctx *Context, name string) *StepConfig {
 	if ctx == nil || ctx.shared == nil || ctx.shared.registry == nil {
 		return nil
 	}

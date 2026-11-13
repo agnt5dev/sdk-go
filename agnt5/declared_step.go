@@ -31,7 +31,7 @@ type DeclaredStep[In any, Out any] struct {
 }
 
 // NewStep declares a typed durable operation. Invoke it with Execute inside a
-// workflow, using a stable explicit key. Existing Step and Task APIs are unchanged.
+// workflow, using a stable explicit key. Step and StepWithKey are unchanged.
 func NewStep[In any, Out any](name string, handler func(*Context, In) (Out, error), configs ...StepConfig) (*DeclaredStep[In, Out], error) {
 	if strings.TrimSpace(name) == "" {
 		return nil, ErrInvalidStepName
