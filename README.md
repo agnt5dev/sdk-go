@@ -406,6 +406,6 @@ are immediate when `InitialInterval` is zero. Handler timeouts are cooperative:
 pass the handler context to I/O and honor cancellation. External effects still
 need idempotency; `ctx.Activation()` exposes the activation's idempotency key.
 
-Declared steps fail explicitly without runtime activation support. Existing
-`Step`, `StepWithKey`, `Task`, `TaskWithKey`, and registered functions keep their
-current behavior.
+Declared steps fail explicitly without runtime activation support. `Step` and
+`StepWithKey` run their body once. `Task` and `TaskWithKey` retry when the
+function they name was registered with `WithRetry`.

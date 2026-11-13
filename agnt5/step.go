@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -84,8 +85,23 @@ func runTask[TInput any, TOutput any](
 	if fn == nil {
 		return zero, ErrNilHandler
 	}
+	policy := taskRetryPolicy(ctx, name)
+	// A retried attempt must see the input the first one was given, even if an
+	// earlier attempt changed a map or slice inside it before failing.
+	var snapshot []byte
+	if policy != nil {
+		snapshot, _ = json.Marshal(input)
+	}
 	return runStep(ctx, name, key, input, func(stepContext context.Context, stepCorrelationID string) (TOutput, error) {
 		ctx := stepScope(ctx, stepContext)
+		input := input
+		if snapshot != nil {
+			var fresh TInput
+			if err := json.Unmarshal(snapshot, &fresh); err != nil {
+				return zero, fmt.Errorf("agnt5: snapshot task %q input: %w", name, err)
+			}
+			input = fresh
+		}
 		functionCorrelationID := newCorrelationID("function")
 		startedAt := time.Now()
 		_ = ctx.Emit(Event{
@@ -140,7 +156,7 @@ func runTask[TInput any, TOutput any](
 			},
 		})
 		return out, nil
-	})
+	}, policy)
 }
 
 // stepScope returns the step-scoped Context handed to the step body when the
@@ -153,8 +169,12 @@ func stepScope(ctx *Context, stepContext context.Context) *Context {
 	return ctx
 }
 
-func runStep[T any](ctx *Context, name, explicitKey string, input any, fn func(context.Context, string) (T, error)) (out T, err error) {
+func runStep[T any](ctx *Context, name, explicitKey string, input any, fn func(context.Context, string) (T, error), policies ...*StepConfig) (out T, err error) {
 	var zero T
+	var policy *StepConfig
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
 	if ctx == nil {
 		return zero, context.Canceled
 	}
@@ -176,10 +196,94 @@ func runStep[T any](ctx *Context, name, explicitKey string, input any, fn func(c
 	if err != nil {
 		return zero, err
 	}
+	if policy != nil {
+		return runStepWithRetries(ctx, name, stepKey, plan, activationEnabled, fn, policy)
+	}
 	if activationEnabled {
 		return runActivatedStep(ctx, name, stepKey, plan, fn)
 	}
 	return runLegacyStep(ctx, name, stepKey, fn)
+}
+
+// taskRetryPolicy returns the retry policy the named function was registered
+// with (WithRetry, WithBackoff), or nil when it has none. The runtime applies
+// that policy to a function run on its own; a workflow calls the handler in
+// process, so Task has to apply it here or the first error fails the step.
+func taskRetryPolicy(ctx *Context, name string) *StepConfig {
+	if ctx == nil || ctx.shared == nil || ctx.shared.registry == nil {
+		return nil
+	}
+	component, ok := ctx.shared.registry.Get(name)
+	if !ok || component.Type != ComponentTypeFunction {
+		return nil
+	}
+	attempts, ok := int32Config(component.Config, "max_attempts")
+	if !ok || attempts < 2 {
+		return nil
+	}
+	policy := &StepConfig{MaxAttempts: int(attempts), MaxInterval: time.Minute, Backoff: "exponential", Multiplier: 2}
+	if value, ok := int32Config(component.Config, "initial_interval_ms"); ok && value > 0 {
+		policy.InitialInterval = time.Duration(value) * time.Millisecond
+	}
+	if value, ok := int32Config(component.Config, "max_interval_ms"); ok && value > 0 {
+		policy.MaxInterval = time.Duration(value) * time.Millisecond
+	}
+	if policy.MaxInterval < policy.InitialInterval {
+		policy.MaxInterval = policy.InitialInterval
+	}
+	switch component.Config["backoff_type"] {
+	case "constant", "linear", "exponential":
+		policy.Backoff = component.Config["backoff_type"]
+	}
+	if value, ok := float64Config(component.Config, "backoff_multiplier"); ok && value > 0 {
+		policy.Multiplier = value
+	}
+	return policy
+}
+
+// runStepWithRetries runs one step until it succeeds or its attempts are
+// spent. With durable activations every attempt is admitted and recorded by
+// the runtime under the same step identity; without them the attempts are
+// counted here.
+func runStepWithRetries[T any](ctx *Context, name, stepKey string, plan activationPlan, activationEnabled bool, fn func(context.Context, string) (T, error), policy *StepConfig) (T, error) {
+	var zero T
+	if activationEnabled {
+		// Keep the step in flight across the backoff, so a sibling durable wait
+		// does not release the run's lease between two attempts.
+		reservation := newCorrelationID("step-inflight")
+		ctx.shared.activity.beginStarted()
+		ctx.shared.activity.beginFinished(reservation, true)
+		defer ctx.shared.activity.settled(reservation)
+		ctx = ctx.withParentCorrelationID(ctx.parentCID)
+		ctx.enclosingActivations = append(slices.Clip(ctx.enclosingActivations), reservation)
+	}
+	for attempt := uint32(1); ; attempt++ {
+		var result T
+		var err error
+		if activationEnabled {
+			result, err = runActivatedStep(ctx, name, stepKey, plan, fn, policy)
+			var retry *stepRetryReady
+			if !errors.As(err, &retry) {
+				return result, err
+			}
+			attempt = retry.attempt
+		} else {
+			result, err = runLegacyStep(ctx, name, stepKey, fn)
+			var activationErr *ActivationError
+			var suspension *durableSleepSuspensionError
+			if err == nil || int(attempt) >= policy.MaxAttempts || ctx.Err() != nil ||
+				errors.As(err, &activationErr) || errors.As(err, &suspension) || IsWaitingForUserInput(err) {
+				return result, err
+			}
+		}
+		timer := time.NewTimer(policy.delay(attempt))
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return zero, ctx.Err()
+		}
+	}
 }
 
 func runLegacyStep[T any](ctx *Context, name, stepKey string, fn func(context.Context, string) (T, error)) (T, error) {

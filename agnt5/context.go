@@ -61,6 +61,10 @@ type contextShared struct {
 
 	activity *activationActivity
 
+	// registry is the worker's component registry, so a workflow can read the
+	// retry policy a function was registered with. Nil outside a worker.
+	registry *Registry
+
 	hitlMu        sync.Mutex
 	pauseIndex    int
 	userResponses map[int]*string
