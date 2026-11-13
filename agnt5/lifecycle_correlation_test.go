@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestTaskAgentLifecycleFormsNestedCorrelationGraph(t *testing.T) {
+func TestStepAgentLifecycleFormsNestedCorrelationGraph(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{
 		ID:            "run-deep-research",
 		RunID:         "run-deep-research",
@@ -23,16 +23,14 @@ func TestTaskAgentLifecycleFormsNestedCorrelationGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Task(ctx, "plan_research", "coffee", func(taskCtx *Context, topic string) (AgentResult, error) {
-		return agent.Run(taskCtx, AgentInput{Message: topic})
+	if _, err := Step(ctx, "plan_research", func(stepCtx *Context) (AgentResult, error) {
+		return agent.Run(stepCtx, AgentInput{Message: "coffee"})
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	events := ctx.Events()
 	stepStarted := requireSingleEvent(t, events, "workflow.step.started")
-	functionStarted := requireSingleEvent(t, events, "function.started")
-	functionCompleted := requireSingleEvent(t, events, "function.completed")
 	agentStarted := requireSingleEvent(t, events, "agent.started")
 	agentCompleted := requireSingleEvent(t, events, "agent.completed")
 	iterationStarted := requireSingleEvent(t, events, "agent.iteration.started")
@@ -40,8 +38,7 @@ func TestTaskAgentLifecycleFormsNestedCorrelationGraph(t *testing.T) {
 	lmStarted := requireSingleEvent(t, events, "lm.started")
 	lmCompleted := requireSingleEvent(t, events, "lm.completed")
 
-	assertLifecyclePair(t, functionStarted, functionCompleted, stepStarted.CorrelationID)
-	assertLifecyclePair(t, agentStarted, agentCompleted, functionStarted.CorrelationID)
+	assertLifecyclePair(t, agentStarted, agentCompleted, stepStarted.CorrelationID)
 	assertLifecyclePair(t, iterationStarted, iterationCompleted, agentStarted.CorrelationID)
 	assertLifecyclePair(t, lmStarted, lmCompleted, iterationStarted.CorrelationID)
 
@@ -53,7 +50,7 @@ func TestTaskAgentLifecycleFormsNestedCorrelationGraph(t *testing.T) {
 	assertCanonicalLifecycleFields(t, lmCompleted, "gpt-4o-mini", "lm")
 }
 
-func TestParallelTaskAgentCorrelationScopesAreIsolated(t *testing.T) {
+func TestParallelStepAgentCorrelationScopesAreIsolated(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{
 		ID:            "run-parallel-agents",
 		RunID:         "run-parallel-agents",
@@ -62,14 +59,14 @@ func TestParallelTaskAgentCorrelationScopesAreIsolated(t *testing.T) {
 	}, nil, "")
 	ctx.setParentCorrelationID("workflow-cid")
 
-	const taskCount = 4
+	const stepCount = 4
 	var wg sync.WaitGroup
-	for index := 0; index < taskCount; index++ {
+	for index := 0; index < stepCount; index++ {
 		index := index
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			taskName := fmt.Sprintf("task_%d", index)
+			stepName := fmt.Sprintf("step_%d", index)
 			agentName := fmt.Sprintf("Agent%d", index)
 			modelName := fmt.Sprintf("model-%d", index)
 			agent, err := NewAgent(
@@ -80,32 +77,32 @@ func TestParallelTaskAgentCorrelationScopesAreIsolated(t *testing.T) {
 				t.Errorf("new agent %d: %v", index, err)
 				return
 			}
-			if _, err := Task(ctx, taskName, index, func(taskCtx *Context, _ int) (AgentResult, error) {
-				return agent.Run(taskCtx, AgentInput{Message: "work"})
+			if _, err := Step(ctx, stepName, func(stepCtx *Context) (AgentResult, error) {
+				return agent.Run(stepCtx, AgentInput{Message: "work"})
 			}); err != nil {
-				t.Errorf("task %d: %v", index, err)
+				t.Errorf("step %d: %v", index, err)
 			}
 		}()
 	}
 	wg.Wait()
 
 	events := ctx.Events()
-	functionCIDs := make(map[string]string, taskCount)
+	stepCIDs := make(map[string]string, stepCount)
 	for _, event := range events {
-		if event.Type != "function.started" {
+		if event.Type != "workflow.step.started" {
 			continue
 		}
-		functionCIDs[eventDataString(event, "name")] = event.CorrelationID
+		stepCIDs[eventDataString(event, "name")] = event.CorrelationID
 	}
-	if len(functionCIDs) != taskCount {
-		t.Fatalf("function correlations = %#v", functionCIDs)
+	if len(stepCIDs) != stepCount {
+		t.Fatalf("step correlations = %#v", stepCIDs)
 	}
 
-	for index := 0; index < taskCount; index++ {
-		taskName := fmt.Sprintf("task_%d", index)
+	for index := 0; index < stepCount; index++ {
+		stepName := fmt.Sprintf("step_%d", index)
 		agentName := fmt.Sprintf("Agent%d", index)
 		modelName := fmt.Sprintf("model-%d", index)
-		functionCID := functionCIDs[taskName]
+		stepCID := stepCIDs[stepName]
 		agentStarted := requireNamedEvent(t, events, "agent.started", agentName)
 		agentCompleted := requireNamedEvent(t, events, "agent.completed", agentName)
 		iterationStarted := requireNamedEvent(t, events, "agent.iteration.started", agentName)
@@ -113,7 +110,7 @@ func TestParallelTaskAgentCorrelationScopesAreIsolated(t *testing.T) {
 		lmStarted := requireNamedEvent(t, events, "lm.started", modelName)
 		lmCompleted := requireNamedEvent(t, events, "lm.completed", modelName)
 
-		assertLifecyclePair(t, agentStarted, agentCompleted, functionCID)
+		assertLifecyclePair(t, agentStarted, agentCompleted, stepCID)
 		assertLifecyclePair(t, iterationStarted, iterationCompleted, agentStarted.CorrelationID)
 		assertLifecyclePair(t, lmStarted, lmCompleted, iterationStarted.CorrelationID)
 	}

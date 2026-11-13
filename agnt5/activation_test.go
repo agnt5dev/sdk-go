@@ -145,7 +145,7 @@ func TestStepExecutesOnlyAfterActivationAdmissionAndCompletionAck(t *testing.T) 
 	ctx := newActivationTestContext(writer)
 	called := false
 
-	got, err := Step(ctx, "load", func(context.Context) (string, error) {
+	got, err := Step(ctx, "load", func(*Context) (string, error) {
 		called = true
 		if len(writer.beginRequests) != 1 {
 			t.Fatalf("user code ran before BeginActivation admission")
@@ -192,61 +192,26 @@ func TestStepExecutesOnlyAfterActivationAdmissionAndCompletionAck(t *testing.T) 
 	}
 }
 
-func TestTaskInsideDurableStepParentsFunctionLifecycleToActivation(t *testing.T) {
+func TestStepBodyRunsUnderItsActivation(t *testing.T) {
 	writer := &recordingActivationWriter{}
 	ctx := newActivationTestContext(writer)
 
-	got, err := Task(ctx, "greet", greetInput{Name: "Ada"}, func(taskCtx *Context, in greetInput) (greetOutput, error) {
-		execution, ok := taskCtx.Activation()
+	got, err := Step(ctx, "greet", func(stepCtx *Context) (greetOutput, error) {
+		execution, ok := stepCtx.Activation()
 		if !ok || execution.ActivationID == "" {
-			t.Fatal("task body did not run under the step activation")
+			t.Fatal("step body did not run under the step activation")
 		}
-		return greetOutput{Message: "hi " + in.Name}, nil
+		return greetOutput{Message: "hi Ada"}, nil
 	})
 	if err != nil {
-		t.Fatalf("task: %v", err)
+		t.Fatalf("step: %v", err)
 	}
 	if got.Message != "hi Ada" || len(writer.beginRequests) != 1 || len(writer.completeRequests) != 1 {
 		t.Fatalf("output=%#v begin=%d complete=%d", got, len(writer.beginRequests), len(writer.completeRequests))
 	}
-	begin := writer.beginRequests[0]
-	activationID := activationID(begin.GetProjectId(), begin.GetRunId(), begin.GetParentActivationId(), begin.GetKind(), begin.GetStableKey())
-	var inputData map[string]any
-	if err := json.Unmarshal(begin.GetInputData(), &inputData); err != nil {
-		t.Fatalf("input data: %v", err)
-	}
-	if input, _ := inputData["input"].(map[string]any); input["name"] != "Ada" {
-		t.Fatalf("input data = %#v", inputData)
-	}
-	events := ctx.Events()
-	if gotTypes := eventTypes(events); !reflect.DeepEqual(gotTypes, []string{"function.started", "function.completed"}) {
-		t.Fatalf("events = %#v", gotTypes)
-	}
-	for _, event := range events {
-		if event.ParentCorrelationID != activationID {
-			t.Fatalf("%s parent correlation = %q, want activation %q", event.Type, event.ParentCorrelationID, activationID)
-		}
-	}
-}
-
-func TestTaskWithKeyUsesExplicitStableIdentityAndFunctionLifecycle(t *testing.T) {
-	writer := &recordingActivationWriter{}
-	ctx := newActivationTestContext(writer)
-
-	got, err := TaskWithKey(ctx, "greet", "parallel-ada", greetInput{Name: "Ada"}, func(_ *Context, in greetInput) (greetOutput, error) {
-		return greetOutput{Message: "hi " + in.Name}, nil
-	})
-	if err != nil {
-		t.Fatalf("task with key: %v", err)
-	}
-	if got.Message != "hi Ada" {
-		t.Fatalf("output = %#v", got)
-	}
-	if gotKey := writer.beginRequests[0].GetStableKey(); gotKey != "step:greet:parallel-ada" {
-		t.Fatalf("stable key = %q", gotKey)
-	}
-	if gotTypes := eventTypes(ctx.Events()); !reflect.DeepEqual(gotTypes, []string{"function.started", "function.completed"}) {
-		t.Fatalf("events = %#v", gotTypes)
+	// The activation record is the step boundary, so the step adds no events of its own.
+	if events := ctx.Events(); len(events) != 0 {
+		t.Fatalf("events = %#v", eventTypes(events))
 	}
 }
 
@@ -255,7 +220,7 @@ func TestDurableStepFailureCarriesLatency(t *testing.T) {
 	ctx := newActivationTestContext(writer)
 	userErr := errors.New("boom")
 
-	_, err := Step(ctx, "load", func(context.Context) (string, error) {
+	_, err := Step(ctx, "load", func(*Context) (string, error) {
 		time.Sleep(2 * time.Millisecond)
 		return "", userErr
 	})
@@ -276,7 +241,7 @@ func TestStepDoesNotReturnOrMemoizeBeforeCompletionAck(t *testing.T) {
 	}
 	ctx := newActivationTestContext(writer)
 
-	got, err := Step(ctx, "load", func(context.Context) (string, error) { return "value", nil })
+	got, err := Step(ctx, "load", func(*Context) (string, error) { return "value", nil })
 	if !errors.Is(err, ErrActivationUnknownOutcome) || got != "" {
 		t.Fatalf("output=%q error=%v", got, err)
 	}
@@ -293,7 +258,7 @@ func TestStepWaitsForAcceptedFailureReceipt(t *testing.T) {
 	writer := &recordingActivationWriter{}
 	ctx := newActivationTestContext(writer)
 
-	_, err := Step(ctx, "load", func(context.Context) (string, error) { return "", userErr })
+	_, err := Step(ctx, "load", func(*Context) (string, error) { return "", userErr })
 	if !errors.Is(err, userErr) {
 		t.Fatalf("step error = %v", err)
 	}
@@ -310,7 +275,7 @@ func TestStepWaitsForAcceptedFailureReceipt(t *testing.T) {
 		failErr: newActivationError(ActivationErrorUnknownOutcome, "failure acknowledgement was lost", "", 0, context.DeadlineExceeded),
 	}
 	ctx = newActivationTestContext(writer)
-	_, err = Step(ctx, "load", func(context.Context) (string, error) { return "", userErr })
+	_, err = Step(ctx, "load", func(*Context) (string, error) { return "", userErr })
 	if !errors.Is(err, ErrActivationUnknownOutcome) {
 		t.Fatalf("lost failure acknowledgement error = %v", err)
 	}
@@ -329,7 +294,7 @@ func TestStepReplaySkipsUserCode(t *testing.T) {
 	}
 	called := false
 
-	got, err := Step(ctx, "load", func(context.Context) (greetOutput, error) {
+	got, err := Step(ctx, "load", func(*Context) (greetOutput, error) {
 		called = true
 		return greetOutput{}, nil
 	})
@@ -378,7 +343,7 @@ func TestStepRefusesNonExecuteDecisions(t *testing.T) {
 			}
 			writer.beginResponse = response
 			called := false
-			_, err := Step(ctx, "load", func(context.Context) (string, error) {
+			_, err := Step(ctx, "load", func(*Context) (string, error) {
 				called = true
 				return "", nil
 			})

@@ -156,7 +156,7 @@ func TestAskUserResumePreservesWorkflowAndNestedStepParentCorrelation(t *testing
 
 func TestAskUserPauseMetadataIncludesCompletedStepsForReplay(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentType: ComponentTypeWorkflow}, nil, "")
-	stepOut, err := Step(ctx, "alpha", func(context.Context) (map[string]string, error) {
+	stepOut, err := Step(ctx, "alpha", func(*Context) (map[string]string, error) {
 		return map[string]string{"value": "cached"}, nil
 	})
 	if err != nil {
@@ -194,7 +194,7 @@ func TestAskUserPauseMetadataIncludesCompletedStepsForReplay(t *testing.T) {
 		ComponentType: ComponentTypeWorkflow,
 		Metadata:      map[string]string{"completed_steps": completedRaw},
 	}, nil, "")
-	replayed, err := Step(replayCtx, "alpha", func(context.Context) (map[string]string, error) {
+	replayed, err := Step(replayCtx, "alpha", func(*Context) (map[string]string, error) {
 		t.Fatal("replayed step executed instead of using completed_steps")
 		return nil, nil
 	})

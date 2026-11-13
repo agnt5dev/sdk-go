@@ -399,22 +399,6 @@ func TestDeclaredStepNestedParentIdentity(t *testing.T) {
 	}
 }
 
-func TestDeclaredStepLegacyTaskStillEmitsFunctionLifecycle(t *testing.T) {
-	j := newDeclaredJournal()
-	ctx := declaredContext(j, "run-1")
-	got, err := TaskWithKey(ctx, "legacy", "same", 7, func(*Context, int) (int, error) { return 7, nil })
-	if err != nil || got != 7 {
-		t.Fatalf("got=%d err=%v", got, err)
-	}
-	events := map[string]int{}
-	for _, event := range ctx.Events() {
-		events[event.Type]++
-	}
-	if events["function.started"] != 1 || events["function.completed"] != 1 {
-		t.Fatal(events)
-	}
-}
-
 func TestDeclaredStepRejectsInvalidConfiguration(t *testing.T) {
 	handler := func(*Context, int) (int, error) { return 1, nil }
 	for _, config := range []StepConfig{{MaxAttempts: -1}, {Timeout: -1}, {InitialInterval: -1}, {Backoff: "invalid"}, {Multiplier: -1}} {

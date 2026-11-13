@@ -144,7 +144,7 @@ func TestCoreMetricsReplayDoesNotCountBusinessWork(t *testing.T) {
 	writer := &recordingActivationWriter{}
 	ctx := newActivationTestContext(writer)
 	ctx.Context = w.coreMetrics.claim(ctx.Context, ctx.RunID(), 1)
-	body := func(context.Context) (string, error) { return "value", nil }
+	body := func(*Context) (string, error) { return "value", nil }
 	if _, err := Step(ctx, "load", body); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestCoreMetricsReplayDoesNotCountBusinessWork(t *testing.T) {
 	}
 	replay := newActivationTestContext(writer)
 	replay.Context = w.coreMetrics.claim(replay.Context, replay.RunID(), 1)
-	if _, err := Step(replay, "load", func(context.Context) (string, error) {
+	if _, err := Step(replay, "load", func(*Context) (string, error) {
 		t.Fatal("replay executed business work")
 		return "", nil
 	}); err != nil {

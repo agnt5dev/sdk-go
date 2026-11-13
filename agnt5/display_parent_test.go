@@ -98,7 +98,7 @@ func TestWorkNestedInsideAToolIsOwnedByTheTool(t *testing.T) {
 		if !ok {
 			t.Fatalf("tool handler context = %T", handlerCtx)
 		}
-		return Step(inner, "ledger", func(context.Context) (string, error) { return "posted", nil })
+		return Step(inner, "ledger", func(*Context) (string, error) { return "posted", nil })
 	})
 	if err != nil {
 		t.Fatalf("NewTool: %v", err)
@@ -211,7 +211,7 @@ func TestHandoffIsShownUnderTheCallingIterationAndItsWorkUnderItsOwn(t *testing.
 func TestActivationsOutsideAnAgentCarryNoDisplayParent(t *testing.T) {
 	writer := &recordingActivationWriter{}
 	ctx := newActivationTestContext(writer)
-	if _, err := Step(ctx, "load", func(context.Context) (string, error) { return "value", nil }); err != nil {
+	if _, err := Step(ctx, "load", func(*Context) (string, error) { return "value", nil }); err != nil {
 		t.Fatalf("Step: %v", err)
 	}
 	if got := writer.beginRequests[0].GetDisplayParentCorrelationId(); got != "" {

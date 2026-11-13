@@ -2,7 +2,6 @@ package agnt5
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -10,16 +9,11 @@ import (
 	pb "github.com/agnt5dev/sdk-go/internal/pb/api/v1"
 )
 
-type chargeInput struct {
-	OrderID string
-	Lines   []int
-}
-
 // retryRegistry registers "charge" with a retry policy and "plain" without one.
 func retryRegistry(t *testing.T) *Registry {
 	t.Helper()
-	worker := NewWorker("task-retry-test")
-	noop := func(*Context, chargeInput) (int, error) { return 0, nil }
+	worker := NewWorker("step-retry-test")
+	noop := func(*Context, int) (int, error) { return 0, nil }
 	if err := RegisterFunction(worker, "charge", noop, WithRetry(3, 0, 0), WithBackoff("constant", 1)); err != nil {
 		t.Fatal(err)
 	}
@@ -29,18 +23,14 @@ func retryRegistry(t *testing.T) *Registry {
 	return worker.registry
 }
 
-func TestTaskAppliesRegisteredRetryPolicy(t *testing.T) {
+func TestStepAppliesRegisteredRetryPolicy(t *testing.T) {
 	j := newDeclaredJournal()
 	ctx := declaredContext(j, "run-1")
 	ctx.shared.registry = retryRegistry(t)
 
 	var attempts []int
-	var seen [][]int
-	input := chargeInput{OrderID: "ORD-1", Lines: []int{1, 2}}
-	got, err := Task(ctx, "charge", input, func(ctx *Context, in chargeInput) (int, error) {
+	got, err := Step(ctx, "charge", func(ctx *Context) (int, error) {
 		attempts = append(attempts, ctx.Attempt())
-		seen = append(seen, append([]int(nil), in.Lines...))
-		in.Lines[0] = 99
 		if len(attempts) < 3 {
 			return 0, errors.New("declined")
 		}
@@ -52,14 +42,6 @@ func TestTaskAppliesRegisteredRetryPolicy(t *testing.T) {
 	if !reflect.DeepEqual(attempts, []int{0, 1, 2}) {
 		t.Fatalf("attempts=%v", attempts)
 	}
-	for _, lines := range seen {
-		if !reflect.DeepEqual(lines, []int{1, 2}) {
-			t.Fatalf("an attempt saw input changed by an earlier one: %v", seen)
-		}
-	}
-	if !reflect.DeepEqual(input.Lines, []int{1, 2}) {
-		t.Fatalf("caller's input was changed: %v", input.Lines)
-	}
 	if !reflect.DeepEqual(j.calls, []string{"begin", "fail", "begin", "fail", "begin", "complete"}) {
 		t.Fatalf("journal calls=%v", j.calls)
 	}
@@ -68,14 +50,14 @@ func TestTaskAppliesRegisteredRetryPolicy(t *testing.T) {
 	}
 }
 
-func TestTaskRetryBudgetExhaustionReturnsLastError(t *testing.T) {
+func TestStepRetryBudgetExhaustionReturnsLastError(t *testing.T) {
 	j := newDeclaredJournal()
 	ctx := declaredContext(j, "run-1")
 	ctx.shared.registry = retryRegistry(t)
 
 	calls := 0
 	declined := errors.New("declined")
-	_, err := Task(ctx, "charge", chargeInput{}, func(*Context, chargeInput) (int, error) {
+	_, err := Step(ctx, "charge", func(*Context) (int, error) {
 		calls++
 		return 0, declined
 	})
@@ -87,14 +69,14 @@ func TestTaskRetryBudgetExhaustionReturnsLastError(t *testing.T) {
 	}
 }
 
-func TestTaskWithoutRegisteredPolicyRunsOnce(t *testing.T) {
+func TestStepWithoutRegisteredPolicyRunsOnce(t *testing.T) {
 	for _, name := range []string{"plain", "not-registered"} {
 		j := newDeclaredJournal()
 		ctx := declaredContext(j, "run-1")
 		ctx.shared.registry = retryRegistry(t)
 
 		calls := 0
-		_, err := Task(ctx, name, chargeInput{}, func(*Context, chargeInput) (int, error) {
+		_, err := Step(ctx, name, func(*Context) (int, error) {
 			calls++
 			return 0, errors.New("boom")
 		})
@@ -107,12 +89,12 @@ func TestTaskWithoutRegisteredPolicyRunsOnce(t *testing.T) {
 	}
 }
 
-func TestTaskAppliesRetryPolicyWithoutDurableActivations(t *testing.T) {
+func TestStepAppliesRetryPolicyWithoutDurableActivations(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
 	ctx.shared.registry = retryRegistry(t)
 
 	calls := 0
-	got, err := Task(ctx, "charge", chargeInput{}, func(*Context, chargeInput) (int, error) {
+	got, err := Step(ctx, "charge", func(*Context) (int, error) {
 		calls++
 		if calls < 3 {
 			return 0, errors.New("declined")
@@ -124,12 +106,12 @@ func TestTaskAppliesRetryPolicyWithoutDurableActivations(t *testing.T) {
 	}
 }
 
-func TestTaskAdvancesAttemptWithoutDurableActivations(t *testing.T) {
+func TestStepAdvancesAttemptWithoutDurableActivations(t *testing.T) {
 	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
 	ctx.shared.registry = retryRegistry(t)
 
 	var attempts []int
-	_, err := Task(ctx, "charge", chargeInput{}, func(ctx *Context, _ chargeInput) (int, error) {
+	_, err := Step(ctx, "charge", func(ctx *Context) (int, error) {
 		attempts = append(attempts, ctx.Attempt())
 		if ctx.Attempt() < 2 {
 			return 0, errors.New("declined")
@@ -159,13 +141,13 @@ func (w *failingCompletionWriter) Checkpoint(_ context.Context, req *pb.Checkpoi
 	return &pb.CheckpointResponse{}, nil
 }
 
-func TestTaskDoesNotRetryAFailedCompletionCheckpoint(t *testing.T) {
+func TestStepDoesNotRetryAFailedCompletionCheckpoint(t *testing.T) {
 	writer := &failingCompletionWriter{err: errors.New("checkpoint unavailable")}
 	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, writer, "project-1")
 	ctx.shared.registry = retryRegistry(t)
 
 	calls := 0
-	_, err := Task(ctx, "charge", chargeInput{}, func(*Context, chargeInput) (int, error) {
+	_, err := Step(ctx, "charge", func(*Context) (int, error) {
 		calls++
 		return 7, nil
 	})
@@ -185,7 +167,7 @@ func TestTaskDoesNotRetryAFailedCompletionCheckpoint(t *testing.T) {
 
 // A retried attempt runs the handler again. Nested work under an explicit key
 // keeps its identity across attempts, so it replays instead of running twice.
-func TestTaskRetryReplaysNestedStepWithExplicitKey(t *testing.T) {
+func TestStepRetryReplaysNestedStepWithExplicitKey(t *testing.T) {
 	contexts := map[string]*Context{
 		"durable activations": declaredContext(newDeclaredJournal(), "run-1"),
 		"legacy":              newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, ""),
@@ -193,7 +175,7 @@ func TestTaskRetryReplaysNestedStepWithExplicitKey(t *testing.T) {
 	for label, ctx := range contexts {
 		ctx.shared.registry = retryRegistry(t)
 		attempts, reservations := 0, 0
-		_, err := Task(ctx, "charge", chargeInput{}, func(ctx *Context, _ chargeInput) (int, error) {
+		_, err := Step(ctx, "charge", func(ctx *Context) (int, error) {
 			attempts++
 			if _, err := StepWithKey(ctx, "reserve", "order", func(*Context) (int, error) {
 				reservations++
@@ -209,43 +191,5 @@ func TestTaskRetryReplaysNestedStepWithExplicitKey(t *testing.T) {
 		if err != nil || attempts != 2 || reservations != 1 {
 			t.Fatalf("%s: attempts=%d reservations=%d err=%v", label, attempts, reservations, err)
 		}
-	}
-}
-
-func TestTaskInputCopyKeepsLargeIntegersExact(t *testing.T) {
-	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
-	ctx.shared.registry = retryRegistry(t)
-
-	input := map[string]any{"id": json.Number("9007199254740993"), "count": 3}
-	got, err := Task(ctx, "charge", input, func(_ *Context, in map[string]any) (string, error) {
-		id, _ := in["id"].(json.Number)
-		count, _ := in["count"].(json.Number)
-		return id.String() + "/" + count.String(), nil
-	})
-	if err != nil || got != "9007199254740993/3" {
-		t.Fatalf("got=%q err=%v", got, err)
-	}
-}
-
-func TestTaskRejectsInputItCannotCopyBeforeRunning(t *testing.T) {
-	ctx := newContext(context.Background(), Invocation{ID: "run-1", RunID: "run-1", ComponentName: "research", ComponentType: ComponentTypeWorkflow}, nil, "")
-	ctx.shared.registry = retryRegistry(t)
-
-	type callbackInput struct {
-		Lines  []int
-		Notify func()
-	}
-	calls := 0
-	_, err := Task(ctx, "charge", callbackInput{Lines: []int{1}, Notify: func() {}}, func(*Context, callbackInput) (int, error) {
-		calls++
-		return 0, nil
-	})
-	if err == nil || calls != 0 {
-		t.Fatalf("an input that cannot be copied must fail before the handler runs: calls=%d err=%v", calls, err)
-	}
-
-	// Without a retry policy nothing is copied, so the same input still runs.
-	if _, err := Task(ctx, "plain", callbackInput{Notify: func() {}}, func(*Context, callbackInput) (int, error) { return 1, nil }); err != nil {
-		t.Fatalf("plain task: %v", err)
 	}
 }

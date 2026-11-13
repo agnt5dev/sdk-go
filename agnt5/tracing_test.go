@@ -270,7 +270,7 @@ func TestNestedPanicTelemetry(t *testing.T) {
 			defer worker.shutdownTelemetry()
 			if err := RegisterFunction(worker, "panic", func(ctx *Context, _ string) (string, error) {
 				if mode == "step" {
-					return Step(ctx, "panicking", func(context.Context) (string, error) { panic("step panic") })
+					return Step(ctx, "panicking", func(*Context) (string, error) { panic("step panic") })
 				}
 				_, err := ctx.Generate(panicTelemetryModel{}, GenerateRequest{})
 				return "", err

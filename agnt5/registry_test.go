@@ -59,7 +59,7 @@ func TestRegisterFunctionAndInvoke(t *testing.T) {
 func TestRegisterWorkflow(t *testing.T) {
 	worker := NewWorker("test-worker")
 	err := RegisterWorkflow(worker, "wf", func(ctx *Context, in greetInput) (greetOutput, error) {
-		message, err := Step(ctx, "build_message", func(context.Context) (string, error) {
+		message, err := Step(ctx, "build_message", func(*Context) (string, error) {
 			return "hello " + in.Name, nil
 		})
 		if err != nil {

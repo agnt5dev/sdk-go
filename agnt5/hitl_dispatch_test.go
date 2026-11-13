@@ -20,7 +20,7 @@ func TestHITLResumeContinuesOriginalTraceAndSkipsCachedStepEvents(t *testing.T) 
 	planExecutions := 0
 	conductExecutions := 0
 	if err := RegisterWorkflow(worker, "deep_research_workflow", func(ctx *Context, _ map[string]any) (map[string]any, error) {
-		plan, err := Step(ctx, "plan_research", func(context.Context) (string, error) {
+		plan, err := Step(ctx, "plan_research", func(*Context) (string, error) {
 			planExecutions++
 			return "plan", nil
 		})
@@ -34,7 +34,7 @@ func TestHITLResumeContinuesOriginalTraceAndSkipsCachedStepEvents(t *testing.T) 
 		if err != nil {
 			return nil, err
 		}
-		research, err := Step(ctx, "conduct_research", func(context.Context) (string, error) {
+		research, err := Step(ctx, "conduct_research", func(*Context) (string, error) {
 			conductExecutions++
 			return "research", nil
 		})
