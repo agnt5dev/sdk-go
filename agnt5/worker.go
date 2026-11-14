@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultServiceVersion      = "0.11.0"
+	defaultServiceVersion      = "0.12.0"
 	defaultServiceType         = "go"
 	defaultCoordinatorEndpoint = "http://localhost:34186"
 	defaultMaxReconnects       = uint32(5)
