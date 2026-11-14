@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-20
+
 ### Security
 
 - Workers running on AGNT5-hosted infrastructure attach a runtime workload token to every worker gRPC call, unary and streaming. When `AGNT5_WORKLOAD_BROKER_URL` and `AGNT5_WORKLOAD_TOKEN_FILE` are both set and the self-hosted API key exchange is not configured, the worker sends the pod's identity token from `AGNT5_WORKLOAD_TOKEN_FILE` to the broker's `/internal/workload/token` endpoint for an `agnt5-runtime` token and sends it as `authorization: Bearer`. The token is refreshed a minute before it expires, re-reading the identity file each time so a rotated identity is picked up. If the broker is unreachable at startup the worker logs a warning, runs without a token and keeps retrying in the background. Token values are never logged. Self-hosted workers are unchanged.
