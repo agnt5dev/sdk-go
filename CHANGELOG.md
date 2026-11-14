@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-13
+
 ### Removed
 
 - **Breaking:** remove `Task` and `TaskWithKey`. `Step` and `StepWithKey` are now the one way to run work as a step inside a workflow. Call the handler from the step's closure: `agnt5.Task(ctx, "charge", in, Charge)` becomes `agnt5.Step(ctx, "charge", func(ctx *agnt5.Context) (Receipt, error) { return Charge(ctx, in) })`. The step no longer records its input or emits `function.started` and `function.completed` events under the step, so traces show the step alone.
