@@ -53,6 +53,7 @@ func (c *Context) WaitForUser(input UserInput) (string, error) {
 	}
 	index := c.pauseIndex
 	c.pauseIndex++
+	typeName := defaultString(input.Type, "text")
 	if raw := c.Metadata["step_events"]; raw != "" {
 		var values map[string]*string
 		if json.Unmarshal([]byte(raw), &values) == nil {
@@ -60,20 +61,19 @@ func (c *Context) WaitForUser(input UserInput) (string, error) {
 				if value == nil {
 					return "", nil
 				}
-				return decodeUserResponse(*value), nil
+				return decodeUserResponse(*value, typeName), nil
 			}
 		}
 	}
 	if c.Metadata["user_response"] != "" && c.Metadata["pause_index"] == jsonNumber(index) {
-		return decodeUserResponse(c.Metadata["user_response"]), nil
+		return decodeUserResponse(c.Metadata["user_response"], typeName), nil
 	}
-	typeName := defaultString(input.Type, "text")
 	stepName := "wait_for_user_" + jsonNumber(index)
 	return "", &Suspension{Reason: "user_input_required", PauseIndex: index, StepName: stepName, Question: input.Question, InputType: typeName, Options: input.Options, AllowCustom: input.AllowCustom, Skippable: input.Skippable}
 }
 
 func jsonNumber(value int) string { return strconv.Itoa(value) }
-func decodeUserResponse(value string) string {
-	decoded, _ := userresponse.Decode(value)
+func decodeUserResponse(value, inputType string) string {
+	decoded, _ := userresponse.Decode(value, inputType)
 	return decoded
 }

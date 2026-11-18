@@ -297,7 +297,9 @@ func (c *Context) loadReplayMetadata(metadata map[string]string) {
 		if parsed, err := strconv.Atoi(metadata["pause_index"]); err == nil && parsed >= 0 {
 			pauseIndex = parsed
 		}
-		c.shared.userResponses[pauseIndex] = decodeUserResponse(raw)
+		// The pause recorded its question type, and the gateway hands it
+		// back with the answer.
+		c.shared.userResponses[pauseIndex] = decodeUserResponse(raw, metadata["input_type"])
 	}
 }
 
@@ -352,8 +354,8 @@ func (c *Context) loadCompletedSteps(raw string) {
 	}
 }
 
-func decodeUserResponse(raw string) *string {
-	value, skipped := userresponse.Decode(raw)
+func decodeUserResponse(raw, inputType string) *string {
+	value, skipped := userresponse.Decode(raw, inputType)
 	if skipped {
 		return nil
 	}
