@@ -296,7 +296,7 @@ func validateExternalWorkerConnection(connection externalWorkerConnection) error
 	if connection.ProjectID == "" || connection.EnvironmentID == "" || connection.DeploymentID == "" || connection.WorkerPoolID == "" {
 		return errors.New("agnt5: worker discovery omitted immutable placement authority")
 	}
-	if connection.Placement != "customer_docker" && connection.Placement != "customer_kubernetes" {
+	if !isExternalWorkerPlacement(connection.Placement) {
 		return fmt.Errorf("agnt5: worker discovery returned non-external placement %q", connection.Placement)
 	}
 	if connection.Protocol != externalWorkerProtocolPullV1 {
@@ -304,6 +304,18 @@ func validateExternalWorkerConnection(connection externalWorkerConnection) error
 	}
 	_, err := validateExternalEndpoint(connection.RuntimeEndpoint, "runtime")
 	return err
+}
+
+// isExternalWorkerPlacement reports whether discovery placed the worker
+// outside AGNT5-managed infrastructure. self_hosted replaces customer_docker;
+// both stay accepted so this SDK works before and after the platform switches.
+func isExternalWorkerPlacement(placement string) bool {
+	switch placement {
+	case "self_hosted", "customer_docker", "customer_kubernetes":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateExternalEndpoint(raw, name string) (*url.URL, error) {
