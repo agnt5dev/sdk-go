@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Security
+
+- Workers running on AGNT5-hosted infrastructure attach a runtime workload token to every worker gRPC call, unary and streaming. When `AGNT5_WORKLOAD_BROKER_URL` and `AGNT5_WORKLOAD_TOKEN_FILE` are both set and the self-hosted API key exchange is not configured, the worker sends the pod's identity token from `AGNT5_WORKLOAD_TOKEN_FILE` to the broker's `/internal/workload/token` endpoint for an `agnt5-runtime` token and sends it as `authorization: Bearer`. The token is refreshed a minute before it expires, re-reading the identity file each time so a rotated identity is picked up. If the broker is unreachable at startup the worker logs a warning, runs without a token and keeps retrying in the background. Token values are never logged. Self-hosted workers are unchanged.
+
 ### Removed
 
 - **Breaking:** remove `Task` and `TaskWithKey`. `Step` and `StepWithKey` are now the one way to run work as a step inside a workflow. Call the handler from the step's closure: `agnt5.Task(ctx, "charge", in, Charge)` becomes `agnt5.Step(ctx, "charge", func(ctx *agnt5.Context) (Receipt, error) { return Charge(ctx, in) })`. The step no longer records its input or emits `function.started` and `function.completed` events under the step, so traces show the step alone.

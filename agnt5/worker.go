@@ -86,6 +86,8 @@ type Worker struct {
 	externalMu            sync.Mutex
 	externalSession       *externalWorkerSession
 	externalTLSOption     int
+	hostedToken           *hostedWorkloadTokenSource
+	warnWriter            io.Writer
 	legacyRoutingSet      bool
 	startupWriter         io.Writer
 	telemetryMu           sync.Mutex
@@ -310,6 +312,8 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err := w.configureExternalWorker(ctx); err != nil {
 		return err
 	}
+	stopHostedToken := w.startHostedWorkloadToken(ctx)
+	defer stopHostedToken()
 	w.printStartupBanner()
 	if w.workerMode == WorkerModePull {
 		rediscoverBeforeAttempt := false
