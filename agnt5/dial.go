@@ -3,7 +3,9 @@ package agnt5
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -19,6 +21,9 @@ type coordinatorDialConfig struct {
 	target     string
 	tls        bool
 	serverName string
+	// rootCAs is nil in production so TLS verifies against the system roots;
+	// tests set it to trust a local certificate authority.
+	rootCAs *x509.CertPool
 }
 
 func dialCoordinator(ctx context.Context, endpoint string, extraOpts ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -40,6 +45,10 @@ func dialRuntime(ctx context.Context, endpoint string, extraOpts ...grpc.DialOpt
 	if err != nil {
 		return nil, err
 	}
+	return dialRuntimeConfig(config, extraOpts...)
+}
+
+func dialRuntimeConfig(config coordinatorDialConfig, extraOpts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(config.transportCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -69,8 +78,18 @@ func coordinatorDialConfigFromEndpoint(endpoint string) (coordinatorDialConfig, 
 		if parsed.Host == "" {
 			return coordinatorDialConfig{}, fmt.Errorf("agnt5: invalid coordinator endpoint %q: missing host", endpoint)
 		}
+		// gRPC dials host:port, so a URL without a port (as discovery returns,
+		// e.g. https://grpc.agnt5.com) gets the scheme's standard port.
+		target := parsed.Host
+		if parsed.Port() == "" {
+			port := "80"
+			if parsed.Scheme == "https" {
+				port = "443"
+			}
+			target = net.JoinHostPort(parsed.Hostname(), port)
+		}
 		return coordinatorDialConfig{
-			target:     parsed.Host,
+			target:     target,
 			tls:        parsed.Scheme == "https",
 			serverName: parsed.Hostname(),
 		}, nil
@@ -83,7 +102,7 @@ func (c coordinatorDialConfig) transportCredentials() credentials.TransportCrede
 	if !c.tls {
 		return insecure.NewCredentials()
 	}
-	return credentials.NewTLS(&tls.Config{ServerName: c.serverName, MinVersion: tls.VersionTLS12})
+	return credentials.NewTLS(&tls.Config{ServerName: c.serverName, RootCAs: c.rootCAs, MinVersion: tls.VersionTLS12})
 }
 
 func newWorkerCoordinatorClient(conn grpc.ClientConnInterface) pb.WorkerCoordinatorServiceClient {
