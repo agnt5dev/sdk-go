@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Security
+
+- Workers running on AGNT5-hosted infrastructure attach a runtime workload token to every worker gRPC call, unary and streaming. When `AGNT5_WORKLOAD_BROKER_URL` and `AGNT5_WORKLOAD_TOKEN_FILE` are both set and the self-hosted API key exchange is not configured, the worker sends the pod's identity token from `AGNT5_WORKLOAD_TOKEN_FILE` to the broker's `/internal/workload/token` endpoint for an `agnt5-runtime` token and sends it as `authorization: Bearer`. The token is refreshed a minute before it expires, re-reading the identity file each time so a rotated identity is picked up. If the broker is unreachable at startup the worker logs a warning, runs without a token and keeps retrying in the background. Token values are never logged. Self-hosted workers are unchanged.
+
 ### Removed
 
 - **Breaking:** remove `Task` and `TaskWithKey`. `Step` and `StepWithKey` are now the one way to run work as a step inside a workflow. Call the handler from the step's closure: `agnt5.Task(ctx, "charge", in, Charge)` becomes `agnt5.Step(ctx, "charge", func(ctx *agnt5.Context) (Receipt, error) { return Charge(ctx, in) })`. The step no longer records its input or emits `function.started` and `function.completed` events under the step, so traces show the step alone.
@@ -17,6 +21,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 
+- Pull workers dial a runtime URL without a port on the scheme's standard port: `https://grpc.agnt5.com` dials port 443 and `http://` URLs dial port 80. Before, the worker failed with "missing port in address" when discovery returned such a URL. Explicit ports, IPv6 literals and TLS verification are unchanged.
+- Pull workers accept the `self_hosted` placement from worker discovery, which replaces `customer_docker`. `customer_docker` and `customer_kubernetes` are still accepted.
 - `ctx.AskUser` and the serverless `WaitForUser` decode typed text inside a multiselect answer: an entry `"__custom__:<text>"` in the JSON array becomes its text, so ticked options and typed text arrive together (`["ai","__custom__:Rust"]` returns `["ai","Rust"]`). Only multiselect questions are decoded this way, as in the Python and TypeScript SDKs: a JSON array answering a text, select or approval question, or a question of unknown type, is returned exactly as sent, and so is a multiselect answer without such an entry. Both packages share one decoder.
 - `Step` and `StepWithKey` now apply the retry policy of the registered function they are named after (`WithRetry`, `WithBackoff`). Before, the policy only took effect when the function was run on its own, so inside a workflow the first error failed the step. A step whose name is not a function registered with a retry policy still runs once.
 

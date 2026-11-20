@@ -281,3 +281,28 @@ func TestExternalWorkerConfigRejectsCredentialAmbiguity(t *testing.T) {
 		t.Fatalf("externalWorkerConfigFromEnv() error = %v", err)
 	}
 }
+
+func TestValidateExternalWorkerConnectionPlacement(t *testing.T) {
+	base := externalWorkerConnection{
+		ProjectID:       "project",
+		EnvironmentID:   "environment",
+		DeploymentID:    "deployment",
+		WorkerPoolID:    "pool",
+		RuntimeEndpoint: "https://runtime.example",
+		Protocol:        externalWorkerProtocolPullV1,
+	}
+	for _, placement := range []string{"self_hosted", "customer_docker", "customer_kubernetes"} {
+		connection := base
+		connection.Placement = placement
+		if err := validateExternalWorkerConnection(connection); err != nil {
+			t.Errorf("placement %q rejected: %v", placement, err)
+		}
+	}
+	for _, placement := range []string{"", "managed", "SELF_HOSTED"} {
+		connection := base
+		connection.Placement = placement
+		if err := validateExternalWorkerConnection(connection); err == nil {
+			t.Errorf("placement %q accepted", placement)
+		}
+	}
+}
