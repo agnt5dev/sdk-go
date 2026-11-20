@@ -7,6 +7,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-11-20
+
 ### Fixed
 
 - Self-hosted workers now export trace spans. With no OTLP endpoint set, traces go to `http://grpc.agnt5.com:3418`, the endpoint logs already used and the one the Python and TypeScript SDKs export to; before, traces were skipped, so a run on a self-hosted worker completed with no spans. Set `OTEL_TRACES_EXPORTER=none` to turn traces off. Explicit `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` values are unchanged.
