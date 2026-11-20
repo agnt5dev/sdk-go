@@ -107,9 +107,10 @@ run ID. Supply the matching ID to share memory across runs, or explicitly choose
 Workers export application and lifecycle logs, invocation spans, and nested
 step/model spans through OTLP gRPC. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to your
 collector, or use `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` and
-`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` for separate destinations. Traces are disabled
-when both the trace endpoint and shared endpoint are unset. Logs retain their
-existing fallback to `http://grpc.agnt5.com:3418`. Export is best effort; worker
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` for separate destinations. When none is set,
+logs and traces go to AGNT5 at `http://grpc.agnt5.com:3418`, as in the Python and
+TypeScript SDKs, so self-hosted workers report spans without extra setup. Set
+`OTEL_TRACES_EXPORTER=none` to turn traces off. Export is best effort; worker
 shutdown drains both queues within a shared five-second limit.
 
 `ctx.Logger()` keeps writing durable journal events and also exports application
@@ -131,7 +132,8 @@ process-global loggers or trace providers.
 
 Records carry `log_source=application`, `agnt5.run.id`, `run_id`, and active
 `trace_id`/`span_id` fields. The worker resource supplies project, deployment,
-worker, and application identity. Spans also carry canonical workspace, project,
+worker, and application identity; a worker that bootstraps from a service key
+takes these, and its workspace, from the control plane. Spans also carry canonical workspace, project,
 and deployment identity for trace access checks. W3C `traceparent` metadata is continued; pull
 jobs with only a runtime trace ID retain that ID without fabricating a parent.
 Spans include component names and attempt/error information; they do not add

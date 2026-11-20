@@ -93,7 +93,10 @@ type Worker struct {
 	telemetryMu           sync.Mutex
 	telemetry             *telemetry
 	telemetryInitialized  bool
-	coreMetrics           *coreMetrics
+	// defaultOTLPEndpoint replaces AGNT5's collector address when no OTLP
+	// endpoint is set, so tests can check that fallback against a local receiver.
+	defaultOTLPEndpoint string
+	coreMetrics         *coreMetrics
 }
 
 // NewWorker constructs a Go worker with environment-compatible defaults.
@@ -307,11 +310,14 @@ func (w *Worker) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	w.initializeTelemetry(ctx)
-	defer w.shutdownTelemetry()
 	if err := w.configureExternalWorker(ctx); err != nil {
 		return err
 	}
+	// Telemetry starts after remote bootstrap: a self-hosted worker learns its
+	// project, deployment, workspace and worker IDs from discovery, and spans
+	// without them cannot be attributed to the run.
+	w.initializeTelemetry(ctx)
+	defer w.shutdownTelemetry()
 	stopHostedToken := w.startHostedWorkloadToken(ctx)
 	defer stopHostedToken()
 	w.printStartupBanner()
