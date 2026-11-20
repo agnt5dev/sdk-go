@@ -85,6 +85,15 @@ func TestUserInputResumeDecodesTypedEntryInMultiselectAnswer(t *testing.T) {
 	}
 }
 
+func TestUserInputResumeKeepsLiteralArrayAnsweringATextQuestion(t *testing.T) {
+	answer := `["ai","__custom__:Rust"]`
+	ctx := &Context{Metadata: map[string]string{"pause_index": "0", "user_response": answer}}
+	got, err := ctx.WaitForUser(UserInput{Question: "Anything else?", Type: "text"})
+	if err != nil || got != answer {
+		t.Fatalf("answer = %q, err = %v; want it exactly as sent", got, err)
+	}
+}
+
 func TestInputAndOutputReferences(t *testing.T) {
 	input := []byte(`{"name":"Ada"}`)
 	digest := sha256.Sum256(input)

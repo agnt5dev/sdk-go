@@ -90,7 +90,8 @@ func TestAskUserDecodesTypedEntryInMultiselectAnswer(t *testing.T) {
 		ID:            "run-1",
 		RunID:         "run-1",
 		ComponentType: ComponentTypeWorkflow,
-		Metadata:      map[string]string{"pause_index": "0", "user_response": `["ai","__custom__:Rust"]`},
+		// The pause recorded its question type; the gateway returns it with the answer.
+		Metadata: map[string]string{"pause_index": "0", "input_type": "multiselect", "user_response": `["ai","__custom__:Rust"]`},
 	}, nil, "")
 
 	response, err := ctx.AskUser(UserInputRequest{Prompt: "Topics?", Type: HITLMultiSelect, AllowCustom: true})
@@ -99,6 +100,43 @@ func TestAskUserDecodesTypedEntryInMultiselectAnswer(t *testing.T) {
 	}
 	if response != `["ai","Rust"]` {
 		t.Fatalf("response = %q", response)
+	}
+}
+
+func TestAskUserKeepsLiteralArrayAnsweringATextQuestion(t *testing.T) {
+	answer := `["ai","__custom__:Rust"]`
+	ctx := newContext(context.Background(), Invocation{
+		ID:            "run-1",
+		RunID:         "run-1",
+		ComponentType: ComponentTypeWorkflow,
+		Metadata:      map[string]string{"pause_index": "0", "input_type": "text", "user_response": answer},
+	}, nil, "")
+
+	response, err := ctx.AskUser(UserInputRequest{Prompt: "Anything else?", Type: HITLText})
+	if err != nil {
+		t.Fatalf("ask user replay: %v", err)
+	}
+	if response != answer {
+		t.Fatalf("response = %q, want it exactly as sent", response)
+	}
+}
+
+func TestAskUserPauseRecordsItsQuestionType(t *testing.T) {
+	// Decoding a multiselect answer depends on this: the gateway copies the
+	// pause's metadata, input_type included, onto the resume that answers it.
+	ctx := newContext(context.Background(), Invocation{
+		ID:            "run-1",
+		RunID:         "run-1",
+		ComponentType: ComponentTypeWorkflow,
+	}, nil, "")
+
+	_, err := ctx.AskUser(UserInputRequest{Prompt: "Topics?", Type: HITLMultiSelect, AllowCustom: true})
+	if !IsWaitingForUserInput(err) {
+		t.Fatalf("expected waiting error, got %v", err)
+	}
+	events := ctx.Events()
+	if got := events[len(events)-1].Metadata["input_type"]; got != "multiselect" {
+		t.Fatalf("pause input_type = %q, want multiselect", got)
 	}
 }
 
