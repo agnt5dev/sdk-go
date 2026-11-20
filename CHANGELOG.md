@@ -7,6 +7,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- Self-hosted workers now export trace spans. With no OTLP endpoint set, traces go to `http://grpc.agnt5.com:3418`, the endpoint logs already used and the one the Python and TypeScript SDKs export to; before, traces were skipped, so a run on a self-hosted worker completed with no spans. Set `OTEL_TRACES_EXPORTER=none` to turn traces off. Explicit `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` values are unchanged.
+- Spans and logs from a worker that bootstraps from a service key carry the project, deployment and worker IDs from worker discovery, and the workspace ID from the runtime token. Before, telemetry started before discovery, so these attributes were empty and the platform could not attribute the spans to the run. `AGNT5_WORKSPACE_ID` and `WithWorkspaceID` still take precedence.
+
 ## [0.12.0] - 2026-11-20
 
 ### Security

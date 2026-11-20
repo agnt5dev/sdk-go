@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -201,6 +202,36 @@ func connectExternalWorker(ctx context.Context, config externalWorkerBootstrapCo
 	return session, nil
 }
 
+// workspaceID returns the workspace the control plane signed into the runtime
+// token. Discovery does not return it, and the platform only shows a trace to
+// members of a workspace named on its spans. The signature is not checked
+// here: the runtime verifies the token, and this value only labels the
+// worker's own telemetry.
+func (s *externalWorkerSession) workspaceID() string {
+	s.mu.Lock()
+	token := s.token
+	s.mu.Unlock()
+	return workloadTokenWorkspaceID(token)
+}
+
+func workloadTokenWorkspaceID(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		WorkspaceID string `json:"workspace_id"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(claims.WorkspaceID)
+}
+
 // GetRequestMetadata implements credentials.PerRPCCredentials. The bootstrap
 // key remains on the customer host; only the short-lived runtime token is sent
 // on gRPC calls.
@@ -383,6 +414,9 @@ func (w *Worker) configureExternalWorker(ctx context.Context) error {
 	w.engineEndpoint = session.connection.RuntimeEndpoint
 	w.projectID = session.connection.ProjectID
 	w.deploymentID = session.connection.DeploymentID
+	if w.workspaceID == "" {
+		w.workspaceID = session.workspaceID()
+	}
 	w.workerMode = WorkerModePull
 	w.grpcDialOptions = append(w.grpcDialOptions, grpc.WithPerRPCCredentials(session))
 	if session.identity != nil {

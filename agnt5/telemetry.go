@@ -19,7 +19,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const defaultOTLPLogsEndpoint = "grpc.agnt5.com:3418"
+// defaultOTLPEndpoint is AGNT5's OTLP ingest. It is the same plaintext gRPC
+// endpoint the Python and TypeScript SDKs export to, so a worker with no OTLP
+// configuration, such as one self-hosted outside AGNT5, still reaches it.
+const defaultOTLPEndpoint = "grpc.agnt5.com:3418"
 
 // telemetry owns the OTLP log and trace pipelines for a worker. It is intentionally
 // best-effort: journal events remain the durable source of truth.
@@ -40,10 +43,14 @@ func (w *Worker) initializeTelemetry(ctx context.Context) {
 	}
 	w.telemetryInitialized = true
 
+	defaultEndpoint := w.defaultOTLPEndpoint
+	if defaultEndpoint == "" {
+		defaultEndpoint = defaultOTLPEndpoint
+	}
 	exporterOptions := []otlploggrpc.Option{}
 	if !otlpEndpointConfigured() {
 		exporterOptions = append(exporterOptions,
-			otlploggrpc.WithEndpoint(defaultOTLPLogsEndpoint),
+			otlploggrpc.WithEndpoint(defaultEndpoint),
 			otlploggrpc.WithInsecure(),
 		)
 	}
@@ -51,11 +58,21 @@ func (w *Worker) initializeTelemetry(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	if os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") == "" && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OTEL_TRACES_EXPORTER")), "none") {
 		w.telemetry = newTelemetry(w, exporter)
 		return
 	}
-	traceExporter, traceErr := otlptracegrpc.New(ctx)
+	// Traces fall back to the same endpoint as logs. Skipping them when no
+	// endpoint was set left self-hosted workers with logs but no spans, while
+	// the Python and TypeScript SDKs export both by default.
+	traceOptions := []otlptracegrpc.Option{}
+	if !otlpTraceEndpointConfigured() {
+		traceOptions = append(traceOptions,
+			otlptracegrpc.WithEndpoint(defaultEndpoint),
+			otlptracegrpc.WithInsecure(),
+		)
+	}
+	traceExporter, traceErr := otlptracegrpc.New(ctx, traceOptions...)
 	if traceErr != nil {
 		w.telemetry = newTelemetry(w, exporter)
 		return
@@ -219,5 +236,10 @@ func toString(value any) string {
 
 func otlpEndpointConfigured() bool {
 	return os.Getenv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT") != "" ||
+		os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != ""
+}
+
+func otlpTraceEndpointConfigured() bool {
+	return os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" ||
 		os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != ""
 }
