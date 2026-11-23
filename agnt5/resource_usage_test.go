@@ -124,14 +124,59 @@ func TestResourceSamplerCPUReadsCgroupV1AndIsUnknownWithoutACgroup(t *testing.T)
 	}
 }
 
+func TestResourceSamplerCPUReadsACombinedCgroupV1MountWithoutLinks(t *testing.T) {
+	root := t.TempDir()
+	writeCgroupFile(t, root, "cpu,cpuacct/cpu.cfs_quota_us", "50000\n")
+	writeCgroupFile(t, root, "cpu,cpuacct/cpu.cfs_period_us", "100000\n")
+	writeCgroupFile(t, root, "cpu,cpuacct/cpuacct.usage", "0\n")
+	sampler := &resourceSampler{root: root}
+	start := time.Now()
+	sampler.cpuUsage(start)
+	// A quarter CPU-second in one second, on a half-core quota.
+	writeCgroupFile(t, root, "cpu,cpuacct/cpuacct.usage", "250000000\n")
+	if got := sampler.cpuUsage(start.Add(time.Second)); got != 0.5 {
+		t.Fatalf("combined cgroup v1 CPU usage = %v, want 0.5", got)
+	}
+}
+
+func TestOwnCgroupDirFindsAHostProcessesNestedCgroup(t *testing.T) {
+	root := t.TempDir()
+	membership := filepath.Join(t.TempDir(), "cgroup")
+	if got := ownCgroupDir(root, membership); got != root {
+		t.Fatalf("without a membership file = %q, want the root", got)
+	}
+
+	// A container with its own cgroup namespace sits at the root.
+	writeCgroupFile(t, filepath.Dir(membership), "cgroup", "0::/\n")
+	if got := ownCgroupDir(root, membership); got != root {
+		t.Fatalf("in its own namespace = %q, want the root", got)
+	}
+
+	// A container whose cgroup is mounted at the root names a path that
+	// isn't under it.
+	writeCgroupFile(t, filepath.Dir(membership), "cgroup", "0::/kubepods.slice/pod-1/worker\n")
+	if got := ownCgroupDir(root, membership); got != root {
+		t.Fatalf("with its cgroup mounted at the root = %q, want the root", got)
+	}
+
+	// A systemd service on a host.
+	writeCgroupFile(t, root, "system.slice/worker.service/cgroup.controllers", "cpu memory\n")
+	writeCgroupFile(t, filepath.Dir(membership), "cgroup", "0::/system.slice/worker.service\n")
+	want := filepath.Join(root, "system.slice", "worker.service")
+	if got := ownCgroupDir(root, membership); got != want {
+		t.Fatalf("on a host = %q, want %q", got, want)
+	}
+}
+
 func TestReportPullCapacityCarriesTheContainersMemoryUse(t *testing.T) {
 	root := t.TempDir()
 	writeCgroupFile(t, root, "memory.max", "1073741824\n")
 	writeCgroupFile(t, root, "memory.current", "805306368\n")
 	writeCgroupFile(t, root, "memory.stat", "inactive_file 268435456\n")
-	previousRoot := cgroupRoot
+	previousRoot, previousMembership := cgroupRoot, cgroupMembership
 	cgroupRoot = root
-	t.Cleanup(func() { cgroupRoot = previousRoot })
+	cgroupMembership = filepath.Join(root, "no-membership")
+	t.Cleanup(func() { cgroupRoot, cgroupMembership = previousRoot, previousMembership })
 
 	server := &testEngine{capacity: make(chan *pb.ReportWorkerCapacityRequest, 1)}
 	client := newTestEngineClient(t, server)

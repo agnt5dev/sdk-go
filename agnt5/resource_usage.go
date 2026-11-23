@@ -19,12 +19,20 @@ import (
 // cgroup, v2 first and then v1. Off Linux, outside a cgroup, or with no limit
 // set it reads as 0, which the runtime treats as unknown.
 
-// cgroupRoot is where the container's cgroup is mounted; tests point it at a
-// fake tree.
-var cgroupRoot = "/sys/fs/cgroup"
+// cgroupRoot is where the cgroup hierarchy is mounted, and cgroupMembership
+// names the cgroups the process belongs to; tests point them at a fake tree.
+var (
+	cgroupRoot       = "/sys/fs/cgroup"
+	cgroupMembership = "/proc/self/cgroup"
+)
 
 // cgroup v1 reports an unset memory limit as a page-aligned math.MaxInt64.
 const cgroupV1UnlimitedBytes = uint64(1) << 60
+
+// cgroup v1 usually mounts the cpu and cpuacct controllers together.
+// Container runtimes link cpu and cpuacct to the combined directory, but not
+// every host does, so it is read directly when they are missing.
+const cgroupV1CombinedCPUDir = "cpu,cpuacct"
 
 // resourceSampler samples the container's resource use between capacity
 // reports. CPU use is a rate, so each sample measures from the one before it.
@@ -36,7 +44,31 @@ type resourceSampler struct {
 }
 
 func newResourceSampler() *resourceSampler {
-	return &resourceSampler{root: cgroupRoot}
+	return &resourceSampler{root: ownCgroupDir(cgroupRoot, cgroupMembership)}
+}
+
+// ownCgroupDir is the process's own cgroup v2 directory under root. A worker
+// running on a host, under systemd say, sits in a nested cgroup that its
+// membership file names. In a container the named path is "/" (its own cgroup
+// namespace) or isn't under root (its cgroup mounted there), and root itself
+// is the container's cgroup.
+func ownCgroupDir(root, membership string) string {
+	raw, err := os.ReadFile(membership)
+	if err != nil {
+		return root
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		path, found := strings.CutPrefix(strings.TrimSpace(line), "0::")
+		path = strings.Trim(path, "/")
+		if !found || path == "" {
+			continue
+		}
+		dir := filepath.Join(root, path)
+		if _, err := os.Stat(filepath.Join(dir, "cgroup.controllers")); err == nil {
+			return dir
+		}
+	}
+	return root
 }
 
 // memoryUsage is memory in use over the container's memory limit, in [0, 1].
@@ -90,8 +122,12 @@ func (s *resourceSampler) cpuUsageMicros() (uint64, bool) {
 	if usage, ok := readCgroupStat(filepath.Join(s.root, "cpu.stat"), "usage_usec"); ok {
 		return usage, true
 	}
-	nanos, ok := readCgroupUint(filepath.Join(s.root, "cpuacct", "cpuacct.usage"))
-	return nanos / 1000, ok
+	for _, dir := range []string{"cpuacct", cgroupV1CombinedCPUDir} {
+		if nanos, ok := readCgroupUint(filepath.Join(s.root, dir, "cpuacct.usage")); ok {
+			return nanos / 1000, true
+		}
+	}
+	return 0, false
 }
 
 // cpuLimitCores is the cores the container may use: its CPU quota, or every
@@ -107,10 +143,16 @@ func (s *resourceSampler) cpuLimitCores() float64 {
 			}
 		}
 	}
-	quota, quotaOK := readCgroupFloat(filepath.Join(s.root, "cpu", "cpu.cfs_quota_us"))
-	period, periodOK := readCgroupFloat(filepath.Join(s.root, "cpu", "cpu.cfs_period_us"))
-	if quotaOK && periodOK && quota > 0 && period > 0 {
-		return quota / period
+	for _, dir := range []string{"cpu", cgroupV1CombinedCPUDir} {
+		quota, quotaOK := readCgroupFloat(filepath.Join(s.root, dir, "cpu.cfs_quota_us"))
+		period, periodOK := readCgroupFloat(filepath.Join(s.root, dir, "cpu.cfs_period_us"))
+		if !quotaOK || !periodOK {
+			continue
+		}
+		if quota > 0 && period > 0 {
+			return quota / period
+		}
+		break
 	}
 	return float64(runtime.NumCPU())
 }
