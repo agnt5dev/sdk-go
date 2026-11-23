@@ -7,6 +7,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+
+- Pull workers report their CPU and memory use to the runtime. Capacity reports left both at 0, so the runtime's check that stops adding slots to a worker at its CPU or memory target never fired, and a worker close to its memory limit kept taking more runs, any one of which could get the worker, and every run on it, killed. Each report now carries the container's memory working set (usage less reclaimable page cache) over its memory limit and its CPU time since the last report over its CPU quota, both read from the container's cgroup (v2, then v1). Without a cgroup or a limit, as on macOS or in an unlimited container, they stay 0, which the runtime treats as unknown.
+
 ## [0.12.1] - 2026-11-20
 
 ### Fixed

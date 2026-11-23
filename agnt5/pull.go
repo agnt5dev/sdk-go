@@ -740,6 +740,9 @@ func (w *Worker) startLeaseRenewal(ctx context.Context, client pb.EngineServiceC
 
 func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineServiceClient, sessionID string, config pullSlotConfig, openPollSlots, activeSlots, desiredSlots *atomic.Uint32, reportEvery time.Duration, sessionFailures chan<- error) {
 	consecutiveSessionRejects := 0
+	// One sampler for the reporter's life: CPU use is measured from one
+	// report to the next.
+	resources := newResourceSampler()
 	report := func() bool {
 		w.coreMetrics.configured(config.maxSlots)
 		_, err := client.ReportWorkerCapacity(ctx, &pb.ReportWorkerCapacityRequest{
@@ -749,6 +752,8 @@ func (w *Worker) reportPullCapacity(ctx context.Context, client pb.EngineService
 			ActiveSlots:       activeSlots.Load(),
 			DesiredSlots:      desiredSlots.Load(),
 			EffectiveMaxSlots: config.maxSlots,
+			CpuUsage:          resources.cpuUsage(time.Now()),
+			MemoryUsage:       resources.memoryUsage(),
 			ObservedAtMs:      time.Now().UnixMilli(),
 		})
 		if err == nil {
